@@ -139,7 +139,7 @@ const publicScan = async (req, res) => {
     ticket.status     = 'usado';
     ticket.scanned_at = new Date().toISOString();
 
-    res.json({ valid: true, message: '✅ Entrada válida. ¡Bienvenido!', ticket });
+    res.json({ valid: true, message: 'Entrada valida. Bienvenido', ticket });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error al escanear' });

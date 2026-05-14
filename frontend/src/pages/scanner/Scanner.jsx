@@ -83,9 +83,54 @@ const Scanner = () => {
     return () => scanner.clear().catch(() => {});
   }, [typeSel]);
 
-  const copyLink = () => {
-    const url = window.location.origin + window.location.pathname + window.location.search;
+  const [tokens, setTokens] = useState([]);
+  const [creatingLink, setCreatingLink] = useState(false);
+
+  const loadTokens = (evId) => {
+    if (!evId) { setTokens([]); return; }
+    api.get(`/scanner-tokens?event_id=${evId}`).then(r => setTokens(r.data)).catch(() => {});
+  };
+
+  useEffect(() => { loadTokens(eventSel); }, [eventSel]);
+
+  const createPublicLink = async () => {
+    if (!eventSel || !typeSel) {
+      return toast.error('Elegi evento y tipo de entrada para generar el link');
+    }
+    setCreatingLink(true);
+    try {
+      const selType = ticketTypes.find(t => t.id === typeSel);
+      const selEv   = events.find(e => e.id === eventSel);
+      const res = await api.post('/scanner-tokens', {
+        event_id: eventSel,
+        ticket_type_id: typeSel,
+        label: `${selEv?.name || ''} — ${selType?.name || ''}`,
+      });
+      const url = `${window.location.origin}/scan/${res.data.token}`;
+      await navigator.clipboard.writeText(url);
+      toast.success('Link copiado — listo para compartir');
+      loadTokens(eventSel);
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Error al crear link');
+    } finally {
+      setCreatingLink(false);
+    }
+  };
+
+  const copyExisting = (token) => {
+    const url = `${window.location.origin}/scan/${token}`;
     navigator.clipboard.writeText(url).then(() => toast.success('Link copiado'));
+  };
+
+  const deleteToken = async (id) => {
+    if (!confirm('Desactivar este link? El portero no va a poder escanear mas con el.')) return;
+    try {
+      await api.delete(`/scanner-tokens/${id}`);
+      toast.success('Link desactivado');
+      loadTokens(eventSel);
+    } catch {
+      toast.error('Error al desactivar');
+    }
   };
 
   const ticket = result?.data?.ticket;
@@ -122,26 +167,59 @@ const Scanner = () => {
             </div>
           </div>
 
-          {/* Indicador activo + botón copiar */}
-          <div className="flex items-center justify-between pt-1">
-            <div className="text-sm">
-              {typeSel ? (
-                <span className="font-medium" style={{ color: '#C9974D' }}>
-                  Modo: solo &ldquo;{selectedType?.name}&rdquo;
-                </span>
-              ) : eventSel ? (
-                <span className="text-gray-400">Modo: todos los tipos del evento</span>
-              ) : (
-                <span className="text-gray-600">Sin filtro — acepta cualquier entrada</span>
-              )}
-            </div>
+          {/* Indicador del modo */}
+          <div className="text-sm pt-1">
+            {typeSel ? (
+              <span className="font-medium" style={{ color: '#C9974D' }}>
+                Modo: solo &ldquo;{selectedType?.name}&rdquo;
+              </span>
+            ) : eventSel ? (
+              <span className="text-gray-400">Modo: todos los tipos del evento</span>
+            ) : (
+              <span className="text-gray-600">Sin filtro — acepta cualquier entrada</span>
+            )}
+          </div>
+
+          {/* Generar link compartible (publico, sin login) */}
+          <div className="pt-3 border-t border-gray-800 space-y-2">
+            <p className="text-xs uppercase tracking-widest font-semibold" style={{ color: '#6B7280' }}>
+              Link compartible para portero
+            </p>
+            <p className="text-xs" style={{ color: '#4B5563' }}>
+              Genera un link publico que el portero puede abrir desde su celular sin login. Validara solo entradas del tipo seleccionado.
+            </p>
             <button
-              onClick={copyLink}
-              disabled={!eventSel && !typeSel}
-              className="btn-secondary text-xs px-3 py-1.5 disabled:opacity-30"
+              onClick={createPublicLink}
+              disabled={!eventSel || !typeSel || creatingLink}
+              className="btn-primary w-full text-sm py-2 disabled:opacity-30"
             >
-              Copiar link
+              {creatingLink ? 'Generando...' : 'Generar y copiar link para portero'}
             </button>
+
+            {/* Links existentes */}
+            {tokens.length > 0 && (
+              <div className="space-y-1.5 mt-3">
+                <p className="text-xs" style={{ color: '#6B7280' }}>Links activos de este evento:</p>
+                {tokens.map(tk => (
+                  <div key={tk.id} className="flex items-center gap-2 rounded-lg p-2 text-xs"
+                       style={{ background: '#0D1117', border: '1px solid #1E2530' }}>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{tk.label || tk.ticket_type_name}</p>
+                      <p className="font-mono truncate" style={{ color: '#6B7280' }}>/scan/{tk.token.substring(0, 8)}...</p>
+                    </div>
+                    <button onClick={() => copyExisting(tk.token)}
+                            className="px-2 py-1 rounded text-xs hover:bg-gray-800"
+                            style={{ color: '#C9974D' }}>
+                      Copiar
+                    </button>
+                    <button onClick={() => deleteToken(tk.id)}
+                            className="px-2 py-1 rounded text-xs text-red-400 hover:bg-red-900/20">
+                      Desactivar
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
