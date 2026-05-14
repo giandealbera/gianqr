@@ -19,8 +19,9 @@ const Users = () => {
   const [showForm,    setShowForm]    = useState(false);
   const [form,        setForm]        = useState(emptyForm);
   const [saving,      setSaving]      = useState(false);
-  const [editCommId,  setEditCommId]  = useState(null); // id del usuario editando comisión
+  const [editCommId,  setEditCommId]  = useState(null);
   const [commForm,    setCommForm]    = useState({ commission: 800, leader_commission: 400 });
+  const [editRoleId,  setEditRoleId]  = useState(null); // id del usuario cambiando rol
 
   const jefes = users.filter(u => (u.role === 'jefe_publicas' || u.role === 'promotor') && u.is_active);
 
@@ -55,6 +56,17 @@ const Users = () => {
       load();
     } catch {
       toast.error('Error al actualizar usuario');
+    }
+  };
+
+  const changeRole = async (u, newRole) => {
+    try {
+      await api.put(`/users/${u.id}`, { ...u, role: newRole });
+      toast.success(`Rol cambiado a ${ROLE_LABELS[newRole] || newRole}`);
+      setEditRoleId(null);
+      load();
+    } catch {
+      toast.error('Error al cambiar rol');
     }
   };
 
@@ -101,8 +113,8 @@ const Users = () => {
                   onChange={e => setForm(f => ({ ...f, apellido: e.target.value }))} />
               </div>
               <div>
-                <label className="text-sm text-gray-400 block mb-1">Email *</label>
-                <input type="email" className="input" required value={form.email}
+                <label className="text-sm text-gray-400 block mb-1">Usuario *</label>
+                <input type="text" className="input" required value={form.email}
                   onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
               </div>
               <div>
@@ -168,76 +180,94 @@ const Users = () => {
           </form>
         )}
 
-        <div className="card overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-gray-400 border-b border-gray-800">
-                <th className="text-left pb-3">Nombre</th>
-                <th className="text-left pb-3 hidden sm:table-cell">Contacto</th>
-                <th className="text-left pb-3">Rol</th>
-                <th className="text-left pb-3 hidden md:table-cell">Código</th>
-                <th className="text-left pb-3 hidden md:table-cell">Jefe</th>
-                <th className="text-left pb-3">Estado</th>
-                <th className="text-right pb-3">Acción</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-800">
-              {users.map(u => (
-                <tr key={u.id} className="hover:bg-gray-800/40">
-                  <td className="py-3">
-                    <p className="font-medium">{u.name} {u.apellido || ''}</p>
-                    {u.localidad && <p className="text-xs text-gray-500">{u.localidad}</p>}
-                  </td>
-                  <td className="py-3 text-gray-400 hidden sm:table-cell">
-                    <p>{u.email}</p>
-                    {u.celular && <p className="text-xs text-gray-500">{u.celular}</p>}
-                  </td>
-                  <td className="py-3">{ROLE_LABELS[u.role] || u.role}</td>
-                  <td className="py-3 text-gray-400 font-mono text-xs hidden md:table-cell">{u.promo_code || '—'}</td>
-                  <td className="py-3 text-gray-400 text-xs hidden md:table-cell">{u.leader_name || '—'}</td>
-                  <td className="py-3">
-                    <span className={u.is_active ? 'badge-pagado' : 'badge-cancelado'}>
+        <div className="space-y-3">
+          {users.map(u => (
+            <div key={u.id} className="card">
+              <div className="flex items-start justify-between gap-3">
+                {/* Info */}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-semibold">{u.name} {u.apellido || ''}</p>
+                    <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
+                      u.is_active ? 'bg-emerald-900/40 text-emerald-400' : 'bg-gray-700 text-gray-400'
+                    }`}>
                       {u.is_active ? 'Activo' : 'Inactivo'}
                     </span>
-                  </td>
-                  <td className="py-3 text-right">
-                    <div className="flex items-center justify-end gap-3">
-                      {PUBLICAS_ROLES.includes(u.role) && (
-                        <button onClick={() => editCommId === u.id ? setEditCommId(null) : openEditComm(u)}
-                          className="text-xs text-blue-400 hover:text-blue-200 transition-colors">
-                          {editCommId === u.id ? 'Cancelar' : '$ Comisión'}
-                        </button>
-                      )}
-                      <button onClick={() => toggleActive(u)}
-                        className="text-xs text-gray-400 hover:text-white transition-colors">
-                        {u.is_active ? 'Desactivar' : 'Activar'}
-                      </button>
+                  </div>
+                  <p className="text-sm text-gray-400 mt-0.5">{u.email}{u.celular ? ` · ${u.celular}` : ''}</p>
+                  {u.localidad && <p className="text-xs text-gray-500">{u.localidad}</p>}
+                  {u.promo_code && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Código: <span className="font-mono text-gray-300">{u.promo_code}</span>
+                      {u.leader_name && <span> · Jefe: {u.leader_name}</span>}
+                    </p>
+                  )}
+                </div>
+
+                {/* Rol + acciones */}
+                <div className="shrink-0 text-right">
+                  {/* Rol editable */}
+                  {editRoleId === u.id ? (
+                    <div className="flex items-center gap-2 mb-2">
+                      <select
+                        defaultValue={u.role}
+                        onChange={e => changeRole(u, e.target.value)}
+                        className="input text-xs py-1 w-40"
+                      >
+                        {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                      </select>
+                      <button onClick={() => setEditRoleId(null)} className="text-xs text-gray-500 hover:text-white">✕</button>
                     </div>
-                    {editCommId === u.id && (
-                      <div className="mt-2 p-3 bg-gray-800 rounded-xl text-left space-y-2">
-                        <div>
-                          <label className="text-[10px] text-gray-400 uppercase block mb-1">Comisión propia ($ x entrada)</label>
-                          <input type="number" className="input text-sm py-1" min="0"
-                            value={commForm.commission}
-                            onChange={e => setCommForm(f => ({ ...f, commission: parseFloat(e.target.value) }))} />
-                        </div>
-                        <div>
-                          <label className="text-[10px] text-gray-400 uppercase block mb-1">Comisión jefe ($ x entrada)</label>
-                          <input type="number" className="input text-sm py-1" min="0"
-                            value={commForm.leader_commission}
-                            onChange={e => setCommForm(f => ({ ...f, leader_commission: parseFloat(e.target.value) }))} />
-                        </div>
-                        <button onClick={() => saveCommission(u.id)}
-                          className="w-full btn-primary text-xs py-1.5">
-                          Guardar
-                        </button>
-                      </div>
+                  ) : (
+                    <button
+                      onClick={() => { setEditRoleId(u.id); setEditCommId(null); }}
+                      className="text-xs bg-gray-800 hover:bg-gray-700 px-2 py-1 rounded-lg mb-2 transition-colors"
+                      title="Cambiar rol"
+                    >
+                      {ROLE_LABELS[u.role] || u.role} ✎
+                    </button>
+                  )}
+
+                  {/* Acciones */}
+                  <div className="flex items-center justify-end gap-2">
+                    {PUBLICAS_ROLES.includes(u.role) && (
+                      <button onClick={() => editCommId === u.id ? setEditCommId(null) : openEditComm(u)}
+                        className="text-xs text-blue-400 hover:text-blue-200 transition-colors">
+                        {editCommId === u.id ? 'Cancelar' : '$ Comisión'}
+                      </button>
                     )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    <button onClick={() => toggleActive(u)}
+                      className="text-xs text-gray-400 hover:text-white transition-colors">
+                      {u.is_active ? 'Desactivar' : 'Activar'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Editor de comisión */}
+              {editCommId === u.id && (
+                <div className="mt-3 pt-3 border-t border-gray-800 grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] text-gray-400 uppercase block mb-1">Comisión propia ($ x entrada)</label>
+                    <input type="number" className="input text-sm py-1" min="0"
+                      value={commForm.commission}
+                      onChange={e => setCommForm(f => ({ ...f, commission: parseFloat(e.target.value) }))} />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-gray-400 uppercase block mb-1">Comisión jefe ($ x entrada)</label>
+                    <input type="number" className="input text-sm py-1" min="0"
+                      value={commForm.leader_commission}
+                      onChange={e => setCommForm(f => ({ ...f, leader_commission: parseFloat(e.target.value) }))} />
+                  </div>
+                  <div className="col-span-2">
+                    <button onClick={() => saveCommission(u.id)} className="btn-primary text-xs py-1.5 w-full">
+                      Guardar comisión
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       </div>
     </Layout>
