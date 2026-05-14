@@ -14,6 +14,7 @@ const PromoterDashboard = () => {
   const [showTeamForm, setShowTeamForm] = useState(false);
   const [memberForm,   setMemberForm]   = useState(emptyMember);
   const [saving,       setSaving]       = useState(false);
+  const [createdMember, setCreatedMember] = useState(null); // credenciales a compartir
 
   const loadTeam = () => {
     if (user?.role === 'jefe_publicas') {
@@ -34,7 +35,14 @@ const PromoterDashboard = () => {
     setSaving(true);
     try {
       await api.post('/users/team', memberForm);
-      toast.success('Vendedor agregado');
+      toast.success('Vendedor creado');
+      // guardar credenciales para mostrarlas
+      setCreatedMember({
+        name:     memberForm.name,
+        apellido: memberForm.apellido,
+        usuario:  memberForm.email,
+        password: memberForm.password,
+      });
       setShowTeamForm(false);
       setMemberForm(emptyMember);
       loadTeam();
@@ -43,6 +51,12 @@ const PromoterDashboard = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const copyCredenciales = () => {
+    if (!createdMember) return;
+    const txt = `GianQR - Acceso de vendedor\n\nNombre: ${createdMember.name} ${createdMember.apellido || ''}\nUsuario: ${createdMember.usuario}\nContrasena: ${createdMember.password}\n\nIngresa en: ${window.location.origin}/login`;
+    navigator.clipboard.writeText(txt).then(() => toast.success('Credenciales copiadas'));
   };
 
   const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n || 0);
@@ -102,10 +116,51 @@ const PromoterDashboard = () => {
                 <div className="card">
                   <div className="flex items-center justify-between mb-4">
                     <h4 className="font-semibold text-sm">Vendedores ({team.length})</h4>
-                    <button onClick={() => setShowTeamForm(!showTeamForm)} className="btn-primary text-xs py-1.5 px-3">
+                    <button onClick={() => { setShowTeamForm(!showTeamForm); setCreatedMember(null); }} className="btn-primary text-xs py-1.5 px-3">
                       {showTeamForm ? 'Cancelar' : '+ Agregar'}
                     </button>
                   </div>
+
+                  {/* Credenciales del vendedor recien creado */}
+                  {createdMember && (
+                    <div className="mb-4 rounded-xl p-4 space-y-3"
+                         style={{ background: 'rgba(201,151,77,0.08)', border: '1px solid rgba(201,151,77,0.3)' }}>
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+                             style={{ background: 'rgba(52,211,153,0.15)' }}>
+                          <svg className="w-5 h-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-sm">Vendedor creado</p>
+                          <p className="text-xs" style={{ color: '#6B7280' }}>
+                            Pasale estas credenciales a {createdMember.name} para que pueda entrar
+                          </p>
+                        </div>
+                        <button onClick={() => setCreatedMember(null)}
+                                className="text-gray-500 hover:text-white text-lg leading-none">×</button>
+                      </div>
+
+                      <div className="space-y-2 rounded-lg p-3" style={{ background: '#0D1117', border: '1px solid #1E2530' }}>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs uppercase tracking-wider" style={{ color: '#6B7280' }}>Usuario</span>
+                          <span className="font-mono text-sm" style={{ color: '#C9974D' }}>{createdMember.usuario}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-800">
+                          <span className="text-xs uppercase tracking-wider" style={{ color: '#6B7280' }}>Contrasena</span>
+                          <span className="font-mono text-sm" style={{ color: '#C9974D' }}>{createdMember.password}</span>
+                        </div>
+                      </div>
+
+                      <button onClick={copyCredenciales} className="btn-primary w-full text-sm py-2">
+                        Copiar credenciales para compartir
+                      </button>
+                      <p className="text-[10px] text-center" style={{ color: '#4B5563' }}>
+                        Por seguridad, esta es la unica vez que vas a ver la contrasena
+                      </p>
+                    </div>
+                  )}
 
                   {showTeamForm && (
                     <form onSubmit={handleAddMember} className="mb-4 p-4 bg-slate-800/50 rounded-xl space-y-3">

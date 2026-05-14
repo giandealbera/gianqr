@@ -22,6 +22,7 @@ const Users = () => {
   const [editCommId,  setEditCommId]  = useState(null);
   const [commForm,    setCommForm]    = useState({ commission: 800, leader_commission: 400 });
   const [editRoleId,  setEditRoleId]  = useState(null); // id del usuario cambiando rol
+  const [createdUser, setCreatedUser] = useState(null);
 
   const jefes = users.filter(u => (u.role === 'jefe_publicas' || u.role === 'promotor') && u.is_active);
 
@@ -33,7 +34,14 @@ const Users = () => {
     setSaving(true);
     try {
       await api.post('/users', form);
-      toast.success('Usuario creado!');
+      toast.success('Usuario creado');
+      setCreatedUser({
+        name:     form.name,
+        apellido: form.apellido,
+        role:     form.role,
+        usuario:  form.email,
+        password: form.password,
+      });
       setShowForm(false);
       setForm(emptyForm);
       load();
@@ -42,6 +50,12 @@ const Users = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const copyCreds = () => {
+    if (!createdUser) return;
+    const txt = `GianQR - Acceso\n\nNombre: ${createdUser.name} ${createdUser.apellido || ''}\nRol: ${ROLE_LABELS[createdUser.role] || createdUser.role}\nUsuario: ${createdUser.usuario}\nContrasena: ${createdUser.password}\n\nIngresa en: ${window.location.origin}/login`;
+    navigator.clipboard.writeText(txt).then(() => toast.success('Credenciales copiadas'));
   };
 
   const toggleActive = async (u) => {
@@ -93,10 +107,51 @@ const Users = () => {
       <div className="px-4 lg:px-8 py-6 max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold">Usuarios</h1>
-          <button onClick={() => setShowForm(!showForm)} className="btn-primary">
+          <button onClick={() => { setShowForm(!showForm); setCreatedUser(null); }} className="btn-primary">
             {showForm ? 'Cancelar' : '+ Nuevo usuario'}
           </button>
         </div>
+
+        {/* Credenciales del usuario recien creado */}
+        {createdUser && (
+          <div className="mb-6 rounded-xl p-4 space-y-3"
+               style={{ background: 'rgba(201,151,77,0.08)', border: '1px solid rgba(201,151,77,0.3)' }}>
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+                   style={{ background: 'rgba(52,211,153,0.15)' }}>
+                <svg className="w-5 h-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-sm">{ROLE_LABELS[createdUser.role] || createdUser.role} creado</p>
+                <p className="text-xs" style={{ color: '#6B7280' }}>
+                  Pasale estas credenciales a {createdUser.name} para que pueda entrar al sistema
+                </p>
+              </div>
+              <button onClick={() => setCreatedUser(null)}
+                      className="text-gray-500 hover:text-white text-lg leading-none">×</button>
+            </div>
+
+            <div className="space-y-2 rounded-lg p-3" style={{ background: '#0D1117', border: '1px solid #1E2530' }}>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs uppercase tracking-wider" style={{ color: '#6B7280' }}>Usuario</span>
+                <span className="font-mono text-sm" style={{ color: '#C9974D' }}>{createdUser.usuario}</span>
+              </div>
+              <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-800">
+                <span className="text-xs uppercase tracking-wider" style={{ color: '#6B7280' }}>Contrasena</span>
+                <span className="font-mono text-sm" style={{ color: '#C9974D' }}>{createdUser.password}</span>
+              </div>
+            </div>
+
+            <button onClick={copyCreds} className="btn-primary w-full text-sm py-2">
+              Copiar credenciales para compartir
+            </button>
+            <p className="text-[10px] text-center" style={{ color: '#4B5563' }}>
+              Por seguridad, esta es la unica vez que vas a ver la contrasena
+            </p>
+          </div>
+        )}
 
         {showForm && (
           <form onSubmit={handleSubmit} className="card mb-8 space-y-4">
