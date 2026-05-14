@@ -10,16 +10,34 @@ const db = require('./config/database');
 
 async function seed() {
   try {
-    // Verificar si ya existe el admin
-    const existing = await db.query("SELECT id FROM users WHERE email = 'admin@gianqr.com'");
-    if (existing.rows.length > 0) return; // ya seedeado
+    // Crear/actualizar admin
+    const existingAdmin = await db.query("SELECT id FROM users WHERE email = 'admin'");
+    if (existingAdmin.rows.length === 0) {
+      // Borrar admin viejo si existe
+      await db.query("DELETE FROM users WHERE email = 'admin@gianqr.com'");
+      const hash = await bcrypt.hash('admin123', 10);
+      await db.query(
+        "INSERT INTO users (id, name, email, password_hash, role) VALUES (?,?,?,?,?)",
+        [uuidv4(), 'Administrador', 'admin', hash, 'admin']
+      );
+      console.log('✅ Admin creado: admin / admin123');
+    }
 
-    // Crear admin
-    const hash = await bcrypt.hash('Admin1234!', 10);
-    await db.query(
-      "INSERT INTO users (id, name, email, password_hash, role) VALUES (?,?,?,?,?)",
-      [uuidv4(), 'Administrador', 'admin@gianqr.com', hash, 'admin']
-    );
+    // Crear vendedor de ejemplo si no existe
+    const existingVendedor = await db.query("SELECT id FROM users WHERE email = 'vendedor'");
+    if (existingVendedor.rows.length === 0) {
+      const hashV = await bcrypt.hash('vendedor123', 10);
+      const vendedorId = uuidv4();
+      await db.query(
+        "INSERT INTO users (id, name, email, password_hash, role) VALUES (?,?,?,?,?)",
+        [vendedorId, 'Vendedor', 'vendedor', hashV, 'vendedor']
+      );
+      await db.query(
+        "INSERT OR IGNORE INTO promotors (id, user_id, promo_code, commission, leader_commission) VALUES (?,?,?,?,?)",
+        [uuidv4(), vendedorId, 'VENDEDOR', 800, 400]
+      );
+      console.log('✅ Vendedor creado: vendedor / vendedor123');
+    }
 
     // Crear sala por defecto si no existe
     const venues = await db.query("SELECT id FROM venues LIMIT 1");
@@ -29,8 +47,6 @@ async function seed() {
         [uuidv4(), 'Pista Principal', 500, 'Sala principal del boliche']
       );
     }
-
-    console.log('✅ Seed completado: admin@gianqr.com / Admin1234!');
   } catch (err) {
     console.error('❌ Error en seed:', err.message);
   }

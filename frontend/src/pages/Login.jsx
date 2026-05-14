@@ -44,12 +44,12 @@ const Login = () => {
           <h2 className="text-lg font-semibold text-gray-100">Iniciar sesión</h2>
 
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Email</label>
+            <label className="block text-sm text-gray-400 mb-1">Usuario</label>
             <input
-              type="email"
+              type="text"
               required
               className="input"
-              placeholder="admin@gianqr.com"
+              placeholder="admin"
               value={form.email}
               onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
             />
