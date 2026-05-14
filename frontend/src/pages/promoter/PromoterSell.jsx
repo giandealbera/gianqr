@@ -5,8 +5,8 @@ import Layout from '../../components/Layout';
 import toast from 'react-hot-toast';
 
 const METHODS = [
-  { value: 'efectivo',      label: '💵 Efectivo' },
-  { value: 'transferencia', label: '🏦 Transferencia' },
+  { value: 'efectivo',      label: 'Efectivo' },
+  { value: 'transferencia', label: 'Transferencia' },
 ];
 
 const PromoterSell = () => {

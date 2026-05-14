@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 
-const METHOD_LABEL = { mercadopago: '💳 MercadoPago', efectivo: '💵 Efectivo', transferencia: '🏦 Transferencia' };
+const METHOD_LABEL = { efectivo: 'Efectivo', transferencia: 'Transferencia' };
 
 const Reports = () => {
   const [events,  setEvents]  = useState([]);

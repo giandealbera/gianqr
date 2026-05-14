@@ -6,9 +6,8 @@ import Layout from '../../components/Layout';
 import toast from 'react-hot-toast';
 
 const METHODS = [
-  { value: 'efectivo',      label: '💵 Efectivo' },
-  { value: 'transferencia', label: '🏦 Transferencia' },
-  { value: 'mercadopago',   label: '💳 MercadoPago' },
+  { value: 'efectivo',      label: 'Efectivo' },
+  { value: 'transferencia', label: 'Transferencia' },
 ];
 
 const Cashier = () => {
@@ -178,10 +177,10 @@ const Cashier = () => {
             </div>
 
             {/* Referencia de pago */}
-            {(form.payment_method === 'transferencia' || form.payment_method === 'mercadopago') && (
+            {form.payment_method === 'transferencia' && (
               <div>
                 <label className="text-sm text-gray-400 block mb-1">
-                  {form.payment_method === 'transferencia' ? 'Nro. de transferencia' : 'ID de pago MP'}
+                  Nro. de transferencia
                 </label>
                 <input className="input" value={form.payment_ref}
                   onChange={e => setForm(f => ({ ...f, payment_ref: e.target.value }))} />

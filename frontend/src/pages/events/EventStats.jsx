@@ -4,7 +4,7 @@ import api from '../../api/axios';
 import Layout from '../../components/Layout';
 
 const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n || 0);
-const METHOD_LABEL = { mercadopago: '💳 MercadoPago', efectivo: '💵 Efectivo', transferencia: '🏦 Transferencia' };
+const METHOD_LABEL = { efectivo: 'Efectivo', transferencia: 'Transferencia' };
 
 const EventStats = () => {
   const { id } = useParams();
