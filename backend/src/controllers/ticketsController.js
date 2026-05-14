@@ -162,17 +162,24 @@ const getAll = async (req, res) => {
 
   if (event_id) { where.push('t.event_id = ?'); params.push(event_id); }
   if (status)   { where.push('t.status = ?');   params.push(status); }
-  if (search)   { where.push('(t.buyer_name LIKE ? OR t.buyer_email LIKE ? OR t.qr_code LIKE ?)'); params.push(`%${search}%`, `%${search}%`, `%${search}%`); }
+  if (search)   {
+    where.push('(t.buyer_name LIKE ? OR t.buyer_apellido LIKE ? OR t.buyer_email LIKE ? OR t.buyer_localidad LIKE ? OR t.qr_code LIKE ?)');
+    const q = `%${search}%`;
+    params.push(q, q, q, q, q);
+  }
 
   const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
   try {
     const result = await db.query(
-      `SELECT t.*, tt.name AS tipo_entrada, e.name AS evento, e.date
+      `SELECT t.*, tt.name AS tipo_entrada, e.name AS evento, e.date,
+              pu.name AS vendedor_nombre, p.promo_code AS vendedor_code
        FROM tickets t
        JOIN ticket_types tt ON tt.id = t.ticket_type_id
        JOIN events e ON e.id = t.event_id
+       LEFT JOIN promotors p ON p.id = t.promotor_id
+       LEFT JOIN users pu ON pu.id = p.user_id
        ${whereClause}
-       ORDER BY t.created_at DESC LIMIT 200`,
+       ORDER BY t.created_at DESC LIMIT 1000`,
       params
     );
     res.json(result.rows);
