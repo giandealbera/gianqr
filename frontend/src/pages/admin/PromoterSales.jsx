@@ -71,7 +71,7 @@ const PromoterSales = () => {
           </div>
           <div className="card text-center py-4 border-red-500/30 bg-red-900/10">
             <p className="text-3xl font-black text-red-400">{showMoney ? fmt(totalComisiones) : '$ •••••'}</p>
-            <p className="text-[10px] text-gray-400 uppercase tracking-wider mt-1">Comisiones a pagar</p>
+            <p className="text-[10px] text-gray-400 uppercase tracking-wider mt-1">Total Comisiones (Públicas + Jefes)</p>
           </div>
           <div className="card text-center py-4 border-green-500/30 bg-green-900/10">
             <p className="text-3xl font-black text-green-400">{showMoney ? fmt(totalAEnviar) : '$ •••••'}</p>
@@ -90,11 +90,13 @@ const PromoterSales = () => {
               <thead>
                 <tr className="text-gray-400 border-b border-gray-800">
                   <th className="text-left pb-3 font-medium">Pública (Promotor)</th>
+                  <th className="text-left pb-3 font-medium">Jefe de Ventas</th>
                   <th className="text-center pb-3 font-medium">Comisión</th>
                   <th className="text-center pb-3 font-medium">Vendidas</th>
                   <th className="text-right pb-3 font-medium">Generado</th>
                   <th className="text-right pb-3 font-medium text-red-400">Su ganancia</th>
-                  <th className="text-right pb-3 font-medium text-green-400">Debe rendir</th>
+                  <th className="text-right pb-3 font-medium text-yellow-400">Para el Jefe</th>
+                  <th className="text-right pb-3 font-medium text-green-400">Neto a rendir</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-800">
@@ -104,10 +106,17 @@ const PromoterSales = () => {
                       <p className="font-medium text-white">{s.name}</p>
                       <p className="text-xs text-brand font-mono mt-0.5">{s.promo_code}</p>
                     </td>
-                    <td className="py-4 px-2 text-center text-gray-300">{s.commission}%</td>
+                    <td className="py-4 pr-2 text-gray-400">
+                      {s.leader_name ? s.leader_name : <span className="text-gray-600">—</span>}
+                    </td>
+                    <td className="py-4 px-2 text-center text-gray-300">
+                      ${s.commission}
+                      {s.leader_name && <span className="block text-[10px] text-gray-500">(+${s.leader_commission})</span>}
+                    </td>
                     <td className="py-4 px-2 text-center">{s.total_vendidas}</td>
                     <td className="py-4 pl-2 text-right">{showMoney ? fmt(s.total_recaudado) : '***'}</td>
                     <td className="py-4 pl-2 text-right text-red-400">{showMoney ? fmt(s.comision_promotor) : '***'}</td>
+                    <td className="py-4 pl-2 text-right text-yellow-400">{showMoney ? fmt(s.comision_jefe) : '***'}</td>
                     <td className="py-4 pl-2 text-right font-bold text-green-400">{showMoney ? fmt(s.debe_enviar) : '***'}</td>
                   </tr>
                 ))}

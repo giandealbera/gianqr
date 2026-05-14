@@ -66,11 +66,29 @@ const PromoterDashboard = () => {
               <p className="text-xs text-gray-500 mt-3 flex items-center gap-2">
                 <span>Código: <strong className="text-white">{data.promo_code}</strong></span>
                 <span>·</span>
-                <span>Comisión: <strong className="text-green-400">{data.commission}%</strong></span>
+                <span>Comisión Propia: <strong className="text-green-400">${data.commission} x entrada</strong></span>
               </p>
             </div>
 
+            {/* Team Summary Cards (If Jefe) */}
+            {data.summary?.es_jefe && (
+              <div className="mb-6">
+                <h3 className="font-semibold text-sm mb-3">Resumen de Mi Equipo (Jefe de Ventas)</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="card text-center py-4 border-brand/30 bg-brand/10">
+                    <p className="text-3xl font-black text-white">{data.summary.equipo_vendidas}</p>
+                    <p className="text-[10px] text-gray-400 uppercase tracking-wider mt-1">Vendidas por mi equipo</p>
+                  </div>
+                  <div className="card text-center py-4 border-green-500/30 bg-green-900/10">
+                    <p className="text-3xl font-black text-green-400">{showMoney ? fmt(data.summary.mi_comision_jefe) : '$ •••••'}</p>
+                    <p className="text-[10px] text-gray-400 uppercase tracking-wider mt-1">Mi Ganancia de Equipo</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Summary Cards */}
+            <h3 className="font-semibold text-sm mb-3">Mis Ventas Propias</h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
               <div className="card text-center py-4">
                 <p className="text-3xl font-black text-brand">{data.summary?.total_vendidas || 0}</p>
@@ -121,7 +139,7 @@ const PromoterDashboard = () => {
 
             {/* Recent sales */}
             <div className="card overflow-x-auto">
-              <h2 className="font-semibold mb-4">Últimas Ventas</h2>
+              <h2 className="font-semibold mb-4">Últimas Ventas Propias</h2>
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-gray-400 border-b border-gray-800">

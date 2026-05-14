@@ -9,8 +9,10 @@ const ROLE_LABELS = { admin: '🔑 Admin', cajero: '💵 Cajero', portero: '🚪
 const Users = () => {
   const [users, setUsers] = useState([]);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'cajero', promo_code: '', commission: '' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'cajero', promo_code: '', commission: 800, leader_id: '', leader_commission: 400 });
   const [saving, setSaving] = useState(false);
+
+  const promotors = users.filter(u => u.role === 'promotor' && u.is_active);
 
   const load = () => api.get('/users').then(r => setUsers(r.data));
   useEffect(() => { load(); }, []);
@@ -22,7 +24,7 @@ const Users = () => {
       await api.post('/users', form);
       toast.success('Usuario creado!');
       setShowForm(false);
-      setForm({ name: '', email: '', password: '', role: 'cajero', promo_code: '', commission: '' });
+      setForm({ name: '', email: '', password: '', role: 'cajero', promo_code: '', commission: 800, leader_id: '', leader_commission: 400 });
       load();
     } catch (err) {
       toast.error(err.response?.data?.error || 'Error al crear usuario');
@@ -90,10 +92,25 @@ const Users = () => {
                       onChange={e => setForm(f => ({ ...f, promo_code: e.target.value }))} />
                   </div>
                   <div>
-                    <label className="text-sm text-gray-400 block mb-1">Comisión %</label>
-                    <input type="number" className="input" min="0" max="100" value={form.commission}
+                    <label className="text-sm text-gray-400 block mb-1">Comisión propia ($ por entrada)</label>
+                    <input type="number" className="input" min="0" value={form.commission}
                       onChange={e => setForm(f => ({ ...f, commission: e.target.value }))} />
                   </div>
+                  <div>
+                    <label className="text-sm text-gray-400 block mb-1">Jefe de Ventas (Opcional)</label>
+                    <select className="input" value={form.leader_id}
+                      onChange={e => setForm(f => ({ ...f, leader_id: e.target.value }))}>
+                      <option value="">Ninguno (Es independiente o Jefe)</option>
+                      {promotors.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                  {form.leader_id && (
+                    <div>
+                      <label className="text-sm text-gray-400 block mb-1">Comisión para el Jefe ($)</label>
+                      <input type="number" className="input" min="0" value={form.leader_commission}
+                        onChange={e => setForm(f => ({ ...f, leader_commission: e.target.value }))} />
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -110,7 +127,8 @@ const Users = () => {
                 <th className="text-left pb-3">Nombre</th>
                 <th className="text-left pb-3">Email</th>
                 <th className="text-left pb-3">Rol</th>
-                <th className="text-left pb-3">Código promotor</th>
+                <th className="text-left pb-3">Código</th>
+                <th className="text-left pb-3">Jefe</th>
                 <th className="text-left pb-3">Estado</th>
                 <th className="text-right pb-3">Acción</th>
               </tr>
@@ -122,6 +140,7 @@ const Users = () => {
                   <td className="py-3 text-gray-400">{u.email}</td>
                   <td className="py-3">{ROLE_LABELS[u.role]}</td>
                   <td className="py-3 text-gray-400 font-mono text-xs">{u.promo_code || '—'}</td>
+                  <td className="py-3 text-gray-400 text-xs">{u.leader_name || '—'}</td>
                   <td className="py-3">
                     <span className={u.is_active ? 'badge-pagado' : 'badge-cancelado'}>
                       {u.is_active ? 'Activo' : 'Inactivo'}

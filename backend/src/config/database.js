@@ -126,6 +126,10 @@ const initDb = async () => {
       CREATE INDEX IF NOT EXISTS idx_ticket_types_event  ON ticket_types(event_id);
       CREATE INDEX IF NOT EXISTS idx_payments_ticket     ON payments(ticket_id);
     `);
+
+    // Añadir columnas para Jefes de Grupo y comisiones fijas si no existen
+    try { await dbInstance.exec('ALTER TABLE promotors ADD COLUMN leader_id TEXT REFERENCES users(id) ON DELETE SET NULL'); } catch(e) {}
+    try { await dbInstance.exec('ALTER TABLE promotors ADD COLUMN leader_commission REAL DEFAULT 400.00'); } catch(e) {}
   }
   return dbInstance;
 };
