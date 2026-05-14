@@ -139,10 +139,20 @@ const update = async (req, res) => {
     }
 
     if (PUBLICAS_ROLES.includes(role)) {
-      await db.query(
-        'UPDATE promotors SET commission=?, leader_id=?, leader_commission=? WHERE user_id=?',
-        [commission ?? 800, leader_id || null, leader_commission ?? 400, id]
-      );
+      // Si ya tenia fila en promotors -> UPDATE. Si no -> INSERT (ascenso desde cajero/admin)
+      const existing = await db.query('SELECT id FROM promotors WHERE user_id = ?', [id]);
+      if (existing.rows[0]) {
+        await db.query(
+          'UPDATE promotors SET commission=?, leader_id=?, leader_commission=? WHERE user_id=?',
+          [commission ?? 800, leader_id || null, leader_commission ?? 400, id]
+        );
+      } else {
+        const promoCode = `PROMO${Date.now().toString(36).toUpperCase()}`;
+        await db.query(
+          'INSERT INTO promotors (id, user_id, promo_code, commission, leader_id, leader_commission) VALUES (?,?,?,?,?,?)',
+          [uuidv4(), id, promoCode, commission ?? 800, leader_id || null, leader_commission ?? 400]
+        );
+      }
     }
 
     res.json({ id, name, email, role, is_active });
