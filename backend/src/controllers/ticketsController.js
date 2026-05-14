@@ -93,7 +93,7 @@ const create = async (req, res) => {
 
 // POST /api/tickets/scan
 const scan = async (req, res) => {
-  const { qr_code } = req.body;
+  const { qr_code, ticket_type_id } = req.body;
   if (!qr_code) return res.status(400).json({ error: 'qr_code requerido' });
 
   try {
@@ -107,6 +107,15 @@ const scan = async (req, res) => {
 
     const ticket = result.rows[0];
     if (!ticket) return res.status(404).json({ error: 'QR no válido', valid: false });
+
+    // Filtro por tipo de entrada si se especificó
+    if (ticket_type_id && ticket.ticket_type_id !== ticket_type_id) {
+      return res.status(403).json({
+        valid: false,
+        error: `Tipo incorrecto: esta entrada es "${ticket.tipo_entrada}"`,
+        ticket,
+      });
+    }
 
     if (ticket.status === 'usado')
       return res.status(409).json({ valid: false, error: 'Esta entrada ya fue utilizada', scanned_at: ticket.scanned_at, ticket });

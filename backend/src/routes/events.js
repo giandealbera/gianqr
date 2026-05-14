@@ -12,7 +12,7 @@ router.post('/',       auth, roles('admin'), create);
 router.put('/:id',     auth, roles('admin'), update);
 
 // Gestión de tipos de entrada
-router.get('/:id/ticket-types',              auth, roles('admin'), getTicketTypes);
+router.get('/:id/ticket-types',              auth, getTicketTypes);
 router.post('/:id/ticket-types',             auth, roles('admin'), addTicketType);
 router.put('/:id/ticket-types/:ttId',        auth, roles('admin'), updateTicketType);
 router.patch('/:id/ticket-types/:ttId/toggle', auth, roles('admin'), toggleTicketType);
