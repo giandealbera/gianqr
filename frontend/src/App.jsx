@@ -12,6 +12,7 @@ import EventStats        from './pages/events/EventStats';
 import Dashboard         from './pages/admin/Dashboard';
 import Users             from './pages/admin/Users';
 import Reports           from './pages/admin/Reports';
+import PromoterSales     from './pages/admin/PromoterSales';
 import Scanner           from './pages/scanner/Scanner';
 import Cashier           from './pages/cashier/Cashier';
 import PromoterDashboard from './pages/promoter/PromoterDashboard';
@@ -69,6 +70,9 @@ const App = () => (
         } />
         <Route path="/admin/reportes" element={
           <ProtectedRoute allowedRoles={['admin']}><Reports /></ProtectedRoute>
+        } />
+        <Route path="/admin/promotores" element={
+          <ProtectedRoute allowedRoles={['admin']}><PromoterSales /></ProtectedRoute>
         } />
 
         {/* Portero */}

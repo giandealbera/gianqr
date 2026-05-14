@@ -86,4 +86,94 @@ const deactivate = async (req, res) => {
   }
 };
 
-module.exports = { getAll, create, update, deactivate };
+// GET /api/users/promoter-sales — admin ve ventas de todos los promotores
+const getPromoterSales = async (req, res) => {
+  const { event_id } = req.query;
+  try {
+    let eventFilter = '';
+    let params = [];
+    if (event_id) {
+      eventFilter = 'AND t.event_id = ?';
+      params.push(event_id);
+    }
+    const result = await db.query(
+      `SELECT p.id AS promotor_id, u.name, p.promo_code, p.commission,
+              COUNT(t.id) AS total_vendidas,
+              SUM(CASE WHEN t.status IN ('pagado','usado') THEN t.amount_paid ELSE 0 END) AS total_recaudado,
+              SUM(CASE WHEN t.status IN ('pagado','usado') THEN t.amount_paid * (p.commission / 100.0) ELSE 0 END) AS comision_promotor,
+              SUM(CASE WHEN t.status IN ('pagado','usado') THEN t.amount_paid * (1 - p.commission / 100.0) ELSE 0 END) AS debe_enviar
+       FROM promotors p
+       JOIN users u ON u.id = p.user_id AND u.is_active = 1
+       LEFT JOIN tickets t ON t.promotor_id = p.id ${eventFilter}
+       GROUP BY p.id
+       ORDER BY total_recaudado DESC`,
+      params
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al obtener ventas de promotores' });
+  }
+};
+
+// GET /api/users/my-sales — el promotor ve sus propias ventas
+const getMyPromoterSales = async (req, res) => {
+  const userId = req.user.id;
+  try {
+    // Buscar promotor
+    const promoResult = await db.query('SELECT * FROM promotors WHERE user_id = ?', [userId]);
+    const promo = promoResult.rows[0];
+    if (!promo) return res.status(404).json({ error: 'No sos promotor' });
+
+    // Resumen general
+    const summary = await db.query(
+      `SELECT
+         COUNT(t.id) AS total_vendidas,
+         SUM(CASE WHEN t.status IN ('pagado','usado') THEN t.amount_paid ELSE 0 END) AS total_recaudado,
+         SUM(CASE WHEN t.status IN ('pagado','usado') THEN t.amount_paid * (? / 100.0) ELSE 0 END) AS mi_comision,
+         SUM(CASE WHEN t.status IN ('pagado','usado') THEN t.amount_paid * (1 - ? / 100.0) ELSE 0 END) AS debo_enviar
+       FROM tickets t
+       WHERE t.promotor_id = ?`,
+      [promo.commission, promo.commission, promo.id]
+    );
+
+    // Desglose por evento
+    const byEvent = await db.query(
+      `SELECT e.name AS evento, e.date,
+              COUNT(t.id) AS vendidas,
+              SUM(CASE WHEN t.status IN ('pagado','usado') THEN t.amount_paid ELSE 0 END) AS recaudado,
+              SUM(CASE WHEN t.status IN ('pagado','usado') THEN t.amount_paid * (1 - ? / 100.0) ELSE 0 END) AS a_enviar
+       FROM tickets t
+       JOIN events e ON e.id = t.event_id
+       WHERE t.promotor_id = ?
+       GROUP BY e.id
+       ORDER BY e.date DESC`,
+      [promo.commission, promo.id]
+    );
+
+    // Últimas ventas
+    const recent = await db.query(
+      `SELECT t.buyer_name, t.amount_paid, t.status, t.created_at,
+              e.name AS evento, tt.name AS tipo_entrada
+       FROM tickets t
+       JOIN events e ON e.id = t.event_id
+       JOIN ticket_types tt ON tt.id = t.ticket_type_id
+       WHERE t.promotor_id = ?
+       ORDER BY t.created_at DESC LIMIT 50`,
+      [promo.id]
+    );
+
+    res.json({
+      promo_code: promo.promo_code,
+      commission: promo.commission,
+      summary: summary.rows[0],
+      by_event: byEvent.rows,
+      recent: recent.rows,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al obtener tus ventas' });
+  }
+};
+
+module.exports = { getAll, create, update, deactivate, getPromoterSales, getMyPromoterSales };

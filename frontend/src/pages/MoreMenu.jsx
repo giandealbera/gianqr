@@ -47,6 +47,7 @@ const MoreMenu = () => {
           {user?.role === 'admin' && (
             <>
               <MenuItem icon="👥" label="Administrar personal" desc="Usuarios, roles y permisos" onClick={() => navigate('/admin/usuarios')} />
+              <MenuItem icon="📣" label="Públicas y promotores" desc="Ventas y comisiones de promotores" onClick={() => navigate('/admin/promotores')} />
               <MenuItem icon="💰" label="Reportes de ventas" desc="Resumen financiero general" onClick={() => navigate('/admin/reportes')} />
               <MenuItem icon="📊" label="Dashboard general" desc="Vista global del sistema" onClick={() => navigate('/admin')} />
             </>

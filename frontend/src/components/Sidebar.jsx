@@ -8,6 +8,7 @@ const navItems = {
     { to: '/caja',           label: '🎫 Vender'      },
     { to: '/escaner',        label: '📷 Escanear'    },
     { to: '/admin/usuarios', label: '👥 Usuarios'    },
+    { to: '/admin/promotores',label:'📣 Públicas'    },
     { to: '/admin/reportes', label: '💰 Reportes'    },
   ],
   cajero: [
