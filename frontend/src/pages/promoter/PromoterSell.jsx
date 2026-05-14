@@ -52,13 +52,13 @@ const PromoterSell = () => {
   return (
     <Layout>
       <div className="px-4 lg:px-8 py-6 max-w-2xl mx-auto">
-        <h1 className="text-2xl font-bold mb-1">🎫 Generar Entrada</h1>
-        <p className="text-gray-400 text-sm mb-6">La entrada quedará registrada a tu nombre automáticamente.</p>
+        <h1 className="text-2xl font-bold mb-1">Registrar Entrada</h1>
+        <p className="text-slate-400 text-sm mb-6">La entrada quedara registrada a tu nombre automaticamente.</p>
 
         {created ? (
           <div className="card text-center space-y-4">
             <div className="text-green-400 text-5xl">✓</div>
-            <h2 className="text-xl font-bold">¡Entrada generada!</h2>
+            <h2 className="text-xl font-bold">Entrada generada</h2>
             <p className="text-gray-400">{created.buyer_name}</p>
             <div className="flex justify-center">
               <QRCodeSVG
@@ -181,7 +181,7 @@ const PromoterSell = () => {
             )}
 
             <button type="submit" disabled={saving || !form.ticket_type_id} className="btn-primary w-full text-lg py-3">
-              {saving ? 'Generando...' : '🎫 Generar entrada'}
+              {saving ? 'Generando...' : 'Generar entrada'}
             </button>
           </form>
         )}

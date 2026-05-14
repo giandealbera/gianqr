@@ -1,0 +1,31 @@
+[33mThe CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.[39m
+
+  [32m[1mVITE[22m v5.4.21[39m  [2mready in [0m[1m680[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m5173[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://10.2.0.2:[1m5173[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://192.168.56.1:[1m5173[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://192.168.1.54:[1m5173[22m/[39m
+[2m[32m  ➜[39m[22m[2m  press [22m[1mh + enter[22m[2m to show help[22m
+(node:5272) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/Users/gianf/Desktop/gianqr/frontend/postcss.config.js is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to C:\Users\gianf\Desktop\gianqr\frontend\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[2m01:04:48[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/Login.jsx, /src/index.css[22m
+[2m01:10:08[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/promoter/PromoterDashboard.jsx, /src/index.css[22m
+[2m01:13:23[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/admin/Users.jsx, /src/index.css[22m
+[2m01:20:41[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mtailwind.config.js[22m
+[2m01:20:50[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m01:21:11[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/BottomNav.jsx, /src/index.css[22m
+[2m01:21:22[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/components/Sidebar.jsx, /src/index.css[22m
+[2m01:21:33[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/Login.jsx, /src/index.css[22m
+[2m01:22:17[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/promoter/PromoterDashboard.jsx, /src/index.css[22m
+[2m01:22:22[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/index.css[22m
+[2m01:22:28[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/index.css[22m
+[2m01:22:34[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/promoter/PromoterSell.jsx, /src/index.css[22m
+[2m01:22:39[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/promoter/PromoterSell.jsx, /src/index.css[22m
+[2m01:22:44[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/promoter/PromoterSell.jsx, /src/index.css[22m
+[2m01:22:49[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/cashier/Cashier.jsx, /src/index.css[22m
+[2m01:22:54[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/cashier/Cashier.jsx, /src/index.css[22m
+[2m01:22:59[22m [36m[1m[vite][22m[39m [32mhmr update [39m[2m/src/pages/cashier/Cashier.jsx, /src/index.css[22m
+[2m01:23:06[22m [36m[1m[vite][22m[39m [32mpage reload [39m[2mindex.html[22m

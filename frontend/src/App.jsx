@@ -20,6 +20,7 @@ import PromoterDashboard from './pages/promoter/PromoterDashboard';
 import PromoterSell     from './pages/promoter/PromoterSell';
 import PublicScanner    from './pages/scanner/PublicScanner';
 import MagicLogin       from './pages/MagicLogin';
+import PublicBuy        from './pages/public/PublicBuy';
 import MoreMenu          from './pages/MoreMenu';
 
 // Redirige al panel según el rol del usuario logueado
@@ -44,6 +45,7 @@ const App = () => (
         <Route path="/login" element={<Login />} />
         <Route path="/scan/:token" element={<PublicScanner />} />
         <Route path="/acceso/:token" element={<MagicLogin />} />
+        <Route path="/comprar/:code" element={<PublicBuy />} />
         <Route path="/" element={<RoleRedirect />} />
         <Route path="/sin-acceso" element={
           <div className="flex items-center justify-center h-screen flex-col gap-4">

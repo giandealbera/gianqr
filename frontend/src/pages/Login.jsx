@@ -22,29 +22,28 @@ const Login = () => {
     setLoading(true);
     try {
       const user = await login(form.email, form.password);
-      toast.success(`Bienvenido, ${user.name}!`);
+      toast.success(`Bienvenido, ${user.name}`);
       navigate(roleRedirect[user.role] || '/admin');
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Error al iniciar sesión');
+      toast.error(err.response?.data?.error || 'Credenciales incorrectas');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-950 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-slate-950 px-4">
       <div className="w-full max-w-sm">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <h1 className="text-5xl font-black text-brand">GianQR</h1>
-          <p className="text-gray-400 mt-2">Sistema de Entradas con QR</p>
+        <div className="text-center mb-10">
+          <h1 className="text-4xl font-black text-brand tracking-tight">GianQR</h1>
+          <p className="text-slate-500 text-sm mt-2">Sistema de Entradas</p>
         </div>
 
         <form onSubmit={handleSubmit} className="card space-y-4">
-          <h2 className="text-lg font-semibold text-gray-100">Iniciar sesión</h2>
+          <h2 className="text-base font-semibold text-slate-200">Iniciar sesion</h2>
 
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Usuario</label>
+            <label className="block text-sm text-slate-400 mb-1">Usuario</label>
             <input
               type="text"
               required
@@ -56,7 +55,7 @@ const Login = () => {
           </div>
 
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Contraseña</label>
+            <label className="block text-sm text-slate-400 mb-1">Contrasena</label>
             <input
               type="password"
               required
@@ -72,9 +71,7 @@ const Login = () => {
           </button>
         </form>
 
-        <p className="text-center text-xs text-gray-600 mt-6">
-          GianQR v1.0 — Sistema de ventas de entradas
-        </p>
+        <p className="text-center text-xs text-slate-700 mt-6">GianQR v1.0</p>
       </div>
     </div>
   );

@@ -59,12 +59,12 @@ const Cashier = () => {
   return (
     <Layout>
       <div className="px-4 lg:px-8 py-6 max-w-2xl mx-auto">
-        <h1 className="text-2xl font-bold mb-6">🎫 Vender Entrada</h1>
+        <h1 className="text-2xl font-bold mb-6">Vender Entrada</h1>
 
         {created ? (
           <div className="card text-center space-y-4">
             <div className="text-green-400 text-5xl">✓</div>
-            <h2 className="text-xl font-bold">¡Entrada vendida!</h2>
+            <h2 className="text-xl font-bold">Entrada vendida</h2>
             <p className="text-gray-400">{created.buyer_name} — {created.buyer_email}</p>
             <div className="flex justify-center">
               <QRCodeSVG
@@ -196,7 +196,7 @@ const Cashier = () => {
             </div>
 
             <button type="submit" disabled={saving || !form.ticket_type_id} className="btn-primary w-full text-lg py-3">
-              {saving ? 'Procesando...' : '🎫 Vender entrada'}
+              {saving ? 'Procesando...' : 'Vender entrada'}
             </button>
           </form>
         )}
