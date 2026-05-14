@@ -12,11 +12,13 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-app.use('/api/auth',     require('./src/routes/auth'));
-app.use('/api/users',    require('./src/routes/users'));
-app.use('/api/events',   require('./src/routes/events'));
-app.use('/api/tickets',  require('./src/routes/tickets'));
-app.use('/api/payments', require('./src/routes/payments'));
+app.use('/api/auth',            require('./src/routes/auth'));
+app.use('/api/users',           require('./src/routes/users'));
+app.use('/api/events',          require('./src/routes/events'));
+app.use('/api/tickets',         require('./src/routes/tickets'));
+app.use('/api/payments',        require('./src/routes/payments'));
+app.use('/api/scanner-tokens',  require('./src/routes/scannerTokens'));
+app.use('/api/scan',            require('./src/routes/publicScan'));
 
 app.get('/api/health', (req, res) =>
   res.json({ status: 'ok', sistema: 'GianQR', version: '1.0.0' })

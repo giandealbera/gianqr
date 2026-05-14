@@ -18,15 +18,23 @@ const BottomNav = () => {
       { to: '/caja',     icon: '🎫', label: 'Vender' },
       { to: '/mas',      icon: '⋯',  label: 'Más' },
     ],
-    portero: [
-      { to: '/eventos',  icon: '📅', label: 'Eventos' },
-      { to: '/escaner',  icon: '📷', label: 'Escanear' },
-      { to: '/mas',      icon: '⋯',  label: 'Más' },
-    ],
     promotor: [
-      { to: '/eventos',  icon: '📅', label: 'Eventos' },
-      { to: '/promotor', icon: '🔗', label: 'Mi Panel' },
-      { to: '/mas',      icon: '⋯',  label: 'Más' },
+      { to: '/eventos',         icon: '📅', label: 'Eventos' },
+      { to: '/promotor/vender', icon: '🎫', label: 'Vender' },
+      { to: '/promotor',        icon: '🔗', label: 'Mi Panel' },
+      { to: '/mas',             icon: '⋯',  label: 'Más' },
+    ],
+    jefe_publicas: [
+      { to: '/eventos',         icon: '📅', label: 'Eventos' },
+      { to: '/promotor/vender', icon: '🎫', label: 'Vender' },
+      { to: '/promotor',        icon: '👑', label: 'Mi Panel' },
+      { to: '/mas',             icon: '⋯',  label: 'Más' },
+    ],
+    vendedor: [
+      { to: '/eventos',         icon: '📅', label: 'Eventos' },
+      { to: '/promotor/vender', icon: '🎫', label: 'Vender' },
+      { to: '/promotor',        icon: '🔗', label: 'Mi Panel' },
+      { to: '/mas',             icon: '⋯',  label: 'Más' },
     ],
   };
 

@@ -127,9 +127,26 @@ const initDb = async () => {
       CREATE INDEX IF NOT EXISTS idx_payments_ticket     ON payments(ticket_id);
     `);
 
-    // Añadir columnas para Jefes de Grupo y comisiones fijas si no existen
+    // Migraciones incrementales
     try { await dbInstance.exec('ALTER TABLE promotors ADD COLUMN leader_id TEXT REFERENCES users(id) ON DELETE SET NULL'); } catch(e) {}
     try { await dbInstance.exec('ALTER TABLE promotors ADD COLUMN leader_commission REAL DEFAULT 400.00'); } catch(e) {}
+    try { await dbInstance.exec('ALTER TABLE users ADD COLUMN apellido TEXT'); } catch(e) {}
+    try { await dbInstance.exec('ALTER TABLE users ADD COLUMN celular TEXT'); } catch(e) {}
+    try { await dbInstance.exec('ALTER TABLE users ADD COLUMN localidad TEXT'); } catch(e) {}
+    try { await dbInstance.exec('ALTER TABLE tickets ADD COLUMN buyer_celular TEXT'); } catch(e) {}
+    try { await dbInstance.exec('ALTER TABLE tickets ADD COLUMN buyer_apellido TEXT'); } catch(e) {}
+    try { await dbInstance.exec('ALTER TABLE users ADD COLUMN magic_token TEXT'); } catch(e) {}
+    try { await dbInstance.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_magic_token ON users(magic_token)'); } catch(e) {}
+    try { await dbInstance.exec(`CREATE TABLE IF NOT EXISTS scanner_tokens (
+      id             TEXT PRIMARY KEY,
+      token          TEXT UNIQUE NOT NULL,
+      event_id       TEXT NOT NULL,
+      ticket_type_id TEXT NOT NULL,
+      label          TEXT,
+      is_active      INTEGER DEFAULT 1,
+      created_by     TEXT,
+      created_at     DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`); } catch(e) {}
   }
   return dbInstance;
 };

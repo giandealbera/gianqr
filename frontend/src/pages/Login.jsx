@@ -4,10 +4,11 @@ import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
 const roleRedirect = {
-  admin:    '/admin',
-  cajero:   '/caja',
-  portero:  '/escaner',
-  promotor: '/promotor',
+  admin:         '/admin',
+  cajero:        '/caja',
+  promotor:      '/promotor',
+  jefe_publicas: '/promotor',
+  vendedor:      '/promotor',
 };
 
 const Login = () => {

@@ -49,4 +49,30 @@ const me = async (req, res) => {
   }
 };
 
-module.exports = { login, me };
+// GET /api/auth/magic/:token — login instantáneo sin contraseña
+const magicLogin = async (req, res) => {
+  const { token } = req.params;
+  try {
+    const result = await db.query(
+      'SELECT * FROM users WHERE magic_token = ? AND is_active = 1',
+      [token]
+    );
+    const user = result.rows[0];
+    if (!user) return res.status(404).json({ error: 'Link inválido o desactivado' });
+
+    const jwt_token = jwt.sign(
+      { id: user.id, email: user.email, role: user.role, name: user.name },
+      process.env.JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+    res.json({
+      token: jwt_token,
+      user: { id: user.id, name: user.name, email: user.email, role: user.role },
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error interno' });
+  }
+};
+
+module.exports = { login, me, magicLogin };

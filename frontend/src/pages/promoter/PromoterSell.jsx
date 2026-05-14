@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
@@ -8,28 +7,21 @@ import toast from 'react-hot-toast';
 const METHODS = [
   { value: 'efectivo',      label: '💵 Efectivo' },
   { value: 'transferencia', label: '🏦 Transferencia' },
-  { value: 'mercadopago',   label: '💳 MercadoPago' },
 ];
 
-const Cashier = () => {
-  const [searchParams] = useSearchParams();
-  const preselectedEvent = searchParams.get('event');
-  
-  const [events,     setEvents]     = useState([]);
-  const [eventSel,   setEventSel]   = useState(preselectedEvent || '');
+const PromoterSell = () => {
+  const [events,      setEvents]      = useState([]);
+  const [eventSel,    setEventSel]    = useState('');
   const [ticketTypes, setTicketTypes] = useState([]);
   const [form, setForm] = useState({
     ticket_type_id: '', buyer_name: '', buyer_apellido: '', buyer_celular: '',
     buyer_dni: '', buyer_email: '', payment_method: 'efectivo', payment_ref: '',
-    promotor_code: '',
   });
   const [saving,  setSaving]  = useState(false);
   const [created, setCreated] = useState(null);
 
   useEffect(() => {
-    api.get('/events').then(r =>
-      setEvents(r.data.filter(e => e.is_active))
-    );
+    api.get('/events').then(r => setEvents(r.data.filter(e => e.is_active)));
   }, []);
 
   useEffect(() => {
@@ -46,11 +38,12 @@ const Cashier = () => {
     try {
       const res = await api.post('/tickets', { ...form, event_id: eventSel });
       setCreated(res.data);
-      toast.success('Entrada vendida!');
+      toast.success('¡Entrada generada!');
       setForm({ ticket_type_id: '', buyer_name: '', buyer_apellido: '', buyer_celular: '',
-        buyer_dni: '', buyer_email: '', payment_method: 'efectivo', payment_ref: '', promotor_code: '' });
+        buyer_dni: '', buyer_email: '', payment_method: 'efectivo', payment_ref: '' });
+      setEventSel('');
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Error al crear ticket');
+      toast.error(err.response?.data?.error || 'Error al crear entrada');
     } finally {
       setSaving(false);
     }
@@ -59,13 +52,14 @@ const Cashier = () => {
   return (
     <Layout>
       <div className="px-4 lg:px-8 py-6 max-w-2xl mx-auto">
-        <h1 className="text-2xl font-bold mb-6">🎫 Vender Entrada</h1>
+        <h1 className="text-2xl font-bold mb-1">🎫 Generar Entrada</h1>
+        <p className="text-gray-400 text-sm mb-6">La entrada quedará registrada a tu nombre automáticamente.</p>
 
         {created ? (
           <div className="card text-center space-y-4">
             <div className="text-green-400 text-5xl">✓</div>
-            <h2 className="text-xl font-bold">¡Entrada vendida!</h2>
-            <p className="text-gray-400">{created.buyer_name} — {created.buyer_email}</p>
+            <h2 className="text-xl font-bold">¡Entrada generada!</h2>
+            <p className="text-gray-400">{created.buyer_name}</p>
             <div className="flex justify-center">
               <QRCodeSVG
                 value={JSON.stringify({ code: created.qr_code, ticket_id: created.id })}
@@ -77,7 +71,7 @@ const Cashier = () => {
             <p className="font-mono text-sm text-gray-400">{created.qr_code}</p>
             <div className="flex gap-3 justify-center">
               <button onClick={() => setCreated(null)} className="btn-primary">
-                Nueva venta
+                Nueva entrada
               </button>
               <button onClick={() => window.print()} className="btn-secondary">
                 Imprimir QR
@@ -94,7 +88,7 @@ const Cashier = () => {
                 <option value="">Seleccioná un evento</option>
                 {events.map(ev => (
                   <option key={ev.id} value={ev.id}>
-                    {ev.name} — {new Date(ev.date + 'T12:00:00').toLocaleDateString('es-AR')} {ev.venue_name ? `(${ev.venue_name})` : ''}
+                    {ev.name} — {new Date(ev.date + 'T12:00:00').toLocaleDateString('es-AR')}
                   </option>
                 ))}
               </select>
@@ -109,8 +103,7 @@ const Cashier = () => {
                   <option value="">Seleccioná tipo</option>
                   {ticketTypes.map(tt => (
                     <option key={tt.id} value={tt.id} disabled={tt.available <= 0}>
-                      {tt.name} — ${parseFloat(tt.price).toLocaleString('es-AR')}
-                      {' '}({tt.available} disponibles)
+                      {tt.name} — ${parseFloat(tt.price).toLocaleString('es-AR')} ({tt.available} disponibles)
                     </option>
                   ))}
                 </select>
@@ -128,26 +121,28 @@ const Cashier = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-sm text-gray-400 block mb-1">Nombre *</label>
-                  <input className="input" required placeholder="Juan" value={form.buyer_name}
+                  <input className="input" required placeholder="Juan"
+                    value={form.buyer_name}
                     onChange={e => setForm(f => ({ ...f, buyer_name: e.target.value }))} />
                 </div>
                 <div>
-                  <label className="text-sm text-gray-400 block mb-1">Apellido</label>
-                  <input className="input" placeholder="García" value={form.buyer_apellido}
+                  <label className="text-sm text-gray-400 block mb-1">Apellido *</label>
+                  <input className="input" required placeholder="García"
+                    value={form.buyer_apellido}
                     onChange={e => setForm(f => ({ ...f, buyer_apellido: e.target.value }))} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-sm text-gray-400 block mb-1">DNI</label>
-                  <input className="input" placeholder="12345678" inputMode="numeric"
-                    value={form.buyer_dni}
+                  <label className="text-sm text-gray-400 block mb-1">DNI *</label>
+                  <input className="input" required placeholder="12345678"
+                    inputMode="numeric" value={form.buyer_dni}
                     onChange={e => setForm(f => ({ ...f, buyer_dni: e.target.value }))} />
                 </div>
                 <div>
-                  <label className="text-sm text-gray-400 block mb-1">Celular</label>
-                  <input className="input" placeholder="2645 123456" inputMode="tel"
-                    value={form.buyer_celular}
+                  <label className="text-sm text-gray-400 block mb-1">Celular *</label>
+                  <input className="input" required placeholder="2645 123456"
+                    inputMode="tel" value={form.buyer_celular}
                     onChange={e => setForm(f => ({ ...f, buyer_celular: e.target.value }))} />
                 </div>
               </div>
@@ -177,26 +172,16 @@ const Cashier = () => {
               </div>
             </div>
 
-            {/* Referencia de pago */}
-            {(form.payment_method === 'transferencia' || form.payment_method === 'mercadopago') && (
+            {form.payment_method === 'transferencia' && (
               <div>
-                <label className="text-sm text-gray-400 block mb-1">
-                  {form.payment_method === 'transferencia' ? 'Nro. de transferencia' : 'ID de pago MP'}
-                </label>
+                <label className="text-sm text-gray-400 block mb-1">Nro. de transferencia</label>
                 <input className="input" value={form.payment_ref}
                   onChange={e => setForm(f => ({ ...f, payment_ref: e.target.value }))} />
               </div>
             )}
 
-            {/* Código de promotor */}
-            <div>
-              <label className="text-sm text-gray-400 block mb-1">Código de promotor (opcional)</label>
-              <input className="input" placeholder="ej: PROMO2024" value={form.promotor_code}
-                onChange={e => setForm(f => ({ ...f, promotor_code: e.target.value.toUpperCase() }))} />
-            </div>
-
             <button type="submit" disabled={saving || !form.ticket_type_id} className="btn-primary w-full text-lg py-3">
-              {saving ? 'Procesando...' : '🎫 Vender entrada'}
+              {saving ? 'Generando...' : '🎫 Generar entrada'}
             </button>
           </form>
         )}
@@ -205,4 +190,4 @@ const Cashier = () => {
   );
 };
 
-export default Cashier;
+export default PromoterSell;

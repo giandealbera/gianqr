@@ -2,13 +2,19 @@ const express = require('express');
 const router  = express.Router();
 const auth    = require('../middleware/auth');
 const roles   = require('../middleware/roles');
-const { getAll, getOne, create, update, stats, getVenues } = require('../controllers/eventsController');
+const { getAll, getOne, create, update, stats, getVenues, getTicketTypes, addTicketType, updateTicketType, toggleTicketType } = require('../controllers/eventsController');
 
 router.get('/venues',  auth, getVenues);
-router.get('/',        getAll);              // público para la página de compra
-router.get('/:id',     getOne);             // público
+router.get('/',        getAll);
+router.get('/:id',     getOne);
 router.get('/:id/stats', auth, roles('admin'), stats);
 router.post('/',       auth, roles('admin'), create);
 router.put('/:id',     auth, roles('admin'), update);
+
+// Gestión de tipos de entrada
+router.get('/:id/ticket-types',              auth, roles('admin'), getTicketTypes);
+router.post('/:id/ticket-types',             auth, roles('admin'), addTicketType);
+router.put('/:id/ticket-types/:ttId',        auth, roles('admin'), updateTicketType);
+router.patch('/:id/ticket-types/:ttId/toggle', auth, roles('admin'), toggleTicketType);
 
 module.exports = router;

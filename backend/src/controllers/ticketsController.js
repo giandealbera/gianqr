@@ -13,12 +13,12 @@ async function generateQR(ticketId) {
 const create = async (req, res) => {
   const {
     event_id, ticket_type_id,
-    buyer_name, buyer_email, buyer_dni,
+    buyer_name, buyer_apellido, buyer_email, buyer_dni, buyer_celular,
     payment_method, payment_ref, amount_paid,
     promotor_code,
   } = req.body;
 
-  if (!event_id || !ticket_type_id || !buyer_name || !buyer_email || !payment_method)
+  if (!event_id || !ticket_type_id || !buyer_name || !payment_method)
     return res.status(400).json({ error: 'Faltan campos obligatorios' });
 
   try {
@@ -35,9 +35,12 @@ const create = async (req, res) => {
       if (!tt) throw new Error('TICKET_TYPE_NOT_FOUND');
       if (tt.sold_count >= tt.total_quota) throw new Error('NO_QUOTA');
 
-      // Buscar promotor
+      // Buscar promotor: si el vendedor es promotor se asigna solo, sino por código
       let promotorId = null;
-      if (promotor_code) {
+      if (['promotor', 'jefe_publicas', 'vendedor'].includes(req.user?.role)) {
+        const [pRows] = await conn.execute('SELECT id FROM promotors WHERE user_id = ?', [req.user.id]);
+        if (pRows[0]) promotorId = pRows[0].id;
+      } else if (promotor_code) {
         const [pRows] = await conn.execute('SELECT id FROM promotors WHERE promo_code = ?', [promotor_code]);
         if (pRows[0]) promotorId = pRows[0].id;
       }
@@ -49,11 +52,12 @@ const create = async (req, res) => {
 
       await conn.execute(
         `INSERT INTO tickets
-           (id, event_id, ticket_type_id, buyer_name, buyer_email, buyer_dni,
+           (id, event_id, ticket_type_id, buyer_name, buyer_apellido, buyer_email, buyer_dni, buyer_celular,
             qr_code, payment_method, payment_ref, amount_paid, status, promotor_id, sold_by)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-        [ticketId, event_id, ticket_type_id, buyer_name, buyer_email,
-         buyer_dni || null, code, payment_method, payment_ref || null,
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [ticketId, event_id, ticket_type_id, buyer_name, buyer_apellido || null,
+         buyer_email || '', buyer_dni || null, buyer_celular || null,
+         code, payment_method, payment_ref || null,
          price, status, promotorId, req.user?.id || null]
       );
 

@@ -15,10 +15,6 @@ const navItems = {
     { to: '/eventos',  label: '🎉 Eventos' },
     { to: '/caja',     label: '🎫 Vender Entradas' },
   ],
-  portero: [
-    { to: '/eventos',  label: '🎉 Eventos' },
-    { to: '/escaner',  label: '📷 Escanear QR' },
-  ],
   promotor: [
     { to: '/eventos',  label: '🎉 Eventos' },
     { to: '/promotor', label: '🔗 Mi Panel' },

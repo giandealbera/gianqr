@@ -4,11 +4,11 @@ const auth    = require('../middleware/auth');
 const roles   = require('../middleware/roles');
 const { create, scan, getOne, getAll, getQR } = require('../controllers/ticketsController');
 
-// Venta manual (cajero y admin)
-router.post('/', auth, roles('admin', 'cajero'), create);
+// Venta manual (cajero, admin, promotor, jefe_publicas y vendedor)
+router.post('/', auth, roles('admin', 'cajero', 'promotor', 'jefe_publicas', 'vendedor'), create);
 
-// Escaneo en puerta (portero y admin)
-router.post('/scan', auth, roles('admin', 'portero'), scan);
+// Escaneo en puerta (solo admin — los demás usan links públicos /scan/:token)
+router.post('/scan', auth, roles('admin'), scan);
 
 // Consultas
 router.get('/',      auth, roles('admin', 'cajero'), getAll);

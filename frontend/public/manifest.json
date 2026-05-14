@@ -1,0 +1,19 @@
+{
+  "name": "GianQR — Sistema de Entradas",
+  "short_name": "GianQR",
+  "description": "Venta y control de entradas con QR",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#030712",
+  "theme_color": "#7C3AED",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

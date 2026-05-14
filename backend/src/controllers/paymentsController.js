@@ -84,7 +84,7 @@ const mpWebhook = async (req, res) => {
 // GET /api/payments/report
 const report = async (req, res) => {
   const { event_id, from, to } = req.query;
-  let where = ["t.status = 'pagado'"];
+  let where = ["t.status IN ('pagado', 'usado')"];
   let params = [];
 
   if (event_id) { where.push('t.event_id = ?'); params.push(event_id); }

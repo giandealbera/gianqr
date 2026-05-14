@@ -124,4 +124,75 @@ const getVenues = async (req, res) => {
   }
 };
 
-module.exports = { getAll, getOne, create, update, stats, getVenues };
+// GET /api/events/:id/ticket-types — todos los tipos (admin)
+const getTicketTypes = async (req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT *, (total_quota - sold_count) AS available
+       FROM ticket_types WHERE event_id = ? ORDER BY created_at ASC`,
+      [req.params.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener tipos de entrada' });
+  }
+};
+
+// POST /api/events/:id/ticket-types — agregar tipo
+const addTicketType = async (req, res) => {
+  const { name, price, total_quota } = req.body;
+  if (!name || price == null || !total_quota)
+    return res.status(400).json({ error: 'name, price y total_quota son requeridos' });
+  try {
+    const id = uuidv4();
+    await db.query(
+      'INSERT INTO ticket_types (id, event_id, name, price, total_quota) VALUES (?,?,?,?,?)',
+      [id, req.params.id, name, parseFloat(price), parseInt(total_quota)]
+    );
+    const result = await db.query(
+      'SELECT *, (total_quota - sold_count) AS available FROM ticket_types WHERE id = ?', [id]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al crear tipo de entrada' });
+  }
+};
+
+// PUT /api/events/:id/ticket-types/:ttId — solo agregar cupo
+const updateTicketType = async (req, res) => {
+  const { add_quota } = req.body;
+  if (!add_quota || parseInt(add_quota) <= 0)
+    return res.status(400).json({ error: 'add_quota debe ser mayor a 0' });
+  try {
+    await db.query(
+      'UPDATE ticket_types SET total_quota = total_quota + ? WHERE id=? AND event_id=?',
+      [parseInt(add_quota), req.params.ttId, req.params.id]
+    );
+    const result = await db.query(
+      'SELECT *, (total_quota - sold_count) AS available FROM ticket_types WHERE id = ?',
+      [req.params.ttId]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al agregar cupo' });
+  }
+};
+
+// PATCH /api/events/:id/ticket-types/:ttId/toggle — activar/desactivar
+const toggleTicketType = async (req, res) => {
+  try {
+    await db.query(
+      'UPDATE ticket_types SET is_active = CASE WHEN is_active=1 THEN 0 ELSE 1 END WHERE id=? AND event_id=?',
+      [req.params.ttId, req.params.id]
+    );
+    const result = await db.query(
+      'SELECT *, (total_quota - sold_count) AS available FROM ticket_types WHERE id = ?',
+      [req.params.ttId]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al cambiar estado' });
+  }
+};
+
+module.exports = { getAll, getOne, create, update, stats, getVenues, getTicketTypes, addTicketType, updateTicketType, toggleTicketType };

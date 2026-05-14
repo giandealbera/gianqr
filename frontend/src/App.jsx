@@ -9,6 +9,7 @@ import MyEvents          from './pages/events/MyEvents';
 import EventDashboard    from './pages/events/EventDashboard';
 import SoldTickets       from './pages/events/SoldTickets';
 import EventStats        from './pages/events/EventStats';
+import EventTicketTypes  from './pages/events/EventTicketTypes';
 import Dashboard         from './pages/admin/Dashboard';
 import Users             from './pages/admin/Users';
 import Reports           from './pages/admin/Reports';
@@ -16,6 +17,9 @@ import PromoterSales     from './pages/admin/PromoterSales';
 import Scanner           from './pages/scanner/Scanner';
 import Cashier           from './pages/cashier/Cashier';
 import PromoterDashboard from './pages/promoter/PromoterDashboard';
+import PromoterSell     from './pages/promoter/PromoterSell';
+import PublicScanner    from './pages/scanner/PublicScanner';
+import MagicLogin       from './pages/MagicLogin';
 import MoreMenu          from './pages/MoreMenu';
 
 // Redirige al panel según el rol del usuario logueado
@@ -38,6 +42,8 @@ const App = () => (
       <Routes>
         {/* Público */}
         <Route path="/login" element={<Login />} />
+        <Route path="/scan/:token" element={<PublicScanner />} />
+        <Route path="/acceso/:token" element={<MagicLogin />} />
         <Route path="/" element={<RoleRedirect />} />
         <Route path="/sin-acceso" element={
           <div className="flex items-center justify-center h-screen flex-col gap-4">
@@ -48,16 +54,19 @@ const App = () => (
 
         {/* Eventos — accesible para todos los roles */}
         <Route path="/eventos" element={
-          <ProtectedRoute allowedRoles={['admin', 'cajero', 'portero', 'promotor']}><MyEvents /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin', 'cajero', 'promotor', 'jefe_publicas', 'vendedor']}><MyEvents /></ProtectedRoute>
         } />
         <Route path="/evento/:id" element={
-          <ProtectedRoute allowedRoles={['admin', 'cajero', 'portero', 'promotor']}><EventDashboard /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin', 'cajero', 'promotor', 'jefe_publicas', 'vendedor']}><EventDashboard /></ProtectedRoute>
         } />
         <Route path="/evento/:id/vendidas" element={
           <ProtectedRoute allowedRoles={['admin', 'cajero']}><SoldTickets /></ProtectedRoute>
         } />
         <Route path="/evento/:id/stats" element={
           <ProtectedRoute allowedRoles={['admin']}><EventStats /></ProtectedRoute>
+        } />
+        <Route path="/evento/:id/tipos" element={
+          <ProtectedRoute allowedRoles={['admin']}><EventTicketTypes /></ProtectedRoute>
         } />
 
         {/* Admin */}
@@ -75,9 +84,9 @@ const App = () => (
           <ProtectedRoute allowedRoles={['admin']}><PromoterSales /></ProtectedRoute>
         } />
 
-        {/* Portero */}
+        {/* Escáner (solo admin) */}
         <Route path="/escaner" element={
-          <ProtectedRoute allowedRoles={['admin', 'portero']}><Scanner /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin']}><Scanner /></ProtectedRoute>
         } />
 
         {/* Cajero */}
@@ -85,14 +94,17 @@ const App = () => (
           <ProtectedRoute allowedRoles={['admin', 'cajero']}><Cashier /></ProtectedRoute>
         } />
 
-        {/* Promotor */}
+        {/* Promotor / Públicas */}
         <Route path="/promotor" element={
-          <ProtectedRoute allowedRoles={['admin', 'promotor']}><PromoterDashboard /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin', 'promotor', 'jefe_publicas', 'vendedor']}><PromoterDashboard /></ProtectedRoute>
+        } />
+        <Route path="/promotor/vender" element={
+          <ProtectedRoute allowedRoles={['promotor', 'jefe_publicas', 'vendedor']}><PromoterSell /></ProtectedRoute>
         } />
 
         {/* Más opciones */}
         <Route path="/mas" element={
-          <ProtectedRoute allowedRoles={['admin', 'cajero', 'portero', 'promotor']}><MoreMenu /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin', 'cajero', 'promotor', 'jefe_publicas', 'vendedor']}><MoreMenu /></ProtectedRoute>
         } />
 
         {/* 404 */}
