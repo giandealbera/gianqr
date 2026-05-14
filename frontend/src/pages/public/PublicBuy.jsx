@@ -11,7 +11,7 @@ const METHODS = [
 
 const emptyForm = {
   buyer_name: '', buyer_apellido: '',
-  buyer_dni: '', buyer_celular: '', buyer_email: '',
+  buyer_edad: '', buyer_localidad: '', buyer_email: '',
   payment_method: 'efectivo',
 };
 
@@ -236,16 +236,16 @@ const PublicBuy = () => {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-sm text-gray-400 block mb-1">DNI *</label>
-                  <input className="input" required inputMode="numeric" placeholder="12345678"
-                    value={form.buyer_dni}
-                    onChange={e => setForm(f => ({ ...f, buyer_dni: e.target.value }))} />
+                  <label className="text-sm text-gray-400 block mb-1">Edad</label>
+                  <input className="input" inputMode="numeric" placeholder="25"
+                    value={form.buyer_edad}
+                    onChange={e => setForm(f => ({ ...f, buyer_edad: e.target.value }))} />
                 </div>
                 <div>
-                  <label className="text-sm text-gray-400 block mb-1">Celular *</label>
-                  <input className="input" required inputMode="tel" placeholder="2645 123456"
-                    value={form.buyer_celular}
-                    onChange={e => setForm(f => ({ ...f, buyer_celular: e.target.value }))} />
+                  <label className="text-sm text-gray-400 block mb-1">Localidad</label>
+                  <input className="input" placeholder="San Juan"
+                    value={form.buyer_localidad}
+                    onChange={e => setForm(f => ({ ...f, buyer_localidad: e.target.value }))} />
                 </div>
               </div>
               <div>

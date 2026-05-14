@@ -135,6 +135,8 @@ const initDb = async () => {
     try { await dbInstance.exec('ALTER TABLE users ADD COLUMN localidad TEXT'); } catch(e) {}
     try { await dbInstance.exec('ALTER TABLE tickets ADD COLUMN buyer_celular TEXT'); } catch(e) {}
     try { await dbInstance.exec('ALTER TABLE tickets ADD COLUMN buyer_apellido TEXT'); } catch(e) {}
+    try { await dbInstance.exec('ALTER TABLE tickets ADD COLUMN buyer_edad TEXT'); } catch(e) {}
+    try { await dbInstance.exec('ALTER TABLE tickets ADD COLUMN buyer_localidad TEXT'); } catch(e) {}
     try { await dbInstance.exec('ALTER TABLE users ADD COLUMN magic_token TEXT'); } catch(e) {}
     try { await dbInstance.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_magic_token ON users(magic_token)'); } catch(e) {}
     try { await dbInstance.exec(`CREATE TABLE IF NOT EXISTS scanner_tokens (

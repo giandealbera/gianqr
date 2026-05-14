@@ -47,10 +47,10 @@ const getPromoterInfo = async (req, res) => {
 
 const createPublicTicket = async (req, res) => {
   const { code } = req.params;
-  const { event_id, ticket_type_id, buyer_name, buyer_apellido, buyer_dni, buyer_celular, buyer_email, payment_method } = req.body;
+  const { event_id, ticket_type_id, buyer_name, buyer_apellido, buyer_edad, buyer_localidad, buyer_email, payment_method } = req.body;
 
-  if (!event_id || !ticket_type_id || !buyer_name || !buyer_apellido || !buyer_dni || !buyer_celular)
-    return res.status(400).json({ error: 'Nombre, apellido, DNI y celular son requeridos' });
+  if (!event_id || !ticket_type_id || !buyer_name || !buyer_apellido)
+    return res.status(400).json({ error: 'Nombre y apellido son requeridos' });
 
   try {
     const promoResult = await db.query('SELECT id FROM promotors WHERE promo_code = ?', [code]);
@@ -70,10 +70,10 @@ const createPublicTicket = async (req, res) => {
 
     await db.query(
       `INSERT INTO tickets
-         (id, ticket_type_id, event_id, buyer_name, buyer_apellido, buyer_dni, buyer_celular, buyer_email,
+         (id, ticket_type_id, event_id, buyer_name, buyer_apellido, buyer_edad, buyer_localidad, buyer_email,
           qr_code, payment_method, payment_ref, amount_paid, status, promotor_id)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [ticketId, ticket_type_id, event_id, buyer_name, buyer_apellido, buyer_dni, buyer_celular,
+      [ticketId, ticket_type_id, event_id, buyer_name, buyer_apellido, buyer_edad || null, buyer_localidad || null,
        buyer_email || '', qrCode, payment_method || 'efectivo', '', tt.price, 'pagado', promotor.id]
     );
 

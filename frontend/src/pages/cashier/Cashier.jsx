@@ -18,8 +18,8 @@ const Cashier = () => {
   const [eventSel,   setEventSel]   = useState(preselectedEvent || '');
   const [ticketTypes, setTicketTypes] = useState([]);
   const [form, setForm] = useState({
-    ticket_type_id: '', buyer_name: '', buyer_apellido: '', buyer_celular: '',
-    buyer_dni: '', buyer_email: '', payment_method: 'efectivo', payment_ref: '',
+    ticket_type_id: '', buyer_name: '', buyer_apellido: '', buyer_edad: '',
+    buyer_localidad: '', buyer_email: '', payment_method: 'efectivo', payment_ref: '',
     promotor_code: '',
   });
   const [saving,  setSaving]  = useState(false);
@@ -46,8 +46,8 @@ const Cashier = () => {
       const res = await api.post('/tickets', { ...form, event_id: eventSel });
       setCreated(res.data);
       toast.success('Entrada vendida!');
-      setForm({ ticket_type_id: '', buyer_name: '', buyer_apellido: '', buyer_celular: '',
-        buyer_dni: '', buyer_email: '', payment_method: 'efectivo', payment_ref: '', promotor_code: '' });
+      setForm({ ticket_type_id: '', buyer_name: '', buyer_apellido: '', buyer_edad: '',
+        buyer_localidad: '', buyer_email: '', payment_method: 'efectivo', payment_ref: '', promotor_code: '' });
     } catch (err) {
       toast.error(err.response?.data?.error || 'Error al crear ticket');
     } finally {
@@ -131,23 +131,23 @@ const Cashier = () => {
                     onChange={e => setForm(f => ({ ...f, buyer_name: e.target.value }))} />
                 </div>
                 <div>
-                  <label className="text-sm text-gray-400 block mb-1">Apellido</label>
-                  <input className="input" placeholder="García" value={form.buyer_apellido}
+                  <label className="text-sm text-gray-400 block mb-1">Apellido *</label>
+                  <input className="input" required placeholder="García" value={form.buyer_apellido}
                     onChange={e => setForm(f => ({ ...f, buyer_apellido: e.target.value }))} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-sm text-gray-400 block mb-1">DNI</label>
-                  <input className="input" placeholder="12345678" inputMode="numeric"
-                    value={form.buyer_dni}
-                    onChange={e => setForm(f => ({ ...f, buyer_dni: e.target.value }))} />
+                  <label className="text-sm text-gray-400 block mb-1">Edad</label>
+                  <input className="input" placeholder="25" inputMode="numeric"
+                    value={form.buyer_edad}
+                    onChange={e => setForm(f => ({ ...f, buyer_edad: e.target.value }))} />
                 </div>
                 <div>
-                  <label className="text-sm text-gray-400 block mb-1">Celular</label>
-                  <input className="input" placeholder="2645 123456" inputMode="tel"
-                    value={form.buyer_celular}
-                    onChange={e => setForm(f => ({ ...f, buyer_celular: e.target.value }))} />
+                  <label className="text-sm text-gray-400 block mb-1">Localidad</label>
+                  <input className="input" placeholder="San Juan"
+                    value={form.buyer_localidad}
+                    onChange={e => setForm(f => ({ ...f, buyer_localidad: e.target.value }))} />
                 </div>
               </div>
               <div>
