@@ -20,6 +20,7 @@ app.use('/api/payments',        require('./src/routes/payments'));
 app.use('/api/scanner-tokens',  require('./src/routes/scannerTokens'));
 app.use('/api/scan',            require('./src/routes/publicScan'));
 app.use('/api/public',          require('./src/routes/public'));
+app.use('/api/rendiciones',     require('./src/routes/rendiciones'));
 
 app.get('/api/health', (req, res) =>
   res.json({ status: 'ok', sistema: 'GianQR', version: '1.0.0' })

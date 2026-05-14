@@ -186,10 +186,6 @@ const Scanner = () => {
                       <span className="text-gray-400">Tipo</span>
                       <span>{ticket.tipo_entrada}</span>
                     </div>
-                    <div className="flex justify-between border-b border-gray-800 pb-2">
-                      <span className="text-gray-400">DNI</span>
-                      <span>{ticket.buyer_dni || '—'}</span>
-                    </div>
                     {ticket.scanned_at && (
                       <div className="flex justify-between">
                         <span className="text-gray-400">Escaneado</span>

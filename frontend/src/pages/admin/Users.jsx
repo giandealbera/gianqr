@@ -5,11 +5,11 @@ import toast from 'react-hot-toast';
 
 const ROLES = ['cajero', 'jefe_publicas', 'vendedor', 'admin'];
 const ROLE_LABELS = {
-  admin:         '🔑 Dueño',
-  cajero:        '💵 Cajero',
-  promotor:      '🔗 Públicas (legacy)',
-  jefe_publicas: '👑 Jefe de Públicas',
-  vendedor:      '🔗 Vendedor',
+  admin:         'Dueño',
+  cajero:        'Cajero',
+  promotor:      'Públicas (legacy)',
+  jefe_publicas: 'Jefe de Públicas',
+  vendedor:      'Vendedor',
 };
 const PUBLICAS_ROLES = ['promotor', 'jefe_publicas', 'vendedor'];
 const emptyForm = { name: '', apellido: '', celular: '', localidad: '', email: '', password: '', role: 'vendedor', promo_code: '', commission: 800, leader_id: '', leader_commission: 400 };

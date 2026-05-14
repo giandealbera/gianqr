@@ -62,7 +62,12 @@ const Cashier = () => {
 
         {created ? (
           <div className="card text-center space-y-4">
-            <div className="text-green-400 text-5xl">✓</div>
+            <div className="w-12 h-12 rounded-full mx-auto flex items-center justify-center"
+                 style={{ background: 'rgba(52,211,153,0.15)', border: '1px solid rgba(52,211,153,0.3)' }}>
+              <svg className="w-6 h-6 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
             <h2 className="text-xl font-bold">Entrada vendida</h2>
             <p className="text-gray-400">{created.buyer_name} — {created.buyer_email}</p>
             <div className="flex justify-center">

@@ -21,6 +21,7 @@ import PromoterSell     from './pages/promoter/PromoterSell';
 import PublicScanner    from './pages/scanner/PublicScanner';
 import MagicLogin       from './pages/MagicLogin';
 import PublicBuy        from './pages/public/PublicBuy';
+import Rendicion        from './pages/admin/Rendicion';
 import MoreMenu          from './pages/MoreMenu';
 
 // Redirige al panel según el rol del usuario logueado
@@ -84,6 +85,9 @@ const App = () => (
         } />
         <Route path="/admin/promotores" element={
           <ProtectedRoute allowedRoles={['admin']}><PromoterSales /></ProtectedRoute>
+        } />
+        <Route path="/admin/rendicion" element={
+          <ProtectedRoute allowedRoles={['admin']}><Rendicion /></ProtectedRoute>
         } />
 
         {/* Escáner (solo admin) */}

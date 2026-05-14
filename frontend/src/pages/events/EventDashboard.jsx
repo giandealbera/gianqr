@@ -7,10 +7,31 @@ import toast from 'react-hot-toast';
 
 const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n || 0);
 
-const ActionCard = ({ icon, label, onClick, to, disabled }) => {
+const SvgIcon = ({ path }) => (
+  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6}>
+    <path strokeLinecap="round" strokeLinejoin="round" d={path} />
+  </svg>
+);
+
+const ICON_PATHS = {
+  gear:    'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z',
+  tag:     'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z',
+  ticket:  'M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z',
+  qr:      'M3 9V6a1 1 0 011-1h3M3 15v3a1 1 0 001 1h3m11-4v3a1 1 0 01-1 1h-3m4-11h-3a1 1 0 01-1-1V3',
+  money:   'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+  users:   'M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m9-4a4 4 0 11-8 0 4 4 0 018 0zm6-3a3 3 0 11-6 0 3 3 0 016 0z',
+};
+
+const ActionCard = ({ iconKey, label, onClick, to, disabled }) => {
   const cls = `flex flex-col items-center justify-center gap-2 p-4 rounded-xl border border-gray-800 bg-gray-900 hover:border-brand/40 hover:bg-gray-800/50 transition-all cursor-pointer active:scale-95 ${disabled ? 'opacity-40 pointer-events-none' : ''}`;
-  if (to) return <Link to={to} className={cls}><span className="text-2xl">{icon}</span><span className="text-xs text-gray-300 text-center leading-tight font-medium">{label}</span></Link>;
-  return <button onClick={onClick} className={cls}><span className="text-2xl">{icon}</span><span className="text-xs text-gray-300 text-center leading-tight font-medium">{label}</span></button>;
+  const inner = (
+    <>
+      <span style={{ color: '#C9974D' }}><SvgIcon path={ICON_PATHS[iconKey]} /></span>
+      <span className="text-xs text-gray-300 text-center leading-tight font-medium">{label}</span>
+    </>
+  );
+  if (to) return <Link to={to} className={cls}>{inner}</Link>;
+  return <button onClick={onClick} className={cls}>{inner}</button>;
 };
 
 const EventDashboard = () => {
@@ -154,12 +175,12 @@ const EventDashboard = () => {
 
         {/* Action grid - like World Pass */}
         <div className="grid grid-cols-3 gap-3 mb-6">
-          <ActionCard icon="⚙️" label="Configurar evento" to={`/evento/${id}/config`} />
-          <ActionCard icon="🏷️" label="Tipos de entrada" to={`/evento/${id}/tipos`} />
-          <ActionCard icon="🎟️" label="Descuentos" to={`/evento/${id}/descuentos`} disabled />
-          <ActionCard icon="📷" label="Gestión del ingreso" to="/escaner" />
-          <ActionCard icon="💰" label="Mis ventas" to={`/evento/${id}/vendidas`} />
-          <ActionCard icon="👥" label="Personal" to="/admin/usuarios" />
+          <ActionCard iconKey="gear"   label="Configurar evento" to={`/evento/${id}/config`} />
+          <ActionCard iconKey="tag"    label="Tipos de entrada" to={`/evento/${id}/tipos`} />
+          <ActionCard iconKey="ticket" label="Descuentos" to={`/evento/${id}/descuentos`} disabled />
+          <ActionCard iconKey="qr"     label="Gestión del ingreso" to="/escaner" />
+          <ActionCard iconKey="money"  label="Mis ventas" to={`/evento/${id}/vendidas`} />
+          <ActionCard iconKey="users"  label="Personal" to="/admin/usuarios" />
         </div>
 
         {/* Ticket types breakdown */}

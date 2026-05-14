@@ -9,6 +9,7 @@ const navItems = {
     { to: '/escaner',         label: 'Escaner'     },
     { to: '/admin/usuarios',  label: 'Usuarios'    },
     { to: '/admin/promotores',label: 'Publicas'    },
+    { to: '/admin/rendicion', label: 'Rendicion'   },
     { to: '/admin/reportes',  label: 'Reportes'    },
   ],
   cajero: [

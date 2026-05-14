@@ -137,6 +137,20 @@ const initDb = async () => {
     try { await dbInstance.exec('ALTER TABLE tickets ADD COLUMN buyer_apellido TEXT'); } catch(e) {}
     try { await dbInstance.exec('ALTER TABLE tickets ADD COLUMN buyer_edad TEXT'); } catch(e) {}
     try { await dbInstance.exec('ALTER TABLE tickets ADD COLUMN buyer_localidad TEXT'); } catch(e) {}
+
+    // Tabla de rendiciones (pagos que el publica entrega al admin)
+    try { await dbInstance.exec(`CREATE TABLE IF NOT EXISTS rendiciones (
+      id          TEXT PRIMARY KEY,
+      promotor_id TEXT NOT NULL,
+      amount      REAL NOT NULL,
+      note        TEXT,
+      event_id    TEXT,
+      created_by  TEXT,
+      created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (promotor_id) REFERENCES promotors(id) ON DELETE CASCADE,
+      FOREIGN KEY (event_id)    REFERENCES events(id) ON DELETE SET NULL,
+      FOREIGN KEY (created_by)  REFERENCES users(id) ON DELETE SET NULL
+    )`); } catch(e) {}
     try { await dbInstance.exec('ALTER TABLE users ADD COLUMN magic_token TEXT'); } catch(e) {}
     try { await dbInstance.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_magic_token ON users(magic_token)'); } catch(e) {}
     try { await dbInstance.exec(`CREATE TABLE IF NOT EXISTS scanner_tokens (

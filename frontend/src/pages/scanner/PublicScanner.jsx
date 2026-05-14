@@ -97,7 +97,7 @@ const PublicScanner = () => {
       <div className="bg-gray-900 border-b border-gray-800 px-4 py-4 text-center">
         <p className="text-xs text-gray-400 uppercase tracking-widest mb-0.5">{info.event_name}</p>
         <h1 className="text-xl font-bold text-brand">
-          📷 {info.label || info.ticket_type_name}
+          {info.label || info.ticket_type_name}
         </h1>
         {info.event_date && (
           <p className="text-xs text-gray-500 mt-0.5">{fmt(info.event_date)}</p>
@@ -110,7 +110,13 @@ const PublicScanner = () => {
           <div className={`rounded-2xl border-2 p-6 mb-6 text-center transition-all ${
             result.ok ? 'border-green-500 bg-green-900/20' : 'border-red-500 bg-red-900/20'
           }`}>
-            <div className="text-6xl mb-3">{result.ok ? '✅' : '❌'}</div>
+            <div className={`w-16 h-16 rounded-full mx-auto flex items-center justify-center mb-3 ${result.ok ? 'bg-green-900/30 border border-green-700/50' : 'bg-red-900/30 border border-red-700/50'}`}>
+              <svg className={`w-9 h-9 ${result.ok ? 'text-green-400' : 'text-red-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                {result.ok
+                  ? <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  : <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />}
+              </svg>
+            </div>
             <h2 className={`text-2xl font-black mb-2 ${result.ok ? 'text-green-400' : 'text-red-400'}`}>
               {result.ok ? 'VÁLIDA' : 'INVÁLIDA'}
             </h2>
@@ -119,10 +125,9 @@ const PublicScanner = () => {
             )}
             {ticket && (
               <div className="mt-3 space-y-1.5 text-sm text-left bg-gray-900/50 rounded-xl p-4">
-                <p><span className="text-gray-400">Nombre:</span> <strong>{ticket.buyer_name}</strong></p>
+                <p><span className="text-gray-400">Nombre:</span> <strong>{ticket.buyer_name} {ticket.buyer_apellido || ''}</strong></p>
                 <p><span className="text-gray-400">Tipo:</span> {ticket.tipo_entrada}</p>
-                {ticket.buyer_dni && <p><span className="text-gray-400">DNI:</span> {ticket.buyer_dni}</p>}
-                {result.ok && <p className="text-green-400 text-xs mt-2">✔ Entrada marcada como utilizada</p>}
+                {result.ok && <p className="text-green-400 text-xs mt-2">Entrada marcada como utilizada</p>}
                 {!result.ok && ticket.status === 'usado' && ticket.scanned_at && (
                   <p className="text-red-300 text-xs mt-2">
                     Escaneada el {new Date(ticket.scanned_at).toLocaleString('es-AR')}
