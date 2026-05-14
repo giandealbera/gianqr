@@ -3,13 +3,13 @@ import { useAuth } from '../context/AuthContext';
 
 const navItems = {
   admin: [
-    { to: '/admin',           label: 'Dashboard'      },
-    { to: '/eventos',         label: 'Eventos'        },
-    { to: '/caja',            label: 'Vender'         },
-    { to: '/escaner',         label: 'Escaner'        },
-    { to: '/admin/usuarios',  label: 'Usuarios'       },
-    { to: '/admin/promotores',label: 'Publicas'       },
-    { to: '/admin/reportes',  label: 'Reportes'       },
+    { to: '/admin',           label: 'Dashboard'   },
+    { to: '/eventos',         label: 'Eventos'     },
+    { to: '/caja',            label: 'Vender'      },
+    { to: '/escaner',         label: 'Escaner'     },
+    { to: '/admin/usuarios',  label: 'Usuarios'    },
+    { to: '/admin/promotores',label: 'Publicas'    },
+    { to: '/admin/reportes',  label: 'Reportes'    },
   ],
   cajero: [
     { to: '/eventos', label: 'Eventos' },
@@ -35,12 +35,14 @@ const Sidebar = () => {
   const items = navItems[user?.role] || [];
 
   return (
-    <aside className="w-56 min-h-screen bg-slate-900 border-r border-slate-800 flex flex-col">
-      <div className="px-6 py-5 border-b border-slate-800">
-        <span className="text-xl font-black text-brand tracking-tight">GianQR</span>
-        <p className="text-xs text-slate-500 mt-0.5">Sistema de Entradas</p>
+    <aside className="w-56 min-h-screen flex flex-col" style={{ background: '#0D1117', borderRight: '1px solid #1E2530' }}>
+      {/* Logo */}
+      <div className="px-6 py-5" style={{ borderBottom: '1px solid #1E2530' }}>
+        <span className="text-lg font-black tracking-tight" style={{ color: '#C9974D' }}>GianQR</span>
+        <p className="text-xs mt-0.5" style={{ color: '#374151' }}>Sistema de Entradas</p>
       </div>
 
+      {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-0.5">
         {items.map(item => (
           <NavLink
@@ -48,11 +50,15 @@ const Sidebar = () => {
             to={item.to}
             end={item.to === '/admin'}
             className={({ isActive }) =>
-              `flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+              `flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 ${
                 isActive
-                  ? 'bg-brand text-white'
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'
+                  ? 'text-white'
+                  : 'hover:text-gray-100'
               }`
+            }
+            style={({ isActive }) => isActive
+              ? { background: 'linear-gradient(135deg, rgba(201,151,77,0.15), rgba(168,123,53,0.1))', color: '#C9974D', borderLeft: '2px solid #C9974D', paddingLeft: '10px' }
+              : { color: '#6B7280' }
             }
           >
             {item.label}
@@ -60,12 +66,16 @@ const Sidebar = () => {
         ))}
       </nav>
 
-      <div className="px-4 py-4 border-t border-slate-800">
-        <div className="text-sm font-semibold text-slate-200">{user?.name}</div>
-        <div className="text-xs text-slate-500 mt-0.5">{ROLE_LABELS[user?.role] || user?.role}</div>
+      {/* User */}
+      <div className="px-4 py-4" style={{ borderTop: '1px solid #1E2530' }}>
+        <div className="text-sm font-semibold text-gray-200">{user?.name}</div>
+        <div className="text-xs mt-0.5" style={{ color: '#4B5563' }}>{ROLE_LABELS[user?.role] || user?.role}</div>
         <button
           onClick={() => { logout(); navigate('/login'); }}
-          className="mt-3 text-xs text-red-500 hover:text-red-400 transition-colors"
+          className="mt-3 text-xs transition-colors"
+          style={{ color: '#7F1D1D' }}
+          onMouseEnter={e => e.target.style.color = '#EF4444'}
+          onMouseLeave={e => e.target.style.color = '#7F1D1D'}
         >
           Cerrar sesion
         </button>

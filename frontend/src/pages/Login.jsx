@@ -32,18 +32,25 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-950 px-4">
+    <div className="min-h-screen flex items-center justify-center px-4" style={{ background: 'linear-gradient(160deg, #07090E 0%, #0D1117 50%, #0A0F18 100%)' }}>
       <div className="w-full max-w-sm">
+
+        {/* Logo */}
         <div className="text-center mb-10">
-          <h1 className="text-4xl font-black text-brand tracking-tight">GianQR</h1>
-          <p className="text-slate-500 text-sm mt-2">Sistema de Entradas</p>
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4"
+               style={{ background: 'linear-gradient(135deg, #C9974D, #A87B35)', boxShadow: '0 0 40px rgba(201,151,77,0.2)' }}>
+            <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+          </div>
+          <h1 className="text-3xl font-black tracking-tight" style={{ color: '#C9974D' }}>GianQR</h1>
+          <p className="text-sm mt-1" style={{ color: '#4A5568' }}>Sistema de Entradas</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="card space-y-4">
-          <h2 className="text-base font-semibold text-slate-200">Iniciar sesion</h2>
-
+        {/* Card */}
+        <div className="rounded-2xl p-6 space-y-5" style={{ background: '#0D1117', border: '1px solid #1E2530' }}>
           <div>
-            <label className="block text-sm text-slate-400 mb-1">Usuario</label>
+            <label className="block text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: '#6B7280' }}>Usuario</label>
             <input
               type="text"
               required
@@ -55,7 +62,7 @@ const Login = () => {
           </div>
 
           <div>
-            <label className="block text-sm text-slate-400 mb-1">Contrasena</label>
+            <label className="block text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: '#6B7280' }}>Contrasena</label>
             <input
               type="password"
               required
@@ -66,12 +73,18 @@ const Login = () => {
             />
           </div>
 
-          <button type="submit" disabled={loading} className="btn-primary w-full mt-2">
+          <button
+            type="button"
+            disabled={loading}
+            onClick={handleSubmit}
+            className="w-full py-3 rounded-xl font-bold tracking-wider text-sm transition-all duration-150 disabled:opacity-40"
+            style={{ background: 'linear-gradient(135deg, #C9974D, #A87B35)', color: '#fff', boxShadow: '0 4px 24px rgba(201,151,77,0.25)' }}
+          >
             {loading ? 'Ingresando...' : 'Ingresar'}
           </button>
-        </form>
+        </div>
 
-        <p className="text-center text-xs text-slate-700 mt-6">GianQR v1.0</p>
+        <p className="text-center text-xs mt-6" style={{ color: '#2D3748' }}>GianQR v1.0</p>
       </div>
     </div>
   );

@@ -5,10 +5,20 @@ export default {
     extend: {
       colors: {
         brand: {
-          DEFAULT: '#2563EB',
-          dark:    '#1D4ED8',
-          light:   '#3B82F6',
+          DEFAULT: '#C9974D',
+          dark:    '#A87B35',
+          light:   '#E0B870',
         },
+        surface: {
+          950: '#07090E',
+          900: '#0D1117',
+          800: '#161B24',
+          700: '#1E2530',
+          600: '#263040',
+        },
+      },
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
       },
     },
   },

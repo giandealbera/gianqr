@@ -1,10 +1,14 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   body {
-    @apply bg-slate-950 text-slate-100 font-sans;
+    background-color: #07090E;
+    color: #E8EAF0;
+    font-family: 'Inter', system-ui, sans-serif;
     -webkit-tap-highlight-color: transparent;
   }
 
@@ -15,29 +19,48 @@
 
 @layer components {
   .btn-primary {
-    @apply bg-brand text-white font-semibold px-4 py-2 rounded-lg hover:bg-brand-dark transition-colors disabled:opacity-40 disabled:cursor-not-allowed;
+    @apply bg-brand text-white font-semibold px-4 py-2 rounded-lg
+           hover:bg-brand-dark transition-all duration-150
+           disabled:opacity-40 disabled:cursor-not-allowed
+           tracking-wide text-sm;
   }
   .btn-secondary {
-    @apply bg-slate-700 text-slate-100 font-semibold px-4 py-2 rounded-lg hover:bg-slate-600 transition-colors;
+    background-color: #1E2530;
+    color: #E2E8F0;
+    @apply font-semibold px-4 py-2 rounded-lg transition-all duration-150 tracking-wide text-sm border;
+    border-color: #263040;
   }
+  .btn-secondary:hover { background-color: #263040; }
+
   .input {
-    @apply bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 w-full text-slate-100 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent placeholder-slate-500;
+    background-color: #161B24;
+    border: 1px solid #1E2530;
+    color: #F1F5F9;
+    @apply rounded-lg px-3 py-2.5 w-full focus:outline-none text-sm transition-colors duration-150;
+    placeholder-color: #4B5563;
   }
+  .input:focus { border-color: #C9974D; box-shadow: 0 0 0 1px #C9974D33; }
+  .input::placeholder { color: #4B5563; }
   .card {
-    @apply bg-slate-900 border border-slate-800 rounded-xl p-5;
+    background-color: #0D1117;
+    border: 1px solid #1E2530;
+    border-radius: 0.75rem;
+    padding: 1.25rem;
   }
-  .badge-pagado    { @apply bg-emerald-950 text-emerald-400 text-xs px-2 py-0.5 rounded font-medium border border-emerald-900; }
-  .badge-pendiente { @apply bg-amber-950 text-amber-400 text-xs px-2 py-0.5 rounded font-medium border border-amber-900; }
-  .badge-usado     { @apply bg-blue-950 text-blue-400 text-xs px-2 py-0.5 rounded font-medium border border-blue-900; }
-  .badge-cancelado { @apply bg-red-950 text-red-400 text-xs px-2 py-0.5 rounded font-medium border border-red-900; }
+  .badge-pagado    { @apply bg-emerald-950/60 text-emerald-400 text-xs px-2 py-0.5 rounded font-medium border border-emerald-900/60; }
+  .badge-pendiente { @apply bg-amber-950/60 text-amber-400 text-xs px-2 py-0.5 rounded font-medium border border-amber-900/60; }
+  .badge-usado     { @apply bg-blue-950/60 text-blue-400 text-xs px-2 py-0.5 rounded font-medium border border-blue-900/60; }
+  .badge-cancelado { @apply bg-red-950/60 text-red-400 text-xs px-2 py-0.5 rounded font-medium border border-red-900/60; }
+
+  .surface-row { background-color: #161B24; border-radius: 0.5rem; }
 }
 
 @layer utilities {
   .animate-in {
-    animation: slideIn 0.15s ease-out;
+    animation: fadeSlide 0.15s ease-out;
   }
-  @keyframes slideIn {
-    from { opacity: 0; transform: translateY(-6px); }
+  @keyframes fadeSlide {
+    from { opacity: 0; transform: translateY(-5px); }
     to   { opacity: 1; transform: translateY(0); }
   }
 }
