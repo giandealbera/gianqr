@@ -4,4 +4,10 @@ node_modules/
 dist/
 build/
 backend/test_db.js
+backend/run_db.bat
+backend/setup_db.js
 database/*.sqlite
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite-journal

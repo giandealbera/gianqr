@@ -15,7 +15,6 @@
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
     "mercadopago": "^2.0.8",
-    "mysql2": "^3.10.1",
     "nodemailer": "^6.9.14",
     "qrcode": "^1.5.4",
     "sqlite": "^5.1.1",

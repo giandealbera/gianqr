@@ -9,7 +9,7 @@ const getAll = async (req, res) => {
        FROM events e
        LEFT JOIN venues v ON v.id = e.venue_id
        LEFT JOIN tickets t ON t.event_id = e.id
-       GROUP BY e.id, v.name, v.capacity
+       GROUP BY e.id
        ORDER BY e.date DESC, e.start_time DESC`
     );
     res.json(result.rows);
@@ -46,36 +46,31 @@ const create = async (req, res) => {
   if (!name || !date || !start_time)
     return res.status(400).json({ error: 'name, date y start_time son requeridos' });
 
-  const conn = await require('../config/database').pool.getConnection();
   try {
-    await conn.beginTransaction();
-
     const eventId = uuidv4();
-    await conn.execute(
-      `INSERT INTO events (id, venue_id, name, description, date, start_time, end_time, flyer_url, created_by)
-       VALUES (?,?,?,?,?,?,?,?,?)`,
-      [eventId, venue_id || null, name, description || null, date, start_time,
-       end_time || null, flyer_url || null, req.user.id]
-    );
+    await db.transaction(async (conn) => {
+      await conn.execute(
+        `INSERT INTO events (id, venue_id, name, description, date, start_time, end_time, flyer_url, created_by)
+         VALUES (?,?,?,?,?,?,?,?,?)`,
+        [eventId, venue_id || null, name, description || null, date, start_time,
+         end_time || null, flyer_url || null, req.user.id]
+      );
 
-    if (ticket_types && ticket_types.length > 0) {
-      for (const tt of ticket_types) {
-        await conn.execute(
-          'INSERT INTO ticket_types (id, event_id, name, price, total_quota) VALUES (?,?,?,?,?)',
-          [uuidv4(), eventId, tt.name, tt.price, tt.total_quota]
-        );
+      if (ticket_types && ticket_types.length > 0) {
+        for (const tt of ticket_types) {
+          await conn.execute(
+            'INSERT INTO ticket_types (id, event_id, name, price, total_quota) VALUES (?,?,?,?,?)',
+            [uuidv4(), eventId, tt.name, tt.price, tt.total_quota]
+          );
+        }
       }
-    }
+    });
 
-    await conn.commit();
-    const [rows] = await conn.execute('SELECT * FROM events WHERE id = ?', [eventId]);
-    res.status(201).json(rows[0]);
+    const result = await db.query('SELECT * FROM events WHERE id = ?', [eventId]);
+    res.status(201).json(result.rows[0]);
   } catch (err) {
-    await conn.rollback();
     console.error(err);
     res.status(500).json({ error: 'Error al crear evento' });
-  } finally {
-    conn.release();
   }
 };
 

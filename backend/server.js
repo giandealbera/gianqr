@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors    = require('cors');
+const { initDb } = require('./src/config/database');
 
 const app = express();
 
@@ -28,15 +29,28 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, async () => {
-  console.log(`
+
+const start = async () => {
+  // Inicializar la base de datos SQLite (crea tablas si no existen)
+  await initDb();
+  console.log('  ✅ Base de datos SQLite lista');
+
+  // Ejecutar seed (crea admin y sala por defecto)
+  try { await require('./src/seed')(); } catch(e) { /* ya seedeado */ }
+
+  app.listen(PORT, () => {
+    console.log(`
   ╔════════════════════════════════╗
   ║   🎵  GianQR Backend v1.0     ║
   ║   Puerto: ${PORT}                  ║
   ╚════════════════════════════════╝
-  `);
-  // Ejecutar seed al arrancar
-  try { await require('./src/seed')(); } catch(e) {}
+    `);
+  });
+};
+
+start().catch(err => {
+  console.error('❌ Error al iniciar el servidor:', err);
+  process.exit(1);
 });
 
 module.exports = app;

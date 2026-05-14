@@ -68,7 +68,7 @@ const mpWebhook = async (req, res) => {
         [String(mpPayment.id), ticketId]
       );
       await db.query(
-        "INSERT IGNORE INTO payments (id, ticket_id, method, amount, status, external_id, external_data) VALUES (?,?,'mercadopago',?,'aprobado',?,?)",
+        "INSERT OR IGNORE INTO payments (id, ticket_id, method, amount, status, external_id, external_data) VALUES (?,?,'mercadopago',?,'aprobado',?,?)",
         [uuidv4(), ticketId, mpPayment.transaction_amount, String(mpPayment.id), JSON.stringify(mpPayment)]
       );
     } else if (mpPayment.status === 'rejected') {

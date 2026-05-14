@@ -47,7 +47,7 @@ const create = async (req, res) => {
 
     res.status(201).json({ id: userId, name, email: email.toLowerCase(), role, promo_code: promoCode });
   } catch (err) {
-    if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'El email ya está registrado' });
+    if (err.message?.includes('UNIQUE constraint')) return res.status(409).json({ error: 'El email ya está registrado' });
     console.error(err);
     res.status(500).json({ error: 'Error al crear usuario' });
   }
