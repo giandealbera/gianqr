@@ -8,6 +8,7 @@ const PromoterDashboard = () => {
   const { user } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showMoney, setShowMoney] = useState(false);
 
   useEffect(() => {
     api.get('/users/my-sales')
@@ -25,7 +26,18 @@ const PromoterDashboard = () => {
   return (
     <Layout>
       <div className="px-4 lg:px-8 py-6 max-w-4xl mx-auto">
-        <h1 className="text-2xl font-bold mb-2">Mi Panel de Promotor</h1>
+        <div className="flex items-center justify-between mb-2">
+          <h1 className="text-2xl font-bold">Mi Panel de Promotor</h1>
+          {data && (
+            <button
+              onClick={() => setShowMoney(!showMoney)}
+              className="text-gray-500 hover:text-gray-300 transition-colors bg-gray-800/50 p-2 rounded-lg"
+              title={showMoney ? 'Ocultar importes' : 'Mostrar importes'}
+            >
+              {showMoney ? '👁️' : '🔒'}
+            </button>
+          )}
+        </div>
         <p className="text-gray-400 mb-6">Hola, {user?.name}! Acá podés ver tus ventas y comisiones.</p>
 
         {loading ? (
@@ -65,15 +77,15 @@ const PromoterDashboard = () => {
                 <p className="text-[10px] text-gray-400 uppercase tracking-wider mt-1">Vendidas</p>
               </div>
               <div className="card text-center py-4">
-                <p className="text-3xl font-black text-gray-200">{fmt(data.summary?.total_recaudado)}</p>
+                <p className="text-3xl font-black text-gray-200">{showMoney ? fmt(data.summary?.total_recaudado) : '$ •••••'}</p>
                 <p className="text-[10px] text-gray-400 uppercase tracking-wider mt-1">Recaudado</p>
               </div>
               <div className="card text-center py-4 border-green-500/30 bg-green-900/10">
-                <p className="text-3xl font-black text-green-400">{fmt(data.summary?.mi_comision)}</p>
+                <p className="text-3xl font-black text-green-400">{showMoney ? fmt(data.summary?.mi_comision) : '$ •••••'}</p>
                 <p className="text-[10px] text-gray-400 uppercase tracking-wider mt-1">Mi Ganancia</p>
               </div>
               <div className="card text-center py-4 border-red-500/30 bg-red-900/10">
-                <p className="text-3xl font-black text-red-400">{fmt(data.summary?.debo_enviar)}</p>
+                <p className="text-3xl font-black text-red-400">{showMoney ? fmt(data.summary?.debo_enviar) : '$ •••••'}</p>
                 <p className="text-[10px] text-gray-400 uppercase tracking-wider mt-1">A rendir a la org.</p>
               </div>
             </div>
@@ -94,11 +106,11 @@ const PromoterDashboard = () => {
                       <div className="flex gap-4 text-right">
                         <div>
                           <p className="text-xs text-gray-500 uppercase">Recaudado</p>
-                          <p className="text-sm font-semibold">{fmt(ev.recaudado)}</p>
+                          <p className="text-sm font-semibold">{showMoney ? fmt(ev.recaudado) : '***'}</p>
                         </div>
                         <div>
                           <p className="text-xs text-gray-500 uppercase">A enviar</p>
-                          <p className="text-sm font-bold text-red-400">{fmt(ev.a_enviar)}</p>
+                          <p className="text-sm font-bold text-red-400">{showMoney ? fmt(ev.a_enviar) : '***'}</p>
                         </div>
                       </div>
                     </div>
@@ -126,7 +138,7 @@ const PromoterDashboard = () => {
                       <td className="py-3 pr-2">{t.buyer_name}</td>
                       <td className="py-3 pr-2 text-gray-400">{t.evento}</td>
                       <td className="py-3 pr-2 text-gray-400">{t.tipo_entrada}</td>
-                      <td className="py-3 pr-2 text-right text-green-400">{fmt(t.amount_paid)}</td>
+                      <td className="py-3 pr-2 text-right text-green-400">{showMoney ? fmt(t.amount_paid) : '***'}</td>
                       <td className="py-3 pl-3">
                         <span className={`badge-${t.status}`}>{t.status}</span>
                       </td>

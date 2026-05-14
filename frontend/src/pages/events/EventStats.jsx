@@ -13,6 +13,7 @@ const EventStats = () => {
   const [stats, setStats] = useState(null);
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showMoney, setShowMoney] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -75,7 +76,15 @@ const EventStats = () => {
           ← {event?.name || 'Volver'}
         </button>
 
-        <h1 className="text-xl font-bold mb-1">📊 Datos y analíticas</h1>
+        <div className="flex items-center justify-between mb-1">
+          <h1 className="text-xl font-bold">📊 Datos y analíticas</h1>
+          <button
+            onClick={() => setShowMoney(!showMoney)}
+            className="text-gray-500 hover:text-gray-300 transition-colors bg-gray-800/50 p-1.5 rounded-lg text-sm"
+          >
+            {showMoney ? '👁️' : '🔒'}
+          </button>
+        </div>
         <p className="text-sm text-gray-400 mb-6">{event?.name}</p>
 
         {/* Big numbers */}
@@ -85,7 +94,7 @@ const EventStats = () => {
             <p className="text-[10px] text-gray-400 uppercase tracking-wider mt-1">Entradas vendidas</p>
           </div>
           <div className="card text-center py-4">
-            <p className="text-3xl font-black text-green-400">{fmt(totalRevenue)}</p>
+            <p className="text-3xl font-black text-green-400">{showMoney ? fmt(totalRevenue) : '$ •••••'}</p>
             <p className="text-[10px] text-gray-400 uppercase tracking-wider mt-1">Recaudado</p>
           </div>
           <div className="card text-center py-4">
@@ -111,7 +120,7 @@ const EventStats = () => {
                     <span className="text-sm">{METHOD_LABEL[method] || method}</span>
                     <span className="text-xs text-gray-500">{data.count} entradas</span>
                   </div>
-                  <span className="font-semibold text-green-400">{fmt(data.total)}</span>
+                  <span className="font-semibold text-green-400">{showMoney ? fmt(data.total) : '***'}</span>
                 </div>
               ))}
             </div>
@@ -130,7 +139,7 @@ const EventStats = () => {
                     <div className="flex justify-between items-center mb-1">
                       <div>
                         <span className="text-sm text-gray-200">{tt.tipo}</span>
-                        <span className="text-xs text-gray-500 ml-2">{fmt(tt.price)} c/u</span>
+                        <span className="text-xs text-gray-500 ml-2">{showMoney ? fmt(tt.price) : '***'} c/u</span>
                       </div>
                       <span className="text-xs text-gray-400">{tt.sold_count}/{tt.total_quota} ({pct}%)</span>
                     </div>
@@ -140,7 +149,7 @@ const EventStats = () => {
                         style={{ width: `${Math.max(pct, 2)}%` }}
                       />
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">Recaudado: {fmt(tt.recaudado)} · Disponibles: {tt.disponibles}</p>
+                    <p className="text-xs text-gray-500 mt-1">Recaudado: {showMoney ? fmt(tt.recaudado) : '***'} · Disponibles: {tt.disponibles}</p>
                   </div>
                 );
               })}
@@ -179,7 +188,7 @@ const EventStats = () => {
                   </span>
                   <div className="flex items-center gap-4">
                     <span className="text-gray-500">{data.count} entradas</span>
-                    <span className="font-semibold text-green-400">{fmt(data.total)}</span>
+                    <span className="font-semibold text-green-400">{showMoney ? fmt(data.total) : '***'}</span>
                   </div>
                 </div>
               ))}

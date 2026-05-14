@@ -21,7 +21,7 @@ const EventDashboard = () => {
   const [stats, setStats] = useState(null);
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showSales, setShowSales] = useState(true);
+  const [showSales, setShowSales] = useState(false);
 
   useEffect(() => {
     const load = async () => {
