@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import api from '../../api/axios';
-import Sidebar from '../../components/Sidebar';
+import Layout from '../../components/Layout';
 import toast from 'react-hot-toast';
 
 const METHODS = [
@@ -11,8 +12,11 @@ const METHODS = [
 ];
 
 const Cashier = () => {
+  const [searchParams] = useSearchParams();
+  const preselectedEvent = searchParams.get('event');
+  
   const [events,     setEvents]     = useState([]);
-  const [eventSel,   setEventSel]   = useState('');
+  const [eventSel,   setEventSel]   = useState(preselectedEvent || '');
   const [ticketTypes, setTicketTypes] = useState([]);
   const [form, setForm] = useState({
     ticket_type_id: '', buyer_name: '', buyer_email: '',
@@ -20,7 +24,7 @@ const Cashier = () => {
     promotor_code: '',
   });
   const [saving,  setSaving]  = useState(false);
-  const [created, setCreated] = useState(null); // ticket recién creado
+  const [created, setCreated] = useState(null);
 
   useEffect(() => {
     api.get('/events').then(r =>
@@ -53,9 +57,8 @@ const Cashier = () => {
   };
 
   return (
-    <div className="flex min-h-screen">
-      <Sidebar />
-      <main className="flex-1 p-8 max-w-2xl">
+    <Layout>
+      <div className="px-4 lg:px-8 py-6 max-w-2xl mx-auto">
         <h1 className="text-2xl font-bold mb-6">🎫 Vender Entrada</h1>
 
         {created ? (
@@ -120,8 +123,8 @@ const Cashier = () => {
             )}
 
             {/* Datos del comprador */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="sm:col-span-2">
                 <label className="text-sm text-gray-400 block mb-1">Nombre del comprador *</label>
                 <input className="input" required value={form.buyer_name}
                   onChange={e => setForm(f => ({ ...f, buyer_name: e.target.value }))} />
@@ -179,8 +182,8 @@ const Cashier = () => {
             </button>
           </form>
         )}
-      </main>
-    </div>
+      </div>
+    </Layout>
   );
 };
 

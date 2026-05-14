@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../../api/axios';
-import Sidebar from '../../components/Sidebar';
+import Layout from '../../components/Layout';
 import { useAuth } from '../../context/AuthContext';
 
 const PromoterDashboard = () => {
@@ -34,9 +34,8 @@ const PromoterDashboard = () => {
   const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n);
 
   return (
-    <div className="flex min-h-screen">
-      <Sidebar />
-      <main className="flex-1 p-8">
+    <Layout>
+      <div className="px-4 lg:px-8 py-6">
         <h1 className="text-2xl font-bold mb-2">Mi Panel de Promotor</h1>
         <p className="text-gray-400 mb-6">Hola, {user?.name}! Acá podés ver tus ventas.</p>
 
@@ -107,8 +106,8 @@ const PromoterDashboard = () => {
             </table>
           )}
         </div>
-      </main>
-    </div>
+      </div>
+    </Layout>
   );
 };
 

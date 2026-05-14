@@ -4,21 +4,24 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 
 // Páginas
-import Login            from './pages/Login';
-import Dashboard        from './pages/admin/Dashboard';
-import Events           from './pages/admin/Events';
-import Users            from './pages/admin/Users';
-import Reports          from './pages/admin/Reports';
-import Scanner          from './pages/scanner/Scanner';
-import Cashier          from './pages/cashier/Cashier';
+import Login             from './pages/Login';
+import MyEvents          from './pages/events/MyEvents';
+import EventDashboard    from './pages/events/EventDashboard';
+import SoldTickets       from './pages/events/SoldTickets';
+import EventStats        from './pages/events/EventStats';
+import Dashboard         from './pages/admin/Dashboard';
+import Users             from './pages/admin/Users';
+import Reports           from './pages/admin/Reports';
+import Scanner           from './pages/scanner/Scanner';
+import Cashier           from './pages/cashier/Cashier';
 import PromoterDashboard from './pages/promoter/PromoterDashboard';
+import MoreMenu          from './pages/MoreMenu';
 
 // Redirige al panel según el rol del usuario logueado
 const RoleRedirect = () => {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
-  const map = { admin: '/admin', cajero: '/caja', portero: '/escaner', promotor: '/promotor' };
-  return <Navigate to={map[user.role] || '/admin'} replace />;
+  return <Navigate to="/eventos" replace />;
 };
 
 const App = () => (
@@ -42,13 +45,25 @@ const App = () => (
           </div>
         } />
 
+        {/* Eventos — accesible para todos los roles */}
+        <Route path="/eventos" element={
+          <ProtectedRoute allowedRoles={['admin', 'cajero', 'portero', 'promotor']}><MyEvents /></ProtectedRoute>
+        } />
+        <Route path="/evento/:id" element={
+          <ProtectedRoute allowedRoles={['admin', 'cajero', 'portero', 'promotor']}><EventDashboard /></ProtectedRoute>
+        } />
+        <Route path="/evento/:id/vendidas" element={
+          <ProtectedRoute allowedRoles={['admin', 'cajero']}><SoldTickets /></ProtectedRoute>
+        } />
+        <Route path="/evento/:id/stats" element={
+          <ProtectedRoute allowedRoles={['admin']}><EventStats /></ProtectedRoute>
+        } />
+
         {/* Admin */}
         <Route path="/admin" element={
           <ProtectedRoute allowedRoles={['admin']}><Dashboard /></ProtectedRoute>
         } />
-        <Route path="/admin/eventos" element={
-          <ProtectedRoute allowedRoles={['admin']}><Events /></ProtectedRoute>
-        } />
+        <Route path="/admin/eventos" element={<Navigate to="/eventos" replace />} />
         <Route path="/admin/usuarios" element={
           <ProtectedRoute allowedRoles={['admin']}><Users /></ProtectedRoute>
         } />
@@ -69,6 +84,11 @@ const App = () => (
         {/* Promotor */}
         <Route path="/promotor" element={
           <ProtectedRoute allowedRoles={['admin', 'promotor']}><PromoterDashboard /></ProtectedRoute>
+        } />
+
+        {/* Más opciones */}
+        <Route path="/mas" element={
+          <ProtectedRoute allowedRoles={['admin', 'cajero', 'portero', 'promotor']}><MoreMenu /></ProtectedRoute>
         } />
 
         {/* 404 */}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../../api/axios';
-import Sidebar from '../../components/Sidebar';
+import Layout from '../../components/Layout';
 
 const METHOD_LABEL = { mercadopago: '💳 MercadoPago', efectivo: '💵 Efectivo', transferencia: '🏦 Transferencia' };
 
@@ -33,9 +33,8 @@ const Reports = () => {
   const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n || 0);
 
   return (
-    <div className="flex min-h-screen">
-      <Sidebar />
-      <main className="flex-1 p-8">
+    <Layout>
+      <div className="px-4 lg:px-8 py-6 max-w-4xl mx-auto">
         <h1 className="text-2xl font-bold mb-6">Reportes de ventas</h1>
 
         {/* Filtros */}
@@ -122,8 +121,8 @@ const Reports = () => {
             </div>
           </>
         )}
-      </main>
-    </div>
+      </div>
+    </Layout>
   );
 };
 

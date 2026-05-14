@@ -4,17 +4,22 @@ import { useAuth } from '../context/AuthContext';
 const navItems = {
   admin: [
     { to: '/admin',          label: '📊 Dashboard'   },
-    { to: '/admin/eventos',  label: '🎉 Eventos'     },
+    { to: '/eventos',        label: '🎉 Eventos'     },
+    { to: '/caja',           label: '🎫 Vender'      },
+    { to: '/escaner',        label: '📷 Escanear'    },
     { to: '/admin/usuarios', label: '👥 Usuarios'    },
     { to: '/admin/reportes', label: '💰 Reportes'    },
   ],
   cajero: [
-    { to: '/caja', label: '🎫 Vender Entradas' },
+    { to: '/eventos',  label: '🎉 Eventos' },
+    { to: '/caja',     label: '🎫 Vender Entradas' },
   ],
   portero: [
-    { to: '/escaner', label: '📷 Escanear QR' },
+    { to: '/eventos',  label: '🎉 Eventos' },
+    { to: '/escaner',  label: '📷 Escanear QR' },
   ],
   promotor: [
+    { to: '/eventos',  label: '🎉 Eventos' },
     { to: '/promotor', label: '🔗 Mi Panel' },
   ],
 };

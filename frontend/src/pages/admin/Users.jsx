@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../../api/axios';
-import Sidebar from '../../components/Sidebar';
+import Layout from '../../components/Layout';
 import toast from 'react-hot-toast';
 
 const ROLES = ['admin', 'cajero', 'portero', 'promotor'];
@@ -47,9 +47,8 @@ const Users = () => {
   };
 
   return (
-    <div className="flex min-h-screen">
-      <Sidebar />
-      <main className="flex-1 p-8">
+    <Layout>
+      <div className="px-4 lg:px-8 py-6 max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold">Usuarios</h1>
           <button onClick={() => setShowForm(!showForm)} className="btn-primary">
@@ -139,8 +138,8 @@ const Users = () => {
             </tbody>
           </table>
         </div>
-      </main>
-    </div>
+      </div>
+    </Layout>
   );
 };
 

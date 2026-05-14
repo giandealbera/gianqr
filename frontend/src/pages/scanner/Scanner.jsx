@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import api from '../../api/axios';
-import Sidebar from '../../components/Sidebar';
+import Layout from '../../components/Layout';
 import toast from 'react-hot-toast';
 
 const COOLDOWN_MS = 2000;
 
 const Scanner = () => {
-  const [result, setResult]   = useState(null);  // último escaneo
+  const [result, setResult]   = useState(null);
   const [scanning, setScanning] = useState(false);
   const scannerRef = useRef(null);
   const lastScan   = useRef(0);
@@ -29,7 +29,7 @@ const Scanner = () => {
         try {
           const parsed = JSON.parse(decodedText);
           qr_code = parsed.code || decodedText;
-        } catch { /* texto plano */ }
+        } catch { /* plain text */ }
 
         setScanning(true);
         try {
@@ -44,7 +44,7 @@ const Scanner = () => {
           setScanning(false);
         }
       },
-      (error) => { /* ignorar errores de frame */ }
+      (error) => { /* ignore frame errors */ }
     );
 
     scannerRef.current = scanner;
@@ -54,13 +54,12 @@ const Scanner = () => {
   const ticket = result?.data?.ticket;
 
   return (
-    <div className="flex min-h-screen">
-      <Sidebar />
-      <main className="flex-1 p-8">
+    <Layout>
+      <div className="px-4 lg:px-8 py-6 max-w-3xl mx-auto">
         <h1 className="text-2xl font-bold mb-6">📷 Escanear QR</h1>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Escáner */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Scanner */}
           <div>
             <div className="card">
               <p className="text-sm text-gray-400 mb-4">Apuntá la cámara al QR de la entrada</p>
@@ -71,7 +70,7 @@ const Scanner = () => {
             </div>
           </div>
 
-          {/* Resultado */}
+          {/* Result */}
           <div>
             {result ? (
               <div className={`card border-2 ${result.ok ? 'border-green-500' : 'border-red-500'}`}>
@@ -126,8 +125,8 @@ const Scanner = () => {
             )}
           </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </Layout>
   );
 };
 

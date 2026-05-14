@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../../api/axios';
-import Sidebar from '../../components/Sidebar';
+import Layout from '../../components/Layout';
 
 const StatCard = ({ label, value, sub, color = 'text-white' }) => (
   <div className="card">
@@ -23,9 +23,8 @@ const Dashboard = () => {
   const totalSold = events.reduce((acc, e) => acc + parseInt(e.tickets_sold || 0), 0);
 
   return (
-    <div className="flex min-h-screen">
-      <Sidebar />
-      <main className="flex-1 p-8">
+    <Layout>
+      <div className="px-4 lg:px-8 py-6">
         <h1 className="text-2xl font-bold text-white mb-6">Dashboard</h1>
 
         {/* Stats */}
@@ -69,8 +68,8 @@ const Dashboard = () => {
             </div>
           )}
         </div>
-      </main>
-    </div>
+      </div>
+    </Layout>
   );
 };
 
