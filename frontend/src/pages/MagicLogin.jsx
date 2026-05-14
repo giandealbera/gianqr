@@ -19,21 +19,22 @@ const MagicLogin = () => {
   }, [token]);
 
   if (error) return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center p-6">
+    <div className="min-h-screen flex items-center justify-center p-6" style={{ background: '#07090E' }}>
       <div className="text-center">
-        <p className="text-5xl mb-4">🔒</p>
+        <p className="text-3xl font-black tracking-tight mb-6" style={{ color: '#C9974D' }}>GianQR</p>
         <p className="text-red-400 text-lg font-semibold">{error}</p>
-        <p className="text-gray-500 text-sm mt-2">Este link es inválido o fue desactivado.</p>
+        <p className="text-gray-500 text-sm mt-2">Este link es invalido o fue desactivado.</p>
         <a href="/login" className="mt-4 inline-block text-brand underline text-sm">Ir al login</a>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+    <div className="min-h-screen flex items-center justify-center" style={{ background: '#07090E' }}>
       <div className="text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-brand mx-auto mb-4" />
-        <p className="text-gray-400">Iniciando sesión...</p>
+        <p className="text-3xl font-black tracking-tight mb-6" style={{ color: '#C9974D' }}>GianQR</p>
+        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-brand mx-auto mb-4" />
+        <p className="text-gray-400 text-sm">Iniciando sesion...</p>
       </div>
     </div>
   );
