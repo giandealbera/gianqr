@@ -4,24 +4,12 @@ import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import toast from 'react-hot-toast';
 
-const METHODS = [
-  { value: 'efectivo',      label: 'Efectivo' },
-  { value: 'transferencia', label: 'Transferencia' },
-];
-
 const PromoterSell = () => {
   const [promoCode,    setPromoCode]    = useState('');
   const [events,       setEvents]       = useState([]);
   const [ticketTypes,  setTicketTypes]  = useState([]);
   const [eventSel,     setEventSel]     = useState('');
   const [typeSel,      setTypeSel]      = useState('');
-  const [mode,         setMode]         = useState('link'); // 'link' | 'manual'
-  const [form, setForm] = useState({
-    ticket_type_id: '', buyer_name: '', buyer_apellido: '', buyer_edad: '',
-    buyer_localidad: '', buyer_email: '', payment_method: 'efectivo', payment_ref: '',
-  });
-  const [saving,  setSaving]  = useState(false);
-  const [created, setCreated] = useState(null);
 
   useEffect(() => {
     api.get('/events').then(r => setEvents(r.data.filter(e => e.is_active)));
@@ -29,9 +17,12 @@ const PromoterSell = () => {
   }, []);
 
   useEffect(() => {
-    if (!eventSel) { setTicketTypes([]); setTypeSel(''); setForm(f => ({ ...f, ticket_type_id: '' })); return; }
+    if (!eventSel) { setTicketTypes([]); setTypeSel(''); return; }
     api.get(`/events/${eventSel}`).then(r => setTicketTypes(r.data.ticket_types || []));
   }, [eventSel]);
+
+  const selectedType  = ticketTypes.find(t => t.id === typeSel);
+  const selectedEvent = events.find(e => e.id === eventSel);
 
   const buyLink = promoCode && eventSel && typeSel
     ? `${window.location.origin}/comprar/${promoCode}?event=${eventSel}&type=${typeSel}`
@@ -46,84 +37,18 @@ const PromoterSell = () => {
     navigator.clipboard.writeText(buyLink).then(() => toast.success('Link copiado'));
   };
 
-  const selectedType  = ticketTypes.find(t => t.id === (typeSel || form.ticket_type_id));
-  const selectedEvent = events.find(e => e.id === eventSel);
-
-  const handleManualSubmit = async (e) => {
-    e.preventDefault();
-    if (!eventSel) return toast.error('Seleccioná un evento');
-    setSaving(true);
-    try {
-      const res = await api.post('/tickets', { ...form, event_id: eventSel, ticket_type_id: typeSel || form.ticket_type_id });
-      setCreated(res.data);
-      toast.success('Entrada generada');
-      setForm({ ticket_type_id: '', buyer_name: '', buyer_apellido: '', buyer_edad: '',
-        buyer_localidad: '', buyer_email: '', payment_method: 'efectivo', payment_ref: '' });
-      setEventSel(''); setTypeSel('');
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Error al crear entrada');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (created) return (
-    <Layout>
-      <div className="px-4 lg:px-8 py-6 max-w-md mx-auto">
-        <div className="card text-center space-y-4">
-          <div className="w-12 h-12 rounded-full mx-auto flex items-center justify-center"
-               style={{ background: 'rgba(52,211,153,0.15)', border: '1px solid rgba(52,211,153,0.3)' }}>
-            <svg className="w-6 h-6 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-          <h2 className="text-xl font-bold">Entrada generada</h2>
-          <p className="text-gray-400">{created.buyer_name} {created.buyer_apellido}</p>
-          <div className="flex justify-center p-4 bg-white rounded-xl">
-            <QRCodeSVG
-              value={JSON.stringify({ code: created.qr_code, ticket_id: created.id })}
-              size={200} bgColor="#ffffff" fgColor="#000000"
-            />
-          </div>
-          <p className="font-mono text-xs text-gray-500">{created.qr_code}</p>
-          <div className="flex gap-3 justify-center">
-            <button onClick={() => setCreated(null)} className="btn-primary flex-1">Nueva entrada</button>
-            <button onClick={() => window.print()} className="btn-secondary flex-1">Imprimir</button>
-          </div>
-        </div>
-      </div>
-    </Layout>
-  );
-
   return (
     <Layout>
       <div className="px-4 lg:px-8 py-6 max-w-2xl mx-auto">
         <h1 className="text-2xl font-bold mb-1">Vender entrada</h1>
         <p className="text-sm mb-6" style={{ color: '#6B7280' }}>
-          Genera un link para que el comprador complete sus propios datos, o registralo vos en persona.
+          Compartile el link al comprador. El completa sus datos y recibe su QR. La venta queda registrada a tu nombre.
         </p>
 
-        {/* Toggle modo */}
-        <div className="flex gap-2 mb-6 p-1 rounded-xl" style={{ background: '#0D1117', border: '1px solid #1E2530' }}>
-          {[
-            { k: 'link',   label: 'Generar link' },
-            { k: 'manual', label: 'Registrar en persona' },
-          ].map(({ k, label }) => (
-            <button key={k} onClick={() => setMode(k)}
-              className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all duration-150"
-              style={mode === k
-                ? { background: 'linear-gradient(135deg,#C9974D,#A87B35)', color: '#fff' }
-                : { color: '#6B7280' }}>
-              {label}
-            </button>
-          ))}
-        </div>
-
         <div className="card space-y-5">
-          {/* Evento */}
           <div>
             <label className="text-sm text-gray-400 block mb-1">Evento *</label>
-            <select className="input" required value={eventSel}
+            <select className="input" value={eventSel}
               onChange={e => setEventSel(e.target.value)}>
               <option value="">Seleccionar evento</option>
               {events.map(ev => (
@@ -134,18 +59,12 @@ const PromoterSell = () => {
             </select>
           </div>
 
-          {/* Tipo de entrada */}
           {ticketTypes.length > 0 && (
             <div>
-              <label className="text-sm text-gray-400 block mb-1">
-                Tipo de entrada {mode === 'link' ? '(opcional)' : '*'}
-              </label>
+              <label className="text-sm text-gray-400 block mb-1">Tipo de entrada (opcional)</label>
               <select className="input" value={typeSel}
-                onChange={e => setTypeSel(e.target.value)}
-                required={mode === 'manual'}>
-                <option value="">
-                  {mode === 'link' ? 'Cualquier tipo (el comprador elige)' : 'Seleccionar tipo'}
-                </option>
+                onChange={e => setTypeSel(e.target.value)}>
+                <option value="">El comprador elige el tipo</option>
                 {ticketTypes.map(tt => (
                   <option key={tt.id} value={tt.id} disabled={tt.available <= 0}>
                     {tt.name} — ${parseFloat(tt.price).toLocaleString('es-AR')} ({tt.available} disp.)
@@ -160,102 +79,34 @@ const PromoterSell = () => {
             </div>
           )}
 
-          {/* MODO LINK */}
-          {mode === 'link' && (
-            <div className="space-y-3 pt-1">
-              <div className="rounded-xl p-4 space-y-3" style={{ background: '#161B24', border: '1px solid #1E2530' }}>
-                <p className="text-xs uppercase tracking-widest font-semibold" style={{ color: '#6B7280' }}>
-                  Link para el comprador
-                </p>
-                <p className="text-xs break-all font-mono" style={{ color: buyLink ? '#C9974D' : '#374151' }}>
-                  {buyLink || 'Selecciona un evento para generar el link'}
-                </p>
+          {buyLink && eventSel ? (
+            <div className="space-y-4 pt-2 border-t border-gray-800">
+              <p className="text-xs uppercase tracking-widest font-semibold text-center" style={{ color: '#6B7280' }}>
+                Compartile este link al comprador
+              </p>
+              <div className="flex justify-center p-4 bg-white rounded-xl">
+                <QRCodeSVG value={buyLink} size={220} bgColor="#ffffff" fgColor="#000000" />
               </div>
-              <button
-                onClick={copyLink}
-                disabled={!buyLink}
-                className="btn-primary w-full py-3 text-base disabled:opacity-30"
-              >
+
+              <div className="rounded-lg p-3 break-all font-mono text-xs"
+                   style={{ background: '#161B24', border: '1px solid #1E2530', color: '#C9974D' }}>
+                {buyLink}
+              </div>
+
+              <button onClick={copyLink} className="btn-primary w-full py-3">
                 Copiar link
               </button>
+
               <p className="text-xs text-center" style={{ color: '#4B5563' }}>
-                El comprador abre el link, completa sus datos y recibe su QR
+                {selectedEvent?.name}{selectedType ? ` · ${selectedType.name}` : ''} — el comprador completa sus datos y recibe el QR
               </p>
             </div>
-          )}
-
-          {/* MODO MANUAL */}
-          {mode === 'manual' && (
-            <form onSubmit={handleManualSubmit} className="space-y-5">
-              <div className="space-y-3">
-                <p className="text-xs uppercase tracking-widest font-medium" style={{ color: '#4B5563', borderTop: '1px solid #1E2530', paddingTop: '1rem' }}>
-                  Datos del comprador
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-sm text-gray-400 block mb-1">Nombre *</label>
-                    <input className="input" required placeholder="Juan"
-                      value={form.buyer_name}
-                      onChange={e => setForm(f => ({ ...f, buyer_name: e.target.value }))} />
-                  </div>
-                  <div>
-                    <label className="text-sm text-gray-400 block mb-1">Apellido *</label>
-                    <input className="input" required placeholder="García"
-                      value={form.buyer_apellido}
-                      onChange={e => setForm(f => ({ ...f, buyer_apellido: e.target.value }))} />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-sm text-gray-400 block mb-1">Edad</label>
-                    <input className="input" inputMode="numeric" placeholder="25"
-                      value={form.buyer_edad}
-                      onChange={e => setForm(f => ({ ...f, buyer_edad: e.target.value }))} />
-                  </div>
-                  <div>
-                    <label className="text-sm text-gray-400 block mb-1">Localidad</label>
-                    <input className="input" placeholder="San Juan"
-                      value={form.buyer_localidad}
-                      onChange={e => setForm(f => ({ ...f, buyer_localidad: e.target.value }))} />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-sm text-gray-400 block mb-1">Email <span className="text-gray-600">(opcional)</span></label>
-                  <input type="email" className="input" placeholder="juan@email.com"
-                    value={form.buyer_email}
-                    onChange={e => setForm(f => ({ ...f, buyer_email: e.target.value }))} />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-sm text-gray-400 block mb-1">Método de pago *</label>
-                <div className="flex gap-2">
-                  {METHODS.map(m => (
-                    <button type="button" key={m.value}
-                      onClick={() => setForm(f => ({ ...f, payment_method: m.value }))}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors border ${
-                        form.payment_method === m.value
-                          ? 'bg-brand border-brand text-white'
-                          : 'border-gray-700 text-gray-400 hover:border-gray-500'
-                      }`}>
-                      {m.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {form.payment_method === 'transferencia' && (
-                <div>
-                  <label className="text-sm text-gray-400 block mb-1">Nro. de transferencia</label>
-                  <input className="input" value={form.payment_ref}
-                    onChange={e => setForm(f => ({ ...f, payment_ref: e.target.value }))} />
-                </div>
-              )}
-
-              <button type="submit" disabled={saving || !typeSel || !eventSel} className="btn-primary w-full py-3 text-base">
-                {saving ? 'Generando...' : 'Generar entrada'}
-              </button>
-            </form>
+          ) : (
+            <p className="text-sm text-center py-4" style={{ color: '#4B5563' }}>
+              {!promoCode
+                ? 'No tenes codigo de publica asignado'
+                : 'Seleccioná un evento para mostrar el QR'}
+            </p>
           )}
         </div>
       </div>
