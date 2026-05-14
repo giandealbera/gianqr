@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 
 const BACKEND = (import.meta.env.VITE_API_URL || 'http://localhost:4000/api');
@@ -10,23 +10,28 @@ const METHODS = [
 ];
 
 const emptyForm = {
-  ticket_type_id: '', buyer_name: '', buyer_apellido: '',
+  buyer_name: '', buyer_apellido: '',
   buyer_dni: '', buyer_celular: '', buyer_email: '',
   payment_method: 'efectivo',
 };
 
 const PublicBuy = () => {
-  const { code } = useParams();
-  const [promotor,     setPromotor]     = useState(null);
-  const [events,       setEvents]       = useState([]);
-  const [loading,      setLoading]      = useState(true);
-  const [error,        setError]        = useState(null);
-  const [eventSel,     setEventSel]     = useState('');
-  const [ticketTypes,  setTicketTypes]  = useState([]);
-  const [form,         setForm]         = useState(emptyForm);
-  const [saving,       setSaving]       = useState(false);
-  const [created,      setCreated]      = useState(null);
-  const [formError,    setFormError]    = useState(null);
+  const { code }                = useParams();
+  const [searchParams]          = useSearchParams();
+  const presetEventId           = searchParams.get('event') || '';
+  const presetTypeId            = searchParams.get('type')  || '';
+
+  const [promotor,    setPromotor]    = useState(null);
+  const [events,      setEvents]      = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [error,       setError]       = useState(null);
+  const [eventSel,    setEventSel]    = useState(presetEventId);
+  const [ticketTypes, setTicketTypes] = useState([]);
+  const [typeSel,     setTypeSel]     = useState(presetTypeId);
+  const [form,        setForm]        = useState(emptyForm);
+  const [saving,      setSaving]      = useState(false);
+  const [created,     setCreated]     = useState(null);
+  const [formError,   setFormError]   = useState(null);
 
   useEffect(() => {
     Promise.all([
@@ -34,35 +39,49 @@ const PublicBuy = () => {
       fetch(`${BACKEND}/public/events`).then(r => r.json()),
     ])
       .then(([promo, evs]) => {
-        if (promo.error) { setError('Link no válido o expirado.'); return; }
+        if (promo.error) { setError('Link no valido o expirado.'); return; }
         setPromotor(promo);
         const list = Array.isArray(evs) ? evs : [];
         setEvents(list);
-        if (list.length === 1) {
-          setEventSel(list[0].id);
-          setTicketTypes(list[0].ticket_types || []);
+
+        // auto-seleccionar evento
+        const targetEvent = presetEventId
+          ? list.find(e => e.id === presetEventId)
+          : list.length === 1 ? list[0] : null;
+
+        if (targetEvent) {
+          setEventSel(targetEvent.id);
+          const types = targetEvent.ticket_types || [];
+          setTicketTypes(types);
+          // auto-seleccionar tipo
+          if (presetTypeId && types.find(t => t.id === presetTypeId)) {
+            setTypeSel(presetTypeId);
+          } else if (types.length === 1) {
+            setTypeSel(types[0].id);
+          }
         }
       })
-      .catch(() => setError('No se pudo cargar la página.'))
+      .catch(() => setError('No se pudo cargar la pagina.'))
       .finally(() => setLoading(false));
   }, [code]);
 
   const handleEventChange = (id) => {
     setEventSel(id);
+    setTypeSel('');
     const ev = events.find(e => e.id === id);
     setTicketTypes(ev?.ticket_types || []);
-    setForm(f => ({ ...f, ticket_type_id: '' }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setFormError(null);
+    if (!eventSel || !typeSel) { setFormError('Selecciona el evento y tipo de entrada'); return; }
     setSaving(true);
     try {
       const r = await fetch(`${BACKEND}/public/tickets/${code}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, event_id: eventSel }),
+        body: JSON.stringify({ ...form, event_id: eventSel, ticket_type_id: typeSel }),
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || 'Error al registrar');
@@ -74,22 +93,23 @@ const PublicBuy = () => {
     }
   };
 
-  const handleNew = () => {
-    setCreated(null);
-    setForm(emptyForm);
-  };
+  const handleNew = () => { setCreated(null); setForm(emptyForm); };
 
-  const selectedType = ticketTypes.find(t => t.id === form.ticket_type_id);
+  const selectedType  = ticketTypes.find(t => t.id === typeSel);
   const selectedEvent = events.find(e => e.id === eventSel);
 
+  // ¿los selects están pre-configurados desde el link?
+  const eventLocked = !!presetEventId && !!selectedEvent;
+  const typeLocked  = !!presetTypeId  && !!selectedType;
+
   if (loading) return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+    <div className="min-h-screen flex items-center justify-center" style={{ background: '#07090E' }}>
       <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-brand" />
     </div>
   );
 
   if (error) return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4">
+    <div className="min-h-screen flex items-center justify-center px-4" style={{ background: '#07090E' }}>
       <div className="text-center space-y-3">
         <p className="text-4xl font-black text-brand">GianQR</p>
         <p className="text-red-400">{error}</p>
@@ -98,23 +118,20 @@ const PublicBuy = () => {
   );
 
   return (
-    <div className="min-h-screen bg-gray-950 py-8 px-4">
+    <div className="min-h-screen py-8 px-4" style={{ background: '#07090E' }}>
       <div className="max-w-md mx-auto">
+
         {/* Header */}
         <div className="text-center mb-8">
-          <p className="text-3xl font-black text-brand tracking-tight">GianQR</p>
-          <p className="text-sm text-gray-400 mt-1">Registro de entrada</p>
-          {promotor && (
-            <p className="text-xs text-gray-500 mt-2">
-              Vendedor: <span className="text-gray-300">{promotor.name} {promotor.apellido || ''}</span>
-            </p>
-          )}
+          <p className="text-3xl font-black tracking-tight" style={{ color: '#C9974D' }}>GianQR</p>
+          <p className="text-sm mt-1" style={{ color: '#4B5568' }}>Registro de entrada</p>
         </div>
 
         {created ? (
           <div className="card text-center space-y-5">
             <div>
-              <div className="w-12 h-12 rounded-full bg-green-900/40 border border-green-700/50 flex items-center justify-center mx-auto mb-3">
+              <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3"
+                   style={{ background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.3)' }}>
                 <svg className="w-6 h-6 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
@@ -123,39 +140,35 @@ const PublicBuy = () => {
               <p className="text-sm text-gray-400 mt-1">
                 {created.buyer_name} {created.buyer_apellido}
               </p>
-              <p className="text-xs text-gray-500">{created.tipo_entrada} · ${parseFloat(created.amount_paid).toLocaleString('es-AR')}</p>
+              <p className="text-xs mt-0.5" style={{ color: '#6B7280' }}>
+                {created.tipo_entrada} · ${parseFloat(created.amount_paid).toLocaleString('es-AR')}
+              </p>
             </div>
 
             <div className="flex justify-center p-4 bg-white rounded-xl">
               <QRCodeSVG
                 value={JSON.stringify({ code: created.qr_code, ticket_id: created.id })}
-                size={200}
-                bgColor="#ffffff"
-                fgColor="#000000"
+                size={200} bgColor="#ffffff" fgColor="#000000"
               />
             </div>
 
-            <p className="font-mono text-xs text-gray-500">{created.qr_code}</p>
-
-            <p className="text-xs text-gray-500">
-              Guardá una captura de pantalla de este QR. Lo vas a necesitar en la entrada del evento.
+            <p className="font-mono text-xs" style={{ color: '#4B5563' }}>{created.qr_code}</p>
+            <p className="text-xs" style={{ color: '#4B5563' }}>
+              Guarda una captura de pantalla de este QR. Lo vas a necesitar en la entrada del evento.
             </p>
 
             <div className="flex gap-3">
-              <button onClick={handleNew} className="btn-primary flex-1">
-                Registrar otra persona
-              </button>
-              <button onClick={() => window.print()} className="btn-secondary flex-1">
-                Imprimir
-              </button>
+              <button onClick={handleNew} className="btn-primary flex-1">Registrar otra persona</button>
+              <button onClick={() => window.print()} className="btn-secondary flex-1">Imprimir</button>
             </div>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="card space-y-5">
-            {/* Evento */}
-            {events.length > 1 && (
+
+            {/* Evento — mostrar solo si NO viene preconfigurado */}
+            {!eventLocked && events.length > 1 && (
               <div>
-                <label className="text-sm text-gray-400 block mb-1">Evento</label>
+                <label className="text-sm text-gray-400 block mb-1">Evento *</label>
                 <select className="input" required value={eventSel} onChange={e => handleEventChange(e.target.value)}>
                   <option value="">Seleccionar evento</option>
                   {events.map(ev => (
@@ -167,25 +180,31 @@ const PublicBuy = () => {
               </div>
             )}
 
-            {events.length === 1 && selectedEvent && (
-              <div className="p-3 bg-gray-800/60 rounded-lg border border-gray-700/50">
+            {/* Info del evento (si está seleccionado) */}
+            {selectedEvent && (
+              <div className="rounded-lg p-3" style={{ background: '#161B24', border: '1px solid #1E2530' }}>
                 <p className="font-semibold text-sm">{selectedEvent.name}</p>
-                <p className="text-xs text-gray-400 mt-0.5">
+                <p className="text-xs mt-0.5" style={{ color: '#6B7280' }}>
                   {new Date(selectedEvent.date + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}
                   {selectedEvent.venue_name ? ` · ${selectedEvent.venue_name}` : ''}
                 </p>
+                {/* Tipo de entrada info o selector */}
+                {typeLocked && selectedType ? (
+                  <p className="text-xs mt-1 font-medium" style={{ color: '#C9974D' }}>
+                    {selectedType.name} — ${parseFloat(selectedType.price).toLocaleString('es-AR')}
+                  </p>
+                ) : null}
               </div>
             )}
 
-            {/* Tipo de entrada */}
-            {ticketTypes.length > 0 && (
+            {/* Selector de tipo — solo si NO viene preconfigurado */}
+            {!typeLocked && ticketTypes.length > 0 && (
               <div>
-                <label className="text-sm text-gray-400 block mb-1">Tipo de entrada</label>
-                <select className="input" required value={form.ticket_type_id}
-                  onChange={e => setForm(f => ({ ...f, ticket_type_id: e.target.value }))}>
+                <label className="text-sm text-gray-400 block mb-1">Tipo de entrada *</label>
+                <select className="input" required value={typeSel} onChange={e => setTypeSel(e.target.value)}>
                   <option value="">Seleccionar tipo</option>
                   {ticketTypes.map(tt => (
-                    <option key={tt.id} value={tt.id}>
+                    <option key={tt.id} value={tt.id} disabled={tt.available <= 0}>
                       {tt.name} — ${parseFloat(tt.price).toLocaleString('es-AR')} ({tt.available} disp.)
                     </option>
                   ))}
@@ -200,7 +219,7 @@ const PublicBuy = () => {
 
             {/* Datos personales */}
             <div className="space-y-3">
-              <p className="text-xs text-gray-500 uppercase tracking-wider font-medium border-t border-gray-800 pt-4">
+              <p className="text-xs uppercase tracking-widest font-semibold pt-1" style={{ color: '#4B5563', borderTop: '1px solid #1E2530', paddingTop: '1rem' }}>
                 Tus datos
               </p>
               <div className="grid grid-cols-2 gap-3">
@@ -211,7 +230,7 @@ const PublicBuy = () => {
                 </div>
                 <div>
                   <label className="text-sm text-gray-400 block mb-1">Apellido *</label>
-                  <input className="input" required placeholder="García" value={form.buyer_apellido}
+                  <input className="input" required placeholder="Garcia" value={form.buyer_apellido}
                     onChange={e => setForm(f => ({ ...f, buyer_apellido: e.target.value }))} />
                 </div>
               </div>
@@ -230,7 +249,7 @@ const PublicBuy = () => {
                 </div>
               </div>
               <div>
-                <label className="text-sm text-gray-400 block mb-1">Email <span className="text-gray-600">(opcional)</span></label>
+                <label className="text-sm text-gray-400 block mb-1">Email <span style={{ color: '#4B5563' }}>(opcional)</span></label>
                 <input type="email" className="input" placeholder="tu@email.com"
                   value={form.buyer_email}
                   onChange={e => setForm(f => ({ ...f, buyer_email: e.target.value }))} />
@@ -261,15 +280,15 @@ const PublicBuy = () => {
 
             <button
               type="submit"
-              disabled={saving || !form.ticket_type_id || !eventSel}
+              disabled={saving || !typeSel || !eventSel}
               className="btn-primary w-full py-3 text-base font-semibold"
             >
-              {saving ? 'Registrando...' : 'Registrar entrada'}
+              {saving ? 'Registrando...' : 'Obtener mi entrada'}
             </button>
           </form>
         )}
 
-        <p className="text-center text-xs text-gray-700 mt-6">GianQR — Sistema de Entradas</p>
+        <p className="text-center text-xs mt-6" style={{ color: '#1E2530' }}>GianQR — Sistema de Entradas</p>
       </div>
     </div>
   );
