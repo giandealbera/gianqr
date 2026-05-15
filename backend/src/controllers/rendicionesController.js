@@ -67,18 +67,22 @@ const getPublicaDetail = async (req, res) => {
     const perfil = profileResult.rows[0];
     if (!perfil) return res.status(404).json({ error: 'Publica no encontrada' });
 
-    // resumen por evento
+    // resumen por evento (incluye ya pagado por ese evento)
     const byEvent = await db.query(
       `SELECT e.id AS event_id, e.name AS evento, e.date,
               COUNT(CASE WHEN t.status IN ('pagado','usado') THEN t.id END) AS vendidas,
               COALESCE(SUM(CASE WHEN t.status IN ('pagado','usado') THEN t.amount_paid ELSE 0 END), 0) AS recaudado,
               COALESCE(SUM(CASE WHEN t.status IN ('pagado','usado') THEN t.amount_paid ELSE 0 END), 0)
-                - (COUNT(CASE WHEN t.status IN ('pagado','usado') THEN t.id END) * ?) AS a_enviar
+                - (COUNT(CASE WHEN t.status IN ('pagado','usado') THEN t.id END) * ?) AS a_enviar,
+              COALESCE(
+                (SELECT SUM(r.amount) FROM rendiciones r
+                 WHERE r.promotor_id = ? AND r.event_id = e.id), 0
+              ) AS pagado_evento
        FROM tickets t
        JOIN events e ON e.id = t.event_id
        WHERE t.promotor_id = ?
        GROUP BY e.id ORDER BY e.date DESC`,
-      [perfil.commission, promotorId]
+      [perfil.commission, promotorId, promotorId]
     );
 
     // totales

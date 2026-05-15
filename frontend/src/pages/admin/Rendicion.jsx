@@ -68,6 +68,42 @@ const Rendicion = () => {
     }
   };
 
+  const marcarPagoTotal = async (publica, e) => {
+    e.stopPropagation();
+    if (publica.saldo_pendiente <= 0) return;
+    const nombre = `${publica.name} ${publica.apellido || ''}`.trim();
+    if (!confirm(`Marcar a ${nombre} como pagó todo?\n\nSe registra un pago por ${fmt(publica.saldo_pendiente)} y su saldo queda en cero.`)) return;
+    try {
+      await api.post('/rendiciones', {
+        promotor_id: publica.promotor_id,
+        amount: publica.saldo_pendiente,
+        note: 'Marcado como pagado total desde rendicion',
+      });
+      toast.success('Pago registrado, saldo en cero');
+      load(search);
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Error al registrar');
+    }
+  };
+
+  const marcarPagoEvento = async (ev) => {
+    const pendiente = (ev.a_enviar || 0) - (ev.pagado_evento || 0);
+    if (pendiente <= 0) return;
+    if (!confirm(`Marcar el evento "${ev.evento}" como pagado?\n\nSe registra un pago por ${fmt(pendiente)} asociado a ese evento.`)) return;
+    try {
+      await api.post('/rendiciones', {
+        promotor_id: selected,
+        amount: pendiente,
+        event_id: ev.event_id,
+        note: `Pago marcado por evento: ${ev.evento}`,
+      });
+      toast.success('Evento marcado como pagado');
+      loadDetail(selected);
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Error al registrar');
+    }
+  };
+
   const handleEliminarPago = async (pagoId) => {
     if (!confirm('¿Eliminar este pago?')) return;
     try {
@@ -244,20 +280,45 @@ const Rendicion = () => {
               <div className="card mb-6">
                 <h3 className="font-semibold text-sm mb-4">Por evento</h3>
                 <div className="space-y-2">
-                  {detail.by_event.map(ev => (
-                    <div key={ev.event_id} className="flex items-center justify-between gap-3 py-2 border-b border-gray-800 last:border-0">
-                      <div>
-                        <p className="text-sm font-medium">{ev.evento}</p>
-                        <p className="text-xs" style={{ color: '#6B7280' }}>
-                          {new Date(ev.date + 'T12:00:00').toLocaleDateString('es-AR')} · {ev.vendidas} vendidas
-                        </p>
+                  {detail.by_event.map(ev => {
+                    const pendiente = (ev.a_enviar || 0) - (ev.pagado_evento || 0);
+                    const estaPagado = pendiente <= 0;
+                    return (
+                      <div key={ev.event_id} className="flex items-center justify-between gap-3 py-2 border-b border-gray-800 last:border-0">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium">{ev.evento}</p>
+                          <p className="text-xs" style={{ color: '#6B7280' }}>
+                            {new Date(ev.date + 'T12:00:00').toLocaleDateString('es-AR')} · {ev.vendidas} vendidas
+                          </p>
+                          {(ev.pagado_evento || 0) > 0 && (
+                            <p className="text-xs mt-0.5 text-emerald-400">
+                              Ya pagó: {fmt(ev.pagado_evento)}
+                            </p>
+                          )}
+                        </div>
+                        <div className="text-right shrink-0 flex items-center gap-3">
+                          <div>
+                            <p className="text-sm">{fmt(ev.recaudado)}</p>
+                            <p className={`text-xs ${estaPagado ? 'text-emerald-400' : 'text-red-400'}`}>
+                              {estaPagado ? 'Al día' : `A rendir: ${fmt(pendiente)}`}
+                            </p>
+                          </div>
+                          {estaPagado ? (
+                            <span className="text-[10px] px-2 py-1 rounded font-semibold"
+                                  style={{ background: 'rgba(52,211,153,0.15)', color: '#34D399', border: '1px solid rgba(52,211,153,0.3)' }}>
+                              PAGÓ
+                            </span>
+                          ) : (
+                            <button onClick={() => marcarPagoEvento(ev)}
+                                    className="text-xs px-3 py-1.5 rounded font-medium"
+                                    style={{ background: '#1E2530', color: '#C9974D', border: '1px solid rgba(201,151,77,0.3)' }}>
+                              Marcar pagado
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm">{fmt(ev.recaudado)}</p>
-                        <p className="text-xs text-red-400">A rendir: {fmt(ev.a_enviar)}</p>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -326,10 +387,13 @@ const Rendicion = () => {
         ) : (
           <div className="space-y-2">
             {list.map(p => (
-              <button
+              <div
                 key={p.promotor_id}
+                role="button"
+                tabIndex={0}
                 onClick={() => loadDetail(p.promotor_id)}
-                className="card w-full text-left hover:border-gray-700 transition-colors flex items-center gap-4"
+                onKeyDown={(e) => { if (e.key === 'Enter') loadDetail(p.promotor_id); }}
+                className="card w-full text-left hover:border-gray-700 transition-colors flex items-center gap-4 cursor-pointer"
               >
                 <div className="w-12 h-12 rounded-full flex items-center justify-center font-bold shrink-0"
                      style={{ background: 'rgba(201,151,77,0.15)', color: '#C9974D' }}>
@@ -343,16 +407,30 @@ const Rendicion = () => {
                     {' · '}<span className="font-mono" style={{ color: '#C9974D' }}>{p.promo_code}</span>
                   </p>
                 </div>
-                <div className="text-right shrink-0">
-                  <p className="text-sm font-bold">{p.total_vendidas} <span className="text-xs font-normal" style={{ color: '#6B7280' }}>vend.</span></p>
-                  <p className={`text-sm font-semibold ${p.saldo_pendiente > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
-                    {fmt(p.saldo_pendiente)}
-                  </p>
-                  <p className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color: '#6B7280' }}>
-                    {p.saldo_pendiente > 0 ? 'Nos debe' : 'Al día'}
-                  </p>
+                <div className="text-right shrink-0 flex items-center gap-3">
+                  <div>
+                    <p className="text-sm font-bold">{p.total_vendidas} <span className="text-xs font-normal" style={{ color: '#6B7280' }}>vend.</span></p>
+                    <p className={`text-sm font-semibold ${p.saldo_pendiente > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                      {fmt(p.saldo_pendiente)}
+                    </p>
+                    <p className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color: '#6B7280' }}>
+                      {p.saldo_pendiente > 0 ? 'Nos debe' : 'Al día'}
+                    </p>
+                  </div>
+                  {p.saldo_pendiente > 0 ? (
+                    <button onClick={(e) => marcarPagoTotal(p, e)}
+                            className="text-xs px-3 py-1.5 rounded font-semibold"
+                            style={{ background: 'rgba(201,151,77,0.15)', color: '#C9974D', border: '1px solid rgba(201,151,77,0.4)' }}>
+                      Pagó todo
+                    </button>
+                  ) : (
+                    <span className="text-[10px] px-2 py-1 rounded font-semibold"
+                          style={{ background: 'rgba(52,211,153,0.15)', color: '#34D399', border: '1px solid rgba(52,211,153,0.3)' }}>
+                      PAGÓ
+                    </span>
+                  )}
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         )}
