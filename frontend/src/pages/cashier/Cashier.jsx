@@ -114,7 +114,10 @@ const Cashier = () => {
           {buyLink ? (
             <div className="space-y-4 pt-2 border-t border-gray-800">
               <p className="text-xs uppercase tracking-widest font-semibold text-center" style={{ color: '#6B7280' }}>
-                Que el comprador escanee este QR
+                Link de compra — que el comprador lo escanee con su celular
+              </p>
+              <p className="text-[10px] text-center -mt-2" style={{ color: '#4B5563' }}>
+                (Esto NO es la entrada — el comprador genera su propio QR al cargar sus datos)
               </p>
               <div className="flex justify-center p-4 bg-white rounded-xl">
                 <QRCodeSVG value={buyLink} size={220} bgColor="#ffffff" fgColor="#000000" />

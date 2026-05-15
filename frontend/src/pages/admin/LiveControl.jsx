@@ -57,6 +57,18 @@ const LiveControl = () => {
     return () => clearInterval(intervalRef.current);
   }, [eventSel]);
 
+  const handleDelete = async (t) => {
+    const nombre = `${t.buyer_name} ${t.buyer_apellido || ''}`.trim();
+    if (!confirm(`Eliminar la entrada de ${nombre}?\n\nQR: ${t.qr_code}\nEsto libera el cupo y borra el registro.`)) return;
+    try {
+      await api.delete(`/tickets/${t.id}`);
+      toast.success('Entrada eliminada');
+      refresh(eventSel);
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Error al eliminar');
+    }
+  };
+
   // Filtros
   const filtered = tickets.filter(t => {
     if (filter === 'ingreso'   && t.status !== 'usado') return false;
@@ -243,11 +255,13 @@ const LiveControl = () => {
                         <th className="py-3 px-3 font-medium">Vendedor</th>
                         <th className="py-3 px-3 font-medium">Estado</th>
                         <th className="py-3 px-3 font-medium">Ingreso</th>
+                        <th className="py-3 px-3 font-medium">Codigo</th>
+                        <th className="py-3 px-3 font-medium"></th>
                       </tr>
                     </thead>
                     <tbody>
                       {filtered.length === 0 ? (
-                        <tr><td colSpan={9} className="text-center py-8" style={{ color: '#4B5563' }}>
+                        <tr><td colSpan={11} className="text-center py-8" style={{ color: '#4B5563' }}>
                           {tickets.length === 0 ? 'Sin entradas en este evento' : 'Sin resultados'}
                         </td></tr>
                       ) : (
@@ -270,6 +284,13 @@ const LiveControl = () => {
                               {t.scanned_at
                                 ? new Date(t.scanned_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
                                 : '—'}
+                            </td>
+                            <td className="py-3 px-3 font-mono text-xs" style={{ color: '#C9974D' }}>{t.qr_code}</td>
+                            <td className="py-3 px-3">
+                              <button onClick={() => handleDelete(t)}
+                                      className="text-xs text-red-400 hover:text-red-300 font-medium">
+                                Eliminar
+                              </button>
                             </td>
                           </tr>
                         ))

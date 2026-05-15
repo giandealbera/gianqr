@@ -108,7 +108,10 @@ const PromoterSell = () => {
           {buyLink ? (
             <div className="space-y-4 pt-2 border-t border-gray-800">
               <p className="text-xs uppercase tracking-widest font-semibold text-center" style={{ color: '#6B7280' }}>
-                Compartile este link al comprador
+                Link de compra — compartilo con el comprador
+              </p>
+              <p className="text-[10px] text-center -mt-2" style={{ color: '#4B5563' }}>
+                (El comprador carga sus datos y genera su propia entrada)
               </p>
               <div className="flex justify-center p-4 bg-white rounded-xl">
                 <QRCodeSVG value={buyLink} size={220} bgColor="#ffffff" fgColor="#000000" />

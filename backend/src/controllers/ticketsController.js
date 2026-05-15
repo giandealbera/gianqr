@@ -201,4 +201,27 @@ const getQR = async (req, res) => {
   }
 };
 
-module.exports = { create, scan, getOne, getAll, getQR };
+// DELETE /api/tickets/:id — solo admin
+const remove = async (req, res) => {
+  try {
+    const t = await db.query('SELECT ticket_type_id, status FROM tickets WHERE id = ?', [req.params.id]);
+    if (!t.rows[0]) return res.status(404).json({ error: 'Ticket no encontrado' });
+    const ticketTypeId = t.rows[0].ticket_type_id;
+    const wasValid     = ['pagado', 'usado'].includes(t.rows[0].status);
+
+    await db.query('DELETE FROM payments WHERE ticket_id = ?', [req.params.id]);
+    await db.query('DELETE FROM tickets WHERE id = ?', [req.params.id]);
+
+    // Devolver el cupo solo si la entrada estaba contando como vendida
+    if (wasValid) {
+      await db.query('UPDATE ticket_types SET sold_count = MAX(0, sold_count - 1) WHERE id = ?', [ticketTypeId]);
+    }
+
+    res.json({ message: 'Ticket eliminado' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al eliminar ticket' });
+  }
+};
+
+module.exports = { create, scan, getOne, getAll, getQR, remove };

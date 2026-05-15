@@ -113,4 +113,38 @@ const createPublicTicket = async (req, res) => {
   }
 };
 
-module.exports = { getPublicEvents, getPromoterInfo, createPublicTicket };
+// POST /api/public/recover/:code — comprador busca sus tickets por nombre+apellido
+const recoverTickets = async (req, res) => {
+  const { code } = req.params;
+  const { nombre, apellido } = req.body;
+
+  if (!nombre || !apellido)
+    return res.status(400).json({ error: 'Cargá nombre y apellido para recuperar tus entradas' });
+
+  try {
+    const promo = await db.query('SELECT id FROM promotors WHERE promo_code = ?', [code]);
+    if (!promo.rows[0]) return res.status(404).json({ error: 'Link invalido' });
+
+    const result = await db.query(
+      `SELECT t.id, t.qr_code, t.buyer_name, t.buyer_apellido, t.amount_paid, t.created_at, t.status,
+              tt.name AS tipo_entrada, e.name AS evento, e.date AS event_date
+       FROM tickets t
+       JOIN ticket_types tt ON tt.id = t.ticket_type_id
+       JOIN events e ON e.id = t.event_id
+       WHERE t.promotor_id = ?
+         AND LOWER(TRIM(t.buyer_name))     = LOWER(TRIM(?))
+         AND LOWER(TRIM(t.buyer_apellido)) = LOWER(TRIM(?))
+         AND t.status IN ('pagado','usado')
+       ORDER BY t.created_at DESC
+       LIMIT 20`,
+      [promo.rows[0].id, nombre, apellido]
+    );
+
+    res.json({ tickets: result.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al buscar entradas' });
+  }
+};
+
+module.exports = { getPublicEvents, getPromoterInfo, createPublicTicket, recoverTickets };

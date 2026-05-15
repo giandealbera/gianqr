@@ -34,6 +34,13 @@ const PublicBuy = () => {
   const [saving,       setSaving]       = useState(false);
   const [formError,    setFormError]    = useState(null);
 
+  // Recuperar QRs perdidos
+  const [recoverOpen,    setRecoverOpen]    = useState(false);
+  const [recoverForm,    setRecoverForm]    = useState({ nombre: '', apellido: '' });
+  const [recovering,     setRecovering]     = useState(false);
+  const [recoveredList,  setRecoveredList]  = useState(null);
+  const [recoverError,   setRecoverError]   = useState(null);
+
   useEffect(() => {
     Promise.all([
       fetch(`${BACKEND}/public/promotor/${code}`).then(r => r.json()),
@@ -114,6 +121,38 @@ const PublicBuy = () => {
     setForm(emptyForm());
     setCreatedAll([]);
     setCurrentTicket(null);
+  };
+
+  const doRecover = async (e) => {
+    e.preventDefault();
+    setRecoverError(null);
+    setRecovering(true);
+    try {
+      const r = await fetch(`${BACKEND}/public/recover/${code}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(recoverForm),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'Error');
+      if (!data.tickets || data.tickets.length === 0) {
+        setRecoverError('No encontramos entradas con esos datos. Revisá nombre y apellido.');
+        setRecoveredList(null);
+      } else {
+        setRecoveredList(data.tickets);
+      }
+    } catch (err) {
+      setRecoverError(err.message);
+    } finally {
+      setRecovering(false);
+    }
+  };
+
+  const closeRecover = () => {
+    setRecoverOpen(false);
+    setRecoverForm({ nombre: '', apellido: '' });
+    setRecoveredList(null);
+    setRecoverError(null);
   };
 
   const selectedType  = ticketTypes.find(t => t.id === typeSel);
@@ -341,6 +380,74 @@ const PublicBuy = () => {
             <button onClick={() => window.print()} className="btn-secondary w-full py-3">
               Imprimir todos los QRs
             </button>
+          </div>
+        )}
+
+        {/* Recuperar QRs perdidos */}
+        {mode === 'form' && !recoverOpen && (
+          <p className="text-center text-xs mt-4">
+            <button onClick={() => setRecoverOpen(true)}
+                    className="underline" style={{ color: '#6B7280' }}>
+              ¿Ya compraste y perdiste tu QR? Recuperalo
+            </button>
+          </p>
+        )}
+
+        {recoverOpen && (
+          <div className="card mt-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="font-semibold text-sm">Recuperar mis QRs</p>
+              <button onClick={closeRecover} className="text-gray-500 hover:text-white text-lg leading-none">×</button>
+            </div>
+
+            {!recoveredList ? (
+              <form onSubmit={doRecover} className="space-y-3">
+                <p className="text-xs" style={{ color: '#6B7280' }}>
+                  Cargá los mismos nombre y apellido que usaste al comprar
+                </p>
+                <input className="input" required placeholder="Nombre"
+                       value={recoverForm.nombre}
+                       onChange={e => setRecoverForm(f => ({ ...f, nombre: e.target.value }))} />
+                <input className="input" required placeholder="Apellido"
+                       value={recoverForm.apellido}
+                       onChange={e => setRecoverForm(f => ({ ...f, apellido: e.target.value }))} />
+                {recoverError && <p className="text-sm text-red-400">{recoverError}</p>}
+                <button type="submit" disabled={recovering} className="btn-primary w-full">
+                  {recovering ? 'Buscando...' : 'Buscar mis QRs'}
+                </button>
+              </form>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-xs" style={{ color: '#9CA3AF' }}>
+                  Encontramos {recoveredList.length} entrada{recoveredList.length === 1 ? '' : 's'}
+                </p>
+                {recoveredList.map((t, i) => (
+                  <div key={t.id} className="rounded-lg p-3 space-y-2 text-center"
+                       style={{ background: '#161B24', border: '1px solid #1E2530' }}>
+                    <p className="text-xs uppercase tracking-widest font-semibold" style={{ color: '#C9974D' }}>
+                      QR N° {i + 1} {t.status === 'usado' && '· YA INGRESÓ'}
+                    </p>
+                    <p className="text-sm font-semibold">{t.buyer_name} {t.buyer_apellido}</p>
+                    <p className="text-xs" style={{ color: '#6B7280' }}>
+                      {t.evento} · {t.tipo_entrada}
+                    </p>
+                    <div className="flex justify-center p-2 bg-white rounded-lg">
+                      <QRCodeSVG
+                        value={JSON.stringify({ code: t.qr_code, ticket_id: t.id })}
+                        size={160} bgColor="#ffffff" fgColor="#000000"
+                      />
+                    </div>
+                    <p className="font-mono text-xs" style={{ color: '#4B5563' }}>{t.qr_code}</p>
+                  </div>
+                ))}
+                <button onClick={() => window.print()} className="btn-secondary w-full">
+                  Imprimir
+                </button>
+                <button onClick={closeRecover} className="text-xs underline w-full" style={{ color: '#6B7280' }}>
+                  Cerrar
+                </button>
+              </div>
+            )}
           </div>
         )}
 
