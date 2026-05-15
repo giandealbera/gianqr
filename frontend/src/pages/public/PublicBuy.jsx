@@ -16,6 +16,7 @@ const PublicBuy = () => {
   const presetTypeId   = searchParams.get('type')  || '';
   const presetQty      = Math.min(Math.max(parseInt(searchParams.get('qty') || '1', 10) || 1, 1), 10);
   const presetPay      = searchParams.get('pay') || 'efectivo';
+  const isCortesia     = searchParams.get('cortesia') === '1';
 
   const [promotor,    setPromotor]    = useState(null);
   const [events,      setEvents]      = useState([]);
@@ -87,7 +88,8 @@ const PublicBuy = () => {
         body: JSON.stringify({
           event_id: eventSel,
           ticket_type_id: typeSel,
-          payment_method: presetPay,
+          payment_method: isCortesia ? 'cortesia' : presetPay,
+          cortesia: isCortesia,
           attendees: [form],
         }),
       });
@@ -232,7 +234,7 @@ const PublicBuy = () => {
                 </p>
                 {typeLocked && selectedType && (
                   <p className="text-xs mt-1 font-medium" style={{ color: '#C9974D' }}>
-                    {selectedType.name} — ${parseFloat(selectedType.price).toLocaleString('es-AR')}
+                    {selectedType.name} — {isCortesia ? 'CORTESÍA' : `$${parseFloat(selectedType.price).toLocaleString('es-AR')}`}
                   </p>
                 )}
               </div>
@@ -309,7 +311,9 @@ const PublicBuy = () => {
               </p>
               <h2 className="text-lg font-bold mt-1">{currentTicket.buyer_name} {currentTicket.buyer_apellido}</h2>
               <p className="text-xs mt-0.5" style={{ color: '#6B7280' }}>
-                {currentTicket.tipo_entrada} · ${parseFloat(currentTicket.amount_paid).toLocaleString('es-AR')}
+                {currentTicket.tipo_entrada} · {parseFloat(currentTicket.amount_paid) === 0
+                  ? 'CORTESÍA'
+                  : `$${parseFloat(currentTicket.amount_paid).toLocaleString('es-AR')}`}
               </p>
             </div>
 

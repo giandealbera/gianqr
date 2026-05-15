@@ -11,7 +11,6 @@ const navItems = {
     { to: '/admin/promotores',label: 'Publicas'    },
     { to: '/admin/rendicion', label: 'Rendicion'   },
     { to: '/admin/control',   label: 'Control en vivo' },
-    { to: '/admin/cortesias', label: 'Cortesias'   },
     { to: '/admin/reportes',  label: 'Reportes'    },
   ],
   cajero: [

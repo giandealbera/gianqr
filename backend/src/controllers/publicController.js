@@ -47,7 +47,9 @@ const getPromoterInfo = async (req, res) => {
 
 const createPublicTicket = async (req, res) => {
   const { code } = req.params;
-  const { event_id, ticket_type_id, payment_method, attendees } = req.body;
+  const { event_id, ticket_type_id, payment_method, attendees, cortesia } = req.body;
+  // Cortesia solo se honra para el codigo CASA (interno del dueno)
+  const isCortesia = cortesia === true && code === 'CASA';
 
   if (!event_id || !ticket_type_id)
     return res.status(400).json({ error: 'Faltan datos del evento' });
@@ -78,7 +80,10 @@ const createPublicTicket = async (req, res) => {
     if ((tt.total_quota - tt.sold_count) < attendees.length)
       return res.status(400).json({ error: `Solo quedan ${tt.total_quota - tt.sold_count} entradas disponibles` });
 
-    const validMethod = ['efectivo', 'transferencia'].includes(payment_method) ? payment_method : 'efectivo';
+    const validMethod = isCortesia
+      ? 'cortesia'
+      : (['efectivo', 'transferencia'].includes(payment_method) ? payment_method : 'efectivo');
+    const finalPrice = isCortesia ? 0 : tt.price;
     const created = [];
 
     for (const a of attendees) {
@@ -91,12 +96,12 @@ const createPublicTicket = async (req, res) => {
          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [ticketId, ticket_type_id, event_id, a.buyer_name, a.buyer_apellido,
          a.buyer_edad || null, a.buyer_localidad || null, a.buyer_email || '',
-         qrCode, validMethod, '', tt.price, 'pagado', promotor.id]
+         qrCode, validMethod, isCortesia ? 'CORTESIA' : '', finalPrice, 'pagado', promotor.id]
       );
       created.push({
         id: ticketId, qr_code: qrCode,
         buyer_name: a.buyer_name, buyer_apellido: a.buyer_apellido,
-        tipo_entrada: tt.name, amount_paid: tt.price,
+        tipo_entrada: tt.name, amount_paid: finalPrice,
       });
     }
 
@@ -104,8 +109,9 @@ const createPublicTicket = async (req, res) => {
 
     res.status(201).json({
       tickets: created,
-      total: created.length * parseFloat(tt.price),
+      total: created.length * parseFloat(finalPrice),
       payment_method: validMethod,
+      cortesia: isCortesia,
     });
   } catch (err) {
     console.error(err);

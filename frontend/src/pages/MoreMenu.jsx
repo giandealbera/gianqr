@@ -65,7 +65,6 @@ const MoreMenu = () => {
               <MenuItem iconKey="users"     label="Administrar personal"  desc="Usuarios, roles y permisos" onClick={() => navigate('/admin/usuarios')} />
               <MenuItem iconKey="megaphone" label="Públicas y promotores" desc="Ventas y comisiones de promotores" onClick={() => navigate('/admin/promotores')} />
               <MenuItem iconKey="chart"     label="Control en vivo"       desc="Ingresos en tiempo real y listado de personas" onClick={() => navigate('/admin/control')} />
-              <MenuItem iconKey="ticket"    label="Cortesias"             desc="Generar entradas sin costo" onClick={() => navigate('/admin/cortesias')} />
               <MenuItem iconKey="receipt"   label="Rendición de entradas" desc="Búsqueda de públicas y registro de pagos" onClick={() => navigate('/admin/rendicion')} />
               <MenuItem iconKey="money"     label="Reportes de ventas"    desc="Resumen financiero general" onClick={() => navigate('/admin/reportes')} />
               <MenuItem iconKey="chart"     label="Dashboard general"     desc="Vista global del sistema" onClick={() => navigate('/admin')} />

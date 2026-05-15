@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
+import { useAuth } from '../../context/AuthContext';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import toast from 'react-hot-toast';
@@ -12,6 +13,9 @@ const METHODS = [
 ];
 
 const Cashier = () => {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+
   const [searchParams] = useSearchParams();
   const [events,      setEvents]      = useState([]);
   const [eventSel,    setEventSel]    = useState(searchParams.get('event') || '');
@@ -19,6 +23,7 @@ const Cashier = () => {
   const [typeSel,     setTypeSel]     = useState('');
   const [qty,         setQty]         = useState(1);
   const [payMethod,   setPayMethod]   = useState('efectivo');
+  const [cortesia,    setCortesia]    = useState(false);
 
   useEffect(() => {
     api.get('/events').then(r => setEvents(r.data.filter(e => e.is_active)));
@@ -31,10 +36,12 @@ const Cashier = () => {
 
   const selectedType  = ticketTypes.find(t => t.id === typeSel);
   const selectedEvent = events.find(e => e.id === eventSel);
-  const totalPrice    = selectedType ? parseFloat(selectedType.price) * qty : 0;
+  const totalPrice    = cortesia ? 0 : (selectedType ? parseFloat(selectedType.price) * qty : 0);
 
   const buyLink = eventSel && typeSel
-    ? `${window.location.origin}/comprar/${HOUSE_CODE}?event=${eventSel}&type=${typeSel}&qty=${qty}&pay=${payMethod}`
+    ? cortesia
+      ? `${window.location.origin}/comprar/${HOUSE_CODE}?event=${eventSel}&type=${typeSel}&qty=${qty}&cortesia=1`
+      : `${window.location.origin}/comprar/${HOUSE_CODE}?event=${eventSel}&type=${typeSel}&qty=${qty}&pay=${payMethod}`
     : '';
 
   const copyLink = () => {
@@ -79,6 +86,25 @@ const Cashier = () => {
             </div>
           )}
 
+          {/* Toggle cortesia - solo admin */}
+          {isAdmin && typeSel && (
+            <label className="flex items-center gap-3 rounded-lg p-3 cursor-pointer"
+                   style={{ background: cortesia ? 'rgba(201,151,77,0.08)' : '#161B24',
+                            border: `1px solid ${cortesia ? 'rgba(201,151,77,0.4)' : '#1E2530'}` }}>
+              <input type="checkbox" className="w-4 h-4 accent-amber-600"
+                     checked={cortesia}
+                     onChange={e => setCortesia(e.target.checked)} />
+              <div className="flex-1">
+                <p className="text-sm font-medium" style={{ color: cortesia ? '#C9974D' : '#E8EAF0' }}>
+                  Cortesía (sin costo)
+                </p>
+                <p className="text-xs" style={{ color: '#6B7280' }}>
+                  La entrada sale $0 y queda registrada como cortesía
+                </p>
+              </div>
+            </label>
+          )}
+
           {/* Cantidad + Pago */}
           {typeSel && (
             <div className="grid grid-cols-2 gap-3">
@@ -90,12 +116,14 @@ const Cashier = () => {
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="text-sm text-gray-400 block mb-1">Forma de pago *</label>
-                <select className="input" value={payMethod} onChange={e => setPayMethod(e.target.value)}>
-                  {METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-                </select>
-              </div>
+              {!cortesia && (
+                <div>
+                  <label className="text-sm text-gray-400 block mb-1">Forma de pago *</label>
+                  <select className="input" value={payMethod} onChange={e => setPayMethod(e.target.value)}>
+                    {METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                  </select>
+                </div>
+              )}
             </div>
           )}
 
@@ -103,9 +131,11 @@ const Cashier = () => {
           {selectedType && (
             <div className="rounded-lg p-3 flex justify-between items-center"
                  style={{ background: '#161B24', border: '1px solid #1E2530' }}>
-              <span className="text-sm" style={{ color: '#6B7280' }}>Total a cobrar</span>
+              <span className="text-sm" style={{ color: '#6B7280' }}>
+                {cortesia ? 'Total' : 'Total a cobrar'}
+              </span>
               <span className="text-lg font-black" style={{ color: '#C9974D' }}>
-                ${totalPrice.toLocaleString('es-AR')}
+                {cortesia ? 'CORTESÍA' : `$${totalPrice.toLocaleString('es-AR')}`}
               </span>
             </div>
           )}
@@ -131,7 +161,8 @@ const Cashier = () => {
               <button onClick={copyLink} className="btn-primary w-full py-3">Copiar link</button>
 
               <p className="text-xs text-center" style={{ color: '#4B5563' }}>
-                {selectedEvent?.name} · {selectedType?.name} · {qty} {qty === 1 ? 'entrada' : 'entradas'} · {METHODS.find(m => m.value === payMethod)?.label}
+                {selectedEvent?.name} · {selectedType?.name} · {qty} {qty === 1 ? 'entrada' : 'entradas'}
+                {cortesia ? ' · CORTESÍA' : ` · ${METHODS.find(m => m.value === payMethod)?.label}`}
               </p>
             </div>
           ) : (
