@@ -23,6 +23,7 @@ import MagicLogin       from './pages/MagicLogin';
 import PublicBuy        from './pages/public/PublicBuy';
 import Rendicion        from './pages/admin/Rendicion';
 import LiveControl      from './pages/admin/LiveControl';
+import Cortesias        from './pages/admin/Cortesias';
 import MoreMenu          from './pages/MoreMenu';
 
 // Redirige al panel según el rol del usuario logueado
@@ -92,6 +93,9 @@ const App = () => (
         } />
         <Route path="/admin/control" element={
           <ProtectedRoute allowedRoles={['admin']}><LiveControl /></ProtectedRoute>
+        } />
+        <Route path="/admin/cortesias" element={
+          <ProtectedRoute allowedRoles={['admin']}><Cortesias /></ProtectedRoute>
         } />
 
         {/* Escáner (solo admin) */}

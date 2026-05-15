@@ -4,22 +4,18 @@ import { QRCodeSVG } from 'qrcode.react';
 
 const BACKEND = (import.meta.env.VITE_API_URL || 'http://localhost:4000/api');
 
-const METHODS = [
-  { value: 'efectivo',      label: 'Efectivo' },
-  { value: 'transferencia', label: 'Transferencia' },
-];
-
-const emptyForm = {
+const emptyAttendee = () => ({
   buyer_name: '', buyer_apellido: '',
   buyer_edad: '', buyer_localidad: '', buyer_email: '',
-  payment_method: 'efectivo',
-};
+});
 
 const PublicBuy = () => {
-  const { code }                = useParams();
-  const [searchParams]          = useSearchParams();
-  const presetEventId           = searchParams.get('event') || '';
-  const presetTypeId            = searchParams.get('type')  || '';
+  const { code }       = useParams();
+  const [searchParams] = useSearchParams();
+  const presetEventId  = searchParams.get('event') || '';
+  const presetTypeId   = searchParams.get('type')  || '';
+  const presetQty      = Math.min(Math.max(parseInt(searchParams.get('qty') || '1', 10) || 1, 1), 10);
+  const presetPay      = searchParams.get('pay') || 'efectivo';
 
   const [promotor,    setPromotor]    = useState(null);
   const [events,      setEvents]      = useState([]);
@@ -28,7 +24,9 @@ const PublicBuy = () => {
   const [eventSel,    setEventSel]    = useState(presetEventId);
   const [ticketTypes, setTicketTypes] = useState([]);
   const [typeSel,     setTypeSel]     = useState(presetTypeId);
-  const [form,        setForm]        = useState(emptyForm);
+  const [attendees,   setAttendees]   = useState(
+    Array.from({ length: presetQty }, emptyAttendee)
+  );
   const [saving,      setSaving]      = useState(false);
   const [created,     setCreated]     = useState(null);
   const [formError,   setFormError]   = useState(null);
@@ -43,22 +41,15 @@ const PublicBuy = () => {
         setPromotor(promo);
         const list = Array.isArray(evs) ? evs : [];
         setEvents(list);
-
-        // auto-seleccionar evento
-        const targetEvent = presetEventId
+        const target = presetEventId
           ? list.find(e => e.id === presetEventId)
           : list.length === 1 ? list[0] : null;
-
-        if (targetEvent) {
-          setEventSel(targetEvent.id);
-          const types = targetEvent.ticket_types || [];
+        if (target) {
+          setEventSel(target.id);
+          const types = target.ticket_types || [];
           setTicketTypes(types);
-          // auto-seleccionar tipo
-          if (presetTypeId && types.find(t => t.id === presetTypeId)) {
-            setTypeSel(presetTypeId);
-          } else if (types.length === 1) {
-            setTypeSel(types[0].id);
-          }
+          if (presetTypeId && types.find(t => t.id === presetTypeId)) setTypeSel(presetTypeId);
+          else if (types.length === 1) setTypeSel(types[0].id);
         }
       })
       .catch(() => setError('No se pudo cargar la pagina.'))
@@ -72,16 +63,32 @@ const PublicBuy = () => {
     setTicketTypes(ev?.ticket_types || []);
   };
 
+  const updateAttendee = (i, field, value) => {
+    setAttendees(arr => arr.map((a, idx) => idx === i ? { ...a, [field]: value } : a));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setFormError(null);
     if (!eventSel || !typeSel) { setFormError('Selecciona el evento y tipo de entrada'); return; }
+    // validar todos los attendees
+    for (let i = 0; i < attendees.length; i++) {
+      if (!attendees[i].buyer_name || !attendees[i].buyer_apellido) {
+        setFormError(`Falta nombre o apellido en la persona ${i + 1}`);
+        return;
+      }
+    }
     setSaving(true);
     try {
       const r = await fetch(`${BACKEND}/public/tickets/${code}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, event_id: eventSel, ticket_type_id: typeSel }),
+        body: JSON.stringify({
+          event_id: eventSel,
+          ticket_type_id: typeSel,
+          payment_method: presetPay,
+          attendees,
+        }),
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || 'Error al registrar');
@@ -93,14 +100,15 @@ const PublicBuy = () => {
     }
   };
 
-  const handleNew = () => { setCreated(null); setForm(emptyForm); };
+  const handleNew = () => {
+    setCreated(null);
+    setAttendees(Array.from({ length: presetQty }, emptyAttendee));
+  };
 
   const selectedType  = ticketTypes.find(t => t.id === typeSel);
   const selectedEvent = events.find(e => e.id === eventSel);
-
-  // ¿los selects están pre-configurados desde el link?
-  const eventLocked = !!presetEventId && !!selectedEvent;
-  const typeLocked  = !!presetTypeId  && !!selectedType;
+  const eventLocked   = !!presetEventId && !!selectedEvent;
+  const typeLocked    = !!presetTypeId  && !!selectedType;
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: '#07090E' }}>
@@ -121,51 +129,58 @@ const PublicBuy = () => {
     <div className="min-h-screen py-8 px-4" style={{ background: '#07090E' }}>
       <div className="max-w-md mx-auto">
 
-        {/* Header */}
         <div className="text-center mb-8">
           <p className="text-3xl font-black tracking-tight" style={{ color: '#C9974D' }}>GianQR</p>
           <p className="text-sm mt-1" style={{ color: '#4B5568' }}>Registro de entrada</p>
         </div>
 
         {created ? (
-          <div className="card text-center space-y-5">
-            <div>
-              <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3"
+          <div className="space-y-4">
+            <div className="card text-center space-y-3">
+              <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto"
                    style={{ background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.3)' }}>
                 <svg className="w-6 h-6 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <h2 className="text-lg font-bold">Entrada registrada</h2>
-              <p className="text-sm text-gray-400 mt-1">
-                {created.buyer_name} {created.buyer_apellido}
+              <h2 className="text-lg font-bold">
+                {created.tickets.length === 1 ? 'Entrada registrada' : `${created.tickets.length} entradas registradas`}
+              </h2>
+              <p className="text-xs" style={{ color: '#6B7280' }}>
+                Total: ${parseFloat(created.total).toLocaleString('es-AR')}
               </p>
-              <p className="text-xs mt-0.5" style={{ color: '#6B7280' }}>
-                {created.tipo_entrada} · ${parseFloat(created.amount_paid).toLocaleString('es-AR')}
+              <p className="text-xs" style={{ color: '#4B5563' }}>
+                Guarda una captura de cada QR. Cada persona necesita el suyo para entrar.
               </p>
             </div>
 
-            <div className="flex justify-center p-4 bg-white rounded-xl">
-              <QRCodeSVG
-                value={JSON.stringify({ code: created.qr_code, ticket_id: created.id })}
-                size={200} bgColor="#ffffff" fgColor="#000000"
-              />
-            </div>
-
-            <p className="font-mono text-xs" style={{ color: '#4B5563' }}>{created.qr_code}</p>
-            <p className="text-xs" style={{ color: '#4B5563' }}>
-              Guarda una captura de pantalla de este QR. Lo vas a necesitar en la entrada del evento.
-            </p>
+            {created.tickets.map((t, i) => (
+              <div key={t.id} className="card text-center space-y-3">
+                <p className="text-xs uppercase tracking-widest font-semibold" style={{ color: '#6B7280' }}>
+                  Entrada {i + 1} de {created.tickets.length}
+                </p>
+                <p className="font-bold">{t.buyer_name} {t.buyer_apellido}</p>
+                <p className="text-xs" style={{ color: '#6B7280' }}>
+                  {t.tipo_entrada} · ${parseFloat(t.amount_paid).toLocaleString('es-AR')}
+                </p>
+                <div className="flex justify-center p-3 bg-white rounded-xl">
+                  <QRCodeSVG
+                    value={JSON.stringify({ code: t.qr_code, ticket_id: t.id })}
+                    size={180} bgColor="#ffffff" fgColor="#000000"
+                  />
+                </div>
+                <p className="font-mono text-xs" style={{ color: '#4B5563' }}>{t.qr_code}</p>
+              </div>
+            ))}
 
             <div className="flex gap-3">
-              <button onClick={handleNew} className="btn-primary flex-1">Registrar otra persona</button>
+              <button onClick={handleNew} className="btn-primary flex-1">Otra compra</button>
               <button onClick={() => window.print()} className="btn-secondary flex-1">Imprimir</button>
             </div>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="card space-y-5">
 
-            {/* Evento — mostrar solo si NO viene preconfigurado */}
             {!eventLocked && events.length > 1 && (
               <div>
                 <label className="text-sm text-gray-400 block mb-1">Evento *</label>
@@ -180,7 +195,6 @@ const PublicBuy = () => {
               </div>
             )}
 
-            {/* Info del evento (si está seleccionado) */}
             {selectedEvent && (
               <div className="rounded-lg p-3" style={{ background: '#161B24', border: '1px solid #1E2530' }}>
                 <p className="font-semibold text-sm">{selectedEvent.name}</p>
@@ -188,16 +202,15 @@ const PublicBuy = () => {
                   {new Date(selectedEvent.date + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}
                   {selectedEvent.venue_name ? ` · ${selectedEvent.venue_name}` : ''}
                 </p>
-                {/* Tipo de entrada info o selector */}
-                {typeLocked && selectedType ? (
+                {typeLocked && selectedType && (
                   <p className="text-xs mt-1 font-medium" style={{ color: '#C9974D' }}>
-                    {selectedType.name} — ${parseFloat(selectedType.price).toLocaleString('es-AR')}
+                    {selectedType.name} — ${parseFloat(selectedType.price).toLocaleString('es-AR')} c/u
+                    {attendees.length > 1 && ` · ${attendees.length} entradas`}
                   </p>
-                ) : null}
+                )}
               </div>
             )}
 
-            {/* Selector de tipo — solo si NO viene preconfigurado */}
             {!typeLocked && ticketTypes.length > 0 && (
               <div>
                 <label className="text-sm text-gray-400 block mb-1">Tipo de entrada *</label>
@@ -209,70 +222,49 @@ const PublicBuy = () => {
                     </option>
                   ))}
                 </select>
-                {selectedType && (
-                  <p className="text-xs text-brand mt-1 font-medium">
-                    ${parseFloat(selectedType.price).toLocaleString('es-AR')}
-                  </p>
-                )}
               </div>
             )}
 
-            {/* Datos personales */}
-            <div className="space-y-3">
-              <p className="text-xs uppercase tracking-widest font-semibold pt-1" style={{ color: '#4B5563', borderTop: '1px solid #1E2530', paddingTop: '1rem' }}>
-                Tus datos
-              </p>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-sm text-gray-400 block mb-1">Nombre *</label>
-                  <input className="input" required placeholder="Juan" value={form.buyer_name}
-                    onChange={e => setForm(f => ({ ...f, buyer_name: e.target.value }))} />
+            {/* Formularios por persona */}
+            {attendees.map((a, i) => (
+              <div key={i} className="space-y-3">
+                <p className="text-xs uppercase tracking-widest font-semibold pt-1"
+                   style={{ color: '#4B5563', borderTop: '1px solid #1E2530', paddingTop: '1rem' }}>
+                  Persona {i + 1}{attendees.length > 1 ? ` de ${attendees.length}` : ''}
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-sm text-gray-400 block mb-1">Nombre *</label>
+                    <input className="input" required placeholder="Juan" value={a.buyer_name}
+                      onChange={e => updateAttendee(i, 'buyer_name', e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-400 block mb-1">Apellido *</label>
+                    <input className="input" required placeholder="Garcia" value={a.buyer_apellido}
+                      onChange={e => updateAttendee(i, 'buyer_apellido', e.target.value)} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-sm text-gray-400 block mb-1">Edad</label>
+                    <input className="input" inputMode="numeric" placeholder="25" value={a.buyer_edad}
+                      onChange={e => updateAttendee(i, 'buyer_edad', e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-400 block mb-1">Localidad</label>
+                    <input className="input" placeholder="San Juan" value={a.buyer_localidad}
+                      onChange={e => updateAttendee(i, 'buyer_localidad', e.target.value)} />
+                  </div>
                 </div>
                 <div>
-                  <label className="text-sm text-gray-400 block mb-1">Apellido *</label>
-                  <input className="input" required placeholder="Garcia" value={form.buyer_apellido}
-                    onChange={e => setForm(f => ({ ...f, buyer_apellido: e.target.value }))} />
+                  <label className="text-sm text-gray-400 block mb-1">
+                    Email <span style={{ color: '#4B5563' }}>(opcional)</span>
+                  </label>
+                  <input type="email" className="input" placeholder="tu@email.com" value={a.buyer_email}
+                    onChange={e => updateAttendee(i, 'buyer_email', e.target.value)} />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-sm text-gray-400 block mb-1">Edad</label>
-                  <input className="input" inputMode="numeric" placeholder="25"
-                    value={form.buyer_edad}
-                    onChange={e => setForm(f => ({ ...f, buyer_edad: e.target.value }))} />
-                </div>
-                <div>
-                  <label className="text-sm text-gray-400 block mb-1">Localidad</label>
-                  <input className="input" placeholder="San Juan"
-                    value={form.buyer_localidad}
-                    onChange={e => setForm(f => ({ ...f, buyer_localidad: e.target.value }))} />
-                </div>
-              </div>
-              <div>
-                <label className="text-sm text-gray-400 block mb-1">Email <span style={{ color: '#4B5563' }}>(opcional)</span></label>
-                <input type="email" className="input" placeholder="tu@email.com"
-                  value={form.buyer_email}
-                  onChange={e => setForm(f => ({ ...f, buyer_email: e.target.value }))} />
-              </div>
-            </div>
-
-            {/* Método de pago */}
-            <div>
-              <label className="text-sm text-gray-400 block mb-1">Forma de pago</label>
-              <div className="flex gap-2">
-                {METHODS.map(m => (
-                  <button type="button" key={m.value}
-                    onClick={() => setForm(f => ({ ...f, payment_method: m.value }))}
-                    className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors border ${
-                      form.payment_method === m.value
-                        ? 'bg-brand border-brand text-white'
-                        : 'border-gray-700 text-gray-400 hover:border-gray-500'
-                    }`}>
-                    {m.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+            ))}
 
             {formError && (
               <p className="text-sm text-red-400 text-center">{formError}</p>
@@ -283,7 +275,9 @@ const PublicBuy = () => {
               disabled={saving || !typeSel || !eventSel}
               className="btn-primary w-full py-3 text-base font-semibold"
             >
-              {saving ? 'Registrando...' : 'Obtener mi entrada'}
+              {saving
+                ? 'Registrando...'
+                : `Obtener ${attendees.length === 1 ? 'mi entrada' : `${attendees.length} entradas`}`}
             </button>
           </form>
         )}

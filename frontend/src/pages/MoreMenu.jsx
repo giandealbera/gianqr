@@ -15,6 +15,7 @@ const ICONS = {
   chart:    'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
   receipt:  'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
   info:     'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+  ticket:   'M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z',
 };
 
 const MenuItem = ({ iconKey, label, desc, onClick }) => (
@@ -64,6 +65,7 @@ const MoreMenu = () => {
               <MenuItem iconKey="users"     label="Administrar personal"  desc="Usuarios, roles y permisos" onClick={() => navigate('/admin/usuarios')} />
               <MenuItem iconKey="megaphone" label="Públicas y promotores" desc="Ventas y comisiones de promotores" onClick={() => navigate('/admin/promotores')} />
               <MenuItem iconKey="chart"     label="Control en vivo"       desc="Ingresos en tiempo real y listado de personas" onClick={() => navigate('/admin/control')} />
+              <MenuItem iconKey="ticket"    label="Cortesias"             desc="Generar entradas sin costo" onClick={() => navigate('/admin/cortesias')} />
               <MenuItem iconKey="receipt"   label="Rendición de entradas" desc="Búsqueda de públicas y registro de pagos" onClick={() => navigate('/admin/rendicion')} />
               <MenuItem iconKey="money"     label="Reportes de ventas"    desc="Resumen financiero general" onClick={() => navigate('/admin/reportes')} />
               <MenuItem iconKey="chart"     label="Dashboard general"     desc="Vista global del sistema" onClick={() => navigate('/admin')} />

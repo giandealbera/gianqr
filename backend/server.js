@@ -21,6 +21,7 @@ app.use('/api/scanner-tokens',  require('./src/routes/scannerTokens'));
 app.use('/api/scan',            require('./src/routes/publicScan'));
 app.use('/api/public',          require('./src/routes/public'));
 app.use('/api/rendiciones',     require('./src/routes/rendiciones'));
+app.use('/api/cortesias',       require('./src/routes/cortesias'));
 
 app.get('/api/health', (req, res) =>
   res.json({ status: 'ok', sistema: 'GianQR', version: '1.0.0' })
