@@ -107,6 +107,24 @@ const createTeamMember = async (req, res) => {
   }
 };
 
+// DELETE /api/users/team/:id — jefe quita un vendedor de su equipo (soft delete)
+const removeTeamMember = async (req, res) => {
+  const jefeId = req.user.id;
+  const userId = req.params.id;
+  try {
+    const check = await db.query(
+      `SELECT 1 FROM promotors WHERE user_id = ? AND leader_id = ?`,
+      [userId, jefeId]
+    );
+    if (!check.rows[0]) return res.status(403).json({ error: 'Ese usuario no es miembro de tu equipo' });
+    await db.query('UPDATE users SET is_active = 0 WHERE id = ?', [userId]);
+    res.json({ message: 'Vendedor desactivado' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al desactivar vendedor' });
+  }
+};
+
 // GET /api/users/my-team — jefe ve a sus vendedores
 const getMyTeam = async (req, res) => {
   const jefeId = req.user.id;
@@ -309,4 +327,4 @@ const updateCommission = async (req, res) => {
   }
 };
 
-module.exports = { getAll, create, update, deactivate, getPromoterSales, getMyPromoterSales, createTeamMember, getMyTeam, updateCommission };
+module.exports = { getAll, create, update, deactivate, getPromoterSales, getMyPromoterSales, createTeamMember, getMyTeam, removeTeamMember, updateCommission };

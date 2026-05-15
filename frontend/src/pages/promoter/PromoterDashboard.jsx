@@ -53,6 +53,18 @@ const PromoterDashboard = () => {
     }
   };
 
+  const removeMember = async (m) => {
+    const nombre = `${m.name} ${m.apellido || ''}`.trim();
+    if (!confirm(`Quitar a ${nombre} del equipo?\n\nNo va a poder loguearse mas, pero sus ventas e historial se conservan.`)) return;
+    try {
+      await api.delete(`/users/team/${m.id}`);
+      toast.success('Vendedor desactivado');
+      loadTeam();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Error al quitar vendedor');
+    }
+  };
+
   const copyCredenciales = () => {
     if (!createdMember) return;
     const txt = `GianQR - Acceso de vendedor\n\nNombre: ${createdMember.name} ${createdMember.apellido || ''}\nUsuario: ${createdMember.usuario}\nContrasena: ${createdMember.password}\n\nIngresa en: ${window.location.origin}/login`;
@@ -218,12 +230,20 @@ const PromoterDashboard = () => {
                             <p className="font-medium text-sm">{m.name} {m.apellido || ''}</p>
                             <p className="text-xs text-slate-500">{m.celular || m.email}</p>
                           </div>
-                          <div className="text-right shrink-0">
-                            <p className="text-sm font-bold text-brand">{m.total_vendidas ?? 0} <span className="text-xs text-slate-400 font-normal">entradas</span></p>
-                            <p className="text-xs text-slate-500">{fmt(m.total_recaudado)}</p>
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${m.is_active ? 'bg-emerald-950 text-emerald-400' : 'bg-slate-700 text-slate-400'}`}>
-                              {m.is_active ? 'Activo' : 'Inactivo'}
-                            </span>
+                          <div className="text-right shrink-0 flex items-center gap-3">
+                            <div>
+                              <p className="text-sm font-bold text-brand">{m.total_vendidas ?? 0} <span className="text-xs text-slate-400 font-normal">entradas</span></p>
+                              <p className="text-xs text-slate-500">{fmt(m.total_recaudado)}</p>
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded ${m.is_active ? 'bg-emerald-950 text-emerald-400' : 'bg-slate-700 text-slate-400'}`}>
+                                {m.is_active ? 'Activo' : 'Inactivo'}
+                              </span>
+                            </div>
+                            {m.is_active && (
+                              <button onClick={() => removeMember(m)}
+                                      className="text-xs text-red-400 hover:text-red-300 font-medium px-2 py-1 rounded hover:bg-red-900/20">
+                                Quitar
+                              </button>
+                            )}
                           </div>
                         </div>
                       ))}

@@ -179,7 +179,7 @@ const getAll = async (req, res) => {
        LEFT JOIN promotors p ON p.id = t.promotor_id
        LEFT JOIN users pu ON pu.id = p.user_id
        ${whereClause}
-       ORDER BY t.created_at DESC LIMIT 1000`,
+       ORDER BY t.created_at DESC LIMIT 5000`,
       params
     );
     res.json(result.rows);

@@ -4,7 +4,7 @@ const path = require('path');
 
 let dbInstance = null;
 
-const DB_PATH = path.join(__dirname, '../../../database/gianqr.sqlite');
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, '../../../database/gianqr.sqlite');
 
 const initDb = async () => {
   if (!dbInstance) {
