@@ -1,8 +1,19 @@
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../config/database');
 
 const PUBLICAS_ROLES = ['promotor', 'jefe_publicas', 'vendedor'];
+
+// Genera un promo_code random de 10 chars (alfabeto sin chars ambiguos).
+// 32^10 = 1.1e15 combinaciones - cambiar una letra al azar nunca cae en otro valido.
+const PROMO_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+function genPromoCode() {
+  const bytes = crypto.randomBytes(10);
+  let out = '';
+  for (let i = 0; i < 10; i++) out += PROMO_CHARS[bytes[i] % PROMO_CHARS.length];
+  return out;
+}
 
 const getAll = async (req, res) => {
   try {
@@ -45,7 +56,7 @@ const create = async (req, res) => {
 
     let promoCode = null;
     if (PUBLICAS_ROLES.includes(role)) {
-      promoCode = promo_code || `PROMO${Date.now().toString(36).toUpperCase()}`;
+      promoCode = promo_code || genPromoCode();
       await db.query(
         'INSERT INTO promotors (id, user_id, promo_code, commission, leader_id, leader_commission) VALUES (?,?,?,?,?,?)',
         [uuidv4(), userId, promoCode, commission ?? 800, leader_id || null, leader_commission ?? 400]
@@ -75,7 +86,7 @@ const createTeamMember = async (req, res) => {
 
     const hash       = await bcrypt.hash(password, 10);
     const userId     = uuidv4();
-    const promoCode  = `PROMO${Date.now().toString(36).toUpperCase()}`;
+    const promoCode  = genPromoCode();
     const magicToken = uuidv4();
 
     await db.query(
@@ -147,7 +158,7 @@ const update = async (req, res) => {
           [commission ?? 800, leader_id || null, leader_commission ?? 400, id]
         );
       } else {
-        const promoCode = `PROMO${Date.now().toString(36).toUpperCase()}`;
+        const promoCode = genPromoCode();
         await db.query(
           'INSERT INTO promotors (id, user_id, promo_code, commission, leader_id, leader_commission) VALUES (?,?,?,?,?,?)',
           [uuidv4(), id, promoCode, commission ?? 800, leader_id || null, leader_commission ?? 400]
