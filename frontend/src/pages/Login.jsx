@@ -50,22 +50,24 @@ const Login = () => {
         {/* Card */}
         <div className="rounded-2xl p-6 space-y-5" style={{ background: '#0D1117', border: '1px solid #1E2530' }}>
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: '#6B7280' }}>Usuario</label>
+            <label className="block text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: '#6B7280' }}>Email</label>
             <input
-              type="text"
+              type="email"
               required
+              autoComplete="email"
               className="input"
-              placeholder="admin"
+              placeholder="tuemail@ejemplo.com"
               value={form.email}
               onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: '#6B7280' }}>Contrasena</label>
+            <label className="block text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: '#6B7280' }}>Contraseña</label>
             <input
               type="password"
               required
+              autoComplete="current-password"
               className="input"
               placeholder="••••••••"
               value={form.password}

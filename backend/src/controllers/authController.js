@@ -4,11 +4,15 @@ const jwt    = require('jsonwebtoken');
 const db     = require('../config/database');
 const { sendMail } = require('../utils/mailer');
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 // POST /api/auth/login
 const login = async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password)
     return res.status(400).json({ error: 'Email y contraseña requeridos' });
+  if (!EMAIL_REGEX.test(email))
+    return res.status(400).json({ error: 'Email inválido' });
 
   try {
     const result = await db.query(
@@ -166,4 +170,32 @@ const resetPassword = async (req, res) => {
   }
 };
 
-module.exports = { login, me, magicLogin, forgotPassword, resetPassword };
+// POST /api/auth/change-password — usuario logueado cambia su propia contraseña
+const changePassword = async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword)
+    return res.status(400).json({ error: 'Contraseña actual y nueva son requeridas' });
+  if (newPassword.length < 8)
+    return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 8 caracteres' });
+  if (currentPassword === newPassword)
+    return res.status(400).json({ error: 'La nueva contraseña debe ser distinta de la actual' });
+
+  try {
+    const result = await db.query('SELECT id, password_hash FROM users WHERE id = ? AND is_active = 1', [req.user.id]);
+    const user = result.rows[0];
+    if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    const valid = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!valid) return res.status(401).json({ error: 'La contraseña actual es incorrecta' });
+
+    const hash = await bcrypt.hash(newPassword, 10);
+    await db.query('UPDATE users SET password_hash = ? WHERE id = ?', [hash, user.id]);
+
+    res.json({ message: 'Contraseña actualizada correctamente' });
+  } catch (err) {
+    console.error('changePassword error:', err.message);
+    res.status(500).json({ error: 'Error al cambiar la contraseña' });
+  }
+};
+
+module.exports = { login, me, magicLogin, forgotPassword, resetPassword, changePassword };

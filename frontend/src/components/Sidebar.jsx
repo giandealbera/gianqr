@@ -14,6 +14,7 @@ const navItems = {
     { to: '/admin/reportes',  label: 'Reportes'    },
     { to: '/admin/historial', label: 'Historial'   },
     { to: '/admin/proveedores', label: 'Proveedores' },
+    { to: '/configuracion',   label: 'Configuracion' },
   ],
   cajero: [
     { to: '/eventos', label: 'Eventos' },

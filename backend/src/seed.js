@@ -53,20 +53,11 @@ async function seed() {
       console.log('✅ Promotor CASA creado (caja interna)');
     }
 
-    // Crear vendedor de ejemplo si no existe
-    const existingVendedor = await db.query("SELECT id FROM users WHERE email = 'vendedor'");
-    if (existingVendedor.rows.length === 0) {
-      const hashV = await bcrypt.hash('vendedor123', 10);
-      const vendedorId = uuidv4();
-      await db.query(
-        "INSERT INTO users (id, name, email, password_hash, role) VALUES (?,?,?,?,?)",
-        [vendedorId, 'Vendedor', 'vendedor', hashV, 'vendedor']
-      );
-      await db.query(
-        "INSERT OR IGNORE INTO promotors (id, user_id, promo_code, commission, leader_commission) VALUES (?,?,?,?,?)",
-        [uuidv4(), vendedorId, 'VENDEDOR', 800, 400]
-      );
-      console.log('✅ Vendedor creado: vendedor / vendedor123');
+    // Migrar vendedor viejo (email='vendedor') a formato email real
+    const oldVend = await db.query("SELECT id FROM users WHERE email = 'vendedor'");
+    if (oldVend.rows.length > 0) {
+      await db.query("UPDATE users SET email = ? WHERE email = 'vendedor'", ['vendedor@gianqr.com']);
+      console.log('✅ Vendedor migrado a vendedor@gianqr.com');
     }
 
     // Crear sala por defecto si no existe

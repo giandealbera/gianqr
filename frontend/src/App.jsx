@@ -30,6 +30,7 @@ import EventHistory     from './pages/admin/EventHistory';
 import Proveedores      from './pages/admin/Proveedores';
 import ResetEventos     from './pages/admin/ResetEventos';
 import MoreMenu          from './pages/MoreMenu';
+import Configuracion     from './pages/Configuracion';
 
 // Redirige al panel según el rol del usuario logueado
 const RoleRedirect = () => {
@@ -130,6 +131,11 @@ const App = () => (
         } />
         <Route path="/promotor/vender" element={
           <ProtectedRoute allowedRoles={['promotor', 'jefe_publicas', 'vendedor']}><PromoterSell /></ProtectedRoute>
+        } />
+
+        {/* Configuración personal (todos los roles logueados) */}
+        <Route path="/configuracion" element={
+          <ProtectedRoute allowedRoles={['admin', 'cajero', 'promotor', 'jefe_publicas', 'vendedor']}><Configuracion /></ProtectedRoute>
         } />
 
         {/* Más opciones */}

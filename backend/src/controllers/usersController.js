@@ -4,6 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 const db = require('../config/database');
 
 const PUBLICAS_ROLES = ['promotor', 'jefe_publicas', 'vendedor'];
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // Genera un promo_code random de 10 chars (alfabeto sin chars ambiguos).
 // 32^10 = 1.1e15 combinaciones - cambiar una letra al azar nunca cae en otro valido.
@@ -42,6 +43,10 @@ const create = async (req, res) => {
 
   if (!name || !email || !password || !role)
     return res.status(400).json({ error: 'name, email, password y role son requeridos' });
+  if (!EMAIL_REGEX.test(email))
+    return res.status(400).json({ error: 'Email inválido (formato esperado: usuario@dominio.com)' });
+  if (password.length < 8)
+    return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres' });
 
   const validRoles = ['admin', 'cajero', 'promotor', 'jefe_publicas', 'vendedor'];
   if (!validRoles.includes(role))
@@ -80,6 +85,10 @@ const createTeamMember = async (req, res) => {
 
   if (!name || !email || !password)
     return res.status(400).json({ error: 'name, email y password son requeridos' });
+  if (!EMAIL_REGEX.test(email))
+    return res.status(400).json({ error: 'Email inválido' });
+  if (password.length < 8)
+    return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres' });
 
   try {
     const jefePromo = await db.query('SELECT * FROM promotors WHERE user_id = ?', [jefeId]);

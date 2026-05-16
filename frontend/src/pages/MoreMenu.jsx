@@ -75,6 +75,7 @@ const MoreMenu = () => {
           )}
 
           <div className="pt-4 border-t border-gray-800 mt-4">
+            <MenuItem iconKey="users" label="Configuración" desc="Cambiar tu contraseña y ver tus datos" onClick={() => navigate('/configuracion')} />
             <MenuItem iconKey="info" label="Acerca de GianQR" desc="v1.0 — Sistema de entradas con QR" onClick={() => {}} />
           </div>
         </div>
