@@ -1,6 +1,7 @@
 const { v4: uuidv4 } = require('uuid');
 const QRCode = require('qrcode');
 const db = require('../config/database');
+const { checkSaleWindow } = require('../utils/saleWindow');
 
 async function generateQR(ticketId) {
   const code    = `GIANQR-${ticketId.split('-')[0].toUpperCase()}`;
@@ -20,6 +21,16 @@ const create = async (req, res) => {
 
   if (!event_id || !ticket_type_id || !buyer_name || !payment_method)
     return res.status(400).json({ error: 'Faltan campos obligatorios' });
+
+  // Whitelist estricto. 'cortesia' tiene su propio endpoint admin-only
+  // (POST /api/cortesias) — no se acepta por aca para evitar que un cajero
+  // emita entradas gratis sin pasar por el flujo admin.
+  const VALID_METHODS = ['efectivo', 'transferencia', 'mercadopago'];
+  if (!VALID_METHODS.includes(payment_method))
+    return res.status(400).json({ error: 'Método de pago inválido' });
+
+  const window = await checkSaleWindow(event_id);
+  if (!window.ok) return res.status(window.status).json({ error: window.message });
 
   try {
     const ticketId = uuidv4();
@@ -48,7 +59,10 @@ const create = async (req, res) => {
       const { code, qrBase64 } = await generateQR(ticketId);
       const isPaid = ['efectivo', 'transferencia'].includes(payment_method);
       const status = isPaid ? 'pagado' : 'pendiente';
-      const price  = parseFloat(amount_paid || tt.price);
+      // Siempre usar el precio canonico del ticket_type. El cliente NO puede
+      // enviar amount_paid arbitrario (antes podia mandar 1 y vender un ticket
+      // de 5000 por 1).
+      const price  = parseFloat(tt.price);
 
       await conn.execute(
         `INSERT INTO tickets

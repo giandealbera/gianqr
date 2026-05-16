@@ -10,10 +10,11 @@ router.post('/', auth, roles('admin', 'cajero', 'promotor', 'jefe_publicas', 've
 // Escaneo en puerta (solo admin — los demás usan links públicos /scan/:token)
 router.post('/scan', auth, roles('admin'), scan);
 
-// Consultas
-router.get('/',      auth, roles('admin', 'cajero'), getAll);
-router.get('/:id',   auth, getOne);
-router.get('/:id/qr', auth, getQR);
+// Consultas — solo admin/cajero. Para evitar IDOR (cualquier user autenticado
+// veia datos PII y QR descargable de cualquier ticket enumerando UUIDs).
+router.get('/',       auth, roles('admin', 'cajero'), getAll);
+router.get('/:id',    auth, roles('admin', 'cajero'), getOne);
+router.get('/:id/qr', auth, roles('admin', 'cajero'), getQR);
 
 // Eliminar (solo admin)
 router.delete('/:id', auth, roles('admin'), remove);

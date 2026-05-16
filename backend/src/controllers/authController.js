@@ -22,7 +22,7 @@ const login = async (req, res) => {
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role, name: user.name },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
+      { expiresIn: process.env.JWT_EXPIRES_IN || '8h', algorithm: 'HS256' }
     );
 
     res.json({
@@ -49,7 +49,7 @@ const me = async (req, res) => {
   }
 };
 
-// GET /api/auth/magic/:token — login instantáneo sin contraseña
+// GET /api/auth/magic/:token — login instantáneo sin contraseña (UNA SOLA VEZ)
 const magicLogin = async (req, res) => {
   const { token } = req.params;
   try {
@@ -58,19 +58,23 @@ const magicLogin = async (req, res) => {
       [token]
     );
     const user = result.rows[0];
-    if (!user) return res.status(404).json({ error: 'Link inválido o desactivado' });
+    if (!user) return res.status(404).json({ error: 'Link inválido o ya usado' });
+
+    // Invalidar el token: el link es de un solo uso. Si el vendedor pierde el
+    // acceso, el jefe puede generarle uno nuevo desde su panel.
+    await db.query('UPDATE users SET magic_token = NULL WHERE id = ?', [user.id]);
 
     const jwt_token = jwt.sign(
       { id: user.id, email: user.email, role: user.role, name: user.name },
       process.env.JWT_SECRET,
-      { expiresIn: '30d' }
+      { expiresIn: process.env.JWT_EXPIRES_IN || '8h', algorithm: 'HS256' }
     );
     res.json({
       token: jwt_token,
       user: { id: user.id, name: user.name, email: user.email, role: user.role },
     });
   } catch (err) {
-    console.error(err);
+    console.error('magicLogin error:', err.message);
     res.status(500).json({ error: 'Error interno' });
   }
 };

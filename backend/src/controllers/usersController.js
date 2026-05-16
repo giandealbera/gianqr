@@ -21,9 +21,11 @@ const getAll = async (req, res) => {
       `SELECT u.id, u.name, u.apellido, u.celular, u.localidad,
               u.email, u.role, u.is_active, u.created_at,
               p.promo_code, p.commission, p.leader_id, p.leader_commission,
+              p.zona_id, z.name AS zona_name,
               lu.name AS leader_name
        FROM users u
        LEFT JOIN promotors p ON p.user_id = u.id
+       LEFT JOIN zonas z ON z.id = p.zona_id
        LEFT JOIN users lu ON lu.id = p.leader_id
        ORDER BY u.created_at DESC`
     );
@@ -36,7 +38,7 @@ const getAll = async (req, res) => {
 
 const create = async (req, res) => {
   const { name, apellido, celular, localidad, email, password, role,
-          promo_code, commission, leader_id, leader_commission } = req.body;
+          promo_code, commission, leader_id, leader_commission, zona_id } = req.body;
 
   if (!name || !email || !password || !role)
     return res.status(400).json({ error: 'name, email, password y role son requeridos' });
@@ -58,8 +60,8 @@ const create = async (req, res) => {
     if (PUBLICAS_ROLES.includes(role)) {
       promoCode = promo_code || genPromoCode();
       await db.query(
-        'INSERT INTO promotors (id, user_id, promo_code, commission, leader_id, leader_commission) VALUES (?,?,?,?,?,?)',
-        [uuidv4(), userId, promoCode, commission ?? 800, leader_id || null, leader_commission ?? 400]
+        'INSERT INTO promotors (id, user_id, promo_code, commission, leader_id, leader_commission, zona_id) VALUES (?,?,?,?,?,?,?)',
+        [uuidv4(), userId, promoCode, commission ?? 800, leader_id || null, leader_commission ?? 400, zona_id || null]
       );
     }
 
@@ -94,9 +96,10 @@ const createTeamMember = async (req, res) => {
       [userId, name, apellido || null, celular || null, localidad || null, email.toLowerCase(), hash, 'vendedor', magicToken]
     );
 
+    // El vendedor hereda automaticamente la zona del jefe que lo creo
     await db.query(
-      'INSERT INTO promotors (id, user_id, promo_code, commission, leader_id, leader_commission) VALUES (?,?,?,?,?,?)',
-      [uuidv4(), userId, promoCode, commission ?? 800, jefeId, jefe.leader_commission ?? 400]
+      'INSERT INTO promotors (id, user_id, promo_code, commission, leader_id, leader_commission, zona_id) VALUES (?,?,?,?,?,?,?)',
+      [uuidv4(), userId, promoCode, commission ?? 800, jefeId, jefe.leader_commission ?? 400, jefe.zona_id || null]
     );
 
     res.status(201).json({ id: userId, name, email: email.toLowerCase(), role: 'vendedor', promo_code: promoCode, magic_token: magicToken });
@@ -129,19 +132,26 @@ const removeTeamMember = async (req, res) => {
 const getMyTeam = async (req, res) => {
   const jefeId = req.user.id;
   try {
+    // Comision del jefe (la usamos para mostrarle ganancia por vendedor)
+    const jefeRow = await db.query('SELECT leader_commission, zona_id FROM promotors WHERE user_id = ?', [jefeId]);
+    const leaderCommission = jefeRow.rows[0]?.leader_commission || 0;
+
+    // No exponemos u.magic_token: el token es de un solo uso y mostrarlo aca
+    // permitiria al jefe re-utilizar el token para impersonar al vendedor.
     const result = await db.query(
       `SELECT u.id, u.name, u.apellido, u.celular, u.localidad, u.email, u.is_active, u.created_at,
-              u.magic_token,
-              p.promo_code, p.commission,
+              p.promo_code, p.commission, p.zona_id, z.name AS zona_name,
               COUNT(CASE WHEN t.status IN ('pagado','usado') THEN t.id END) AS total_vendidas,
-              SUM(CASE WHEN t.status IN ('pagado','usado') THEN t.amount_paid ELSE 0 END) AS total_recaudado
+              SUM(CASE WHEN t.status IN ('pagado','usado') THEN t.amount_paid ELSE 0 END) AS total_recaudado,
+              (COUNT(CASE WHEN t.status IN ('pagado','usado') THEN t.id END) * ?) AS mi_ganancia
        FROM users u
        JOIN promotors p ON p.user_id = u.id
+       LEFT JOIN zonas z ON z.id = p.zona_id
        LEFT JOIN tickets t ON t.promotor_id = p.id
        WHERE p.leader_id = ?
        GROUP BY u.id
        ORDER BY total_recaudado DESC`,
-      [jefeId]
+      [leaderCommission, jefeId]
     );
     res.json(result.rows);
   } catch (err) {
@@ -152,7 +162,7 @@ const getMyTeam = async (req, res) => {
 
 const update = async (req, res) => {
   const { id } = req.params;
-  const { name, apellido, celular, localidad, email, role, is_active, password, commission, leader_id, leader_commission } = req.body;
+  const { name, apellido, celular, localidad, email, role, is_active, password, commission, leader_id, leader_commission, zona_id } = req.body;
   try {
     if (password) {
       const hash = await bcrypt.hash(password, 10);
@@ -172,14 +182,14 @@ const update = async (req, res) => {
       const existing = await db.query('SELECT id FROM promotors WHERE user_id = ?', [id]);
       if (existing.rows[0]) {
         await db.query(
-          'UPDATE promotors SET commission=?, leader_id=?, leader_commission=? WHERE user_id=?',
-          [commission ?? 800, leader_id || null, leader_commission ?? 400, id]
+          'UPDATE promotors SET commission=?, leader_id=?, leader_commission=?, zona_id=? WHERE user_id=?',
+          [commission ?? 800, leader_id || null, leader_commission ?? 400, zona_id || null, id]
         );
       } else {
         const promoCode = genPromoCode();
         await db.query(
-          'INSERT INTO promotors (id, user_id, promo_code, commission, leader_id, leader_commission) VALUES (?,?,?,?,?,?)',
-          [uuidv4(), id, promoCode, commission ?? 800, leader_id || null, leader_commission ?? 400]
+          'INSERT INTO promotors (id, user_id, promo_code, commission, leader_id, leader_commission, zona_id) VALUES (?,?,?,?,?,?,?)',
+          [uuidv4(), id, promoCode, commission ?? 800, leader_id || null, leader_commission ?? 400, zona_id || null]
         );
       }
     }

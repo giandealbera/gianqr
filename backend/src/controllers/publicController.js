@@ -1,5 +1,6 @@
 const { v4: uuidv4 } = require('uuid');
 const db = require('../config/database');
+const { checkSaleWindow } = require('../utils/saleWindow');
 
 const getPublicEvents = async (req, res) => {
   try {
@@ -54,6 +55,13 @@ const createPublicTicket = async (req, res) => {
   if (!event_id || !ticket_type_id)
     return res.status(400).json({ error: 'Faltan datos del evento' });
 
+  // Cortesia (codigo CASA) queda exenta — el admin puede regalar entradas despues
+  // de cerrada la venta. El resto se bloquea fuera de la ventana.
+  if (!isCortesia) {
+    const window = await checkSaleWindow(event_id);
+    if (!window.ok) return res.status(window.status).json({ error: window.message });
+  }
+
   if (!Array.isArray(attendees) || attendees.length === 0)
     return res.status(400).json({ error: 'Cargá al menos una persona' });
 
@@ -67,45 +75,64 @@ const createPublicTicket = async (req, res) => {
   }
 
   try {
-    const promoResult = await db.query('SELECT id FROM promotors WHERE promo_code = ?', [code]);
+    // Verificar que el promotor existe Y su usuario asociado está activo.
+    // Sin el join a users un promotor desactivado seguía pudiendo vender por su link.
+    const promoResult = await db.query(
+      `SELECT p.id FROM promotors p
+       JOIN users u ON u.id = p.user_id
+       WHERE p.promo_code = ? AND u.is_active = 1`,
+      [code]
+    );
     const promotor = promoResult.rows[0];
     if (!promotor) return res.status(404).json({ error: 'Link invalido' });
-
-    const ttResult = await db.query(
-      'SELECT * FROM ticket_types WHERE id = ? AND event_id = ? AND is_active = 1',
-      [ticket_type_id, event_id]
-    );
-    const tt = ttResult.rows[0];
-    if (!tt) return res.status(400).json({ error: 'Tipo de entrada no disponible' });
-    if ((tt.total_quota - tt.sold_count) < attendees.length)
-      return res.status(400).json({ error: `Solo quedan ${tt.total_quota - tt.sold_count} entradas disponibles` });
 
     const validMethod = isCortesia
       ? 'cortesia'
       : (['efectivo', 'transferencia'].includes(payment_method) ? payment_method : 'efectivo');
-    const finalPrice = isCortesia ? 0 : tt.price;
     const created = [];
+    let finalPrice;
+    let ttName;
 
-    for (const a of attendees) {
-      const ticketId = uuidv4();
-      const qrCode   = `GIANQR-${ticketId.substring(0, 8).toUpperCase()}`;
-      await db.query(
-        `INSERT INTO tickets
-           (id, ticket_type_id, event_id, buyer_name, buyer_apellido, buyer_edad, buyer_localidad, buyer_email,
-            qr_code, payment_method, payment_ref, amount_paid, status, promotor_id)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-        [ticketId, ticket_type_id, event_id, a.buyer_name, a.buyer_apellido,
-         a.buyer_edad || null, a.buyer_localidad || null, a.buyer_email || '',
-         qrCode, validMethod, isCortesia ? 'CORTESIA' : '', finalPrice, 'pagado', promotor.id]
+    // Toda la creacion va en una transaccion: revalidamos cupo DENTRO, insertamos
+    // los tickets, y subimos sold_count atomicamente. Asi evitamos oversell con
+    // requests concurrentes.
+    await db.transaction(async (conn) => {
+      const [ttRows] = await conn.execute(
+        'SELECT * FROM ticket_types WHERE id = ? AND event_id = ? AND is_active = 1',
+        [ticket_type_id, event_id]
       );
-      created.push({
-        id: ticketId, qr_code: qrCode,
-        buyer_name: a.buyer_name, buyer_apellido: a.buyer_apellido,
-        tipo_entrada: tt.name, amount_paid: finalPrice,
-      });
-    }
+      const tt = ttRows[0];
+      if (!tt) throw new Error('TT_NOT_FOUND');
+      if ((tt.total_quota - tt.sold_count) < attendees.length) {
+        throw new Error(`NO_QUOTA:${tt.total_quota - tt.sold_count}`);
+      }
+      finalPrice = isCortesia ? 0 : tt.price;
+      ttName = tt.name;
 
-    await db.query('UPDATE ticket_types SET sold_count = sold_count + ? WHERE id = ?', [attendees.length, ticket_type_id]);
+      for (const a of attendees) {
+        const ticketId = uuidv4();
+        const qrCode   = `GIANQR-${ticketId.substring(0, 8).toUpperCase()}`;
+        await conn.execute(
+          `INSERT INTO tickets
+             (id, ticket_type_id, event_id, buyer_name, buyer_apellido, buyer_edad, buyer_localidad, buyer_email,
+              qr_code, payment_method, payment_ref, amount_paid, status, promotor_id)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          [ticketId, ticket_type_id, event_id, a.buyer_name, a.buyer_apellido,
+           a.buyer_edad || null, a.buyer_localidad || null, a.buyer_email || '',
+           qrCode, validMethod, isCortesia ? 'CORTESIA' : '', finalPrice, 'pagado', promotor.id]
+        );
+        created.push({
+          id: ticketId, qr_code: qrCode,
+          buyer_name: a.buyer_name, buyer_apellido: a.buyer_apellido,
+          tipo_entrada: tt.name, amount_paid: finalPrice,
+        });
+      }
+
+      await conn.execute(
+        'UPDATE ticket_types SET sold_count = sold_count + ? WHERE id = ?',
+        [attendees.length, ticket_type_id]
+      );
+    });
 
     res.status(201).json({
       tickets: created,
@@ -114,7 +141,11 @@ const createPublicTicket = async (req, res) => {
       cortesia: isCortesia,
     });
   } catch (err) {
-    console.error(err);
+    if (err.message === 'TT_NOT_FOUND')
+      return res.status(400).json({ error: 'Tipo de entrada no disponible' });
+    if (err.message?.startsWith('NO_QUOTA:'))
+      return res.status(409).json({ error: `Solo quedan ${err.message.split(':')[1]} entradas disponibles` });
+    console.error('createPublicTicket error:', err.message);
     res.status(500).json({ error: 'Error al crear entradas' });
   }
 };
