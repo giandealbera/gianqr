@@ -12,6 +12,8 @@ const navItems = {
     { to: '/admin/rendicion', label: 'Rendicion'   },
     { to: '/admin/control',   label: 'Control en vivo' },
     { to: '/admin/reportes',  label: 'Reportes'    },
+    { to: '/admin/historial', label: 'Historial'   },
+    { to: '/admin/proveedores', label: 'Proveedores' },
   ],
   cajero: [
     { to: '/eventos', label: 'Eventos' },

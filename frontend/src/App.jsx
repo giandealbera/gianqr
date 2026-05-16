@@ -24,6 +24,9 @@ import PublicBuy        from './pages/public/PublicBuy';
 import Rendicion        from './pages/admin/Rendicion';
 import LiveControl      from './pages/admin/LiveControl';
 import Cortesias        from './pages/admin/Cortesias';
+import EventHistory     from './pages/admin/EventHistory';
+import Proveedores      from './pages/admin/Proveedores';
+import ResetEventos     from './pages/admin/ResetEventos';
 import MoreMenu          from './pages/MoreMenu';
 
 // Redirige al panel según el rol del usuario logueado
@@ -96,6 +99,15 @@ const App = () => (
         } />
         <Route path="/admin/cortesias" element={
           <ProtectedRoute allowedRoles={['admin']}><Cortesias /></ProtectedRoute>
+        } />
+        <Route path="/admin/historial" element={
+          <ProtectedRoute allowedRoles={['admin']}><EventHistory /></ProtectedRoute>
+        } />
+        <Route path="/admin/proveedores" element={
+          <ProtectedRoute allowedRoles={['admin']}><Proveedores /></ProtectedRoute>
+        } />
+        <Route path="/admin/reset-eventos" element={
+          <ProtectedRoute allowedRoles={['admin']}><ResetEventos /></ProtectedRoute>
         } />
 
         {/* Escáner (solo admin) */}

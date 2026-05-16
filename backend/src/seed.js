@@ -10,19 +10,35 @@ const db = require('./config/database');
 
 async function seed() {
   try {
-    // Crear/actualizar admin
+    const ADMIN_EMAIL    = 'gianfrancodealbera@gmail.com';
+    const ADMIN_PASSWORD = '43955952Gd';
+
+    // Migrar admin viejo (email='admin' o 'admin@gianqr.com') al nuevo email/password
+    const oldAdmin = await db.query(
+      "SELECT id FROM users WHERE email IN ('admin','admin@gianqr.com')"
+    );
+    if (oldAdmin.rows.length > 0) {
+      const hashMig = await bcrypt.hash(ADMIN_PASSWORD, 10);
+      await db.query(
+        "UPDATE users SET email = ?, password_hash = ? WHERE email IN ('admin','admin@gianqr.com')",
+        [ADMIN_EMAIL, hashMig]
+      );
+      console.log(`✅ Admin migrado a ${ADMIN_EMAIL}`);
+    }
+
+    // Crear admin si todavía no existe con el nuevo email
     let adminId;
-    const existingAdmin = await db.query("SELECT id FROM users WHERE email = 'admin'");
+    const existingAdmin = await db.query(
+      "SELECT id FROM users WHERE email = ?", [ADMIN_EMAIL]
+    );
     if (existingAdmin.rows.length === 0) {
-      // Borrar admin viejo si existe
-      await db.query("DELETE FROM users WHERE email = 'admin@gianqr.com'");
-      const hash = await bcrypt.hash('admin123', 10);
+      const hash = await bcrypt.hash(ADMIN_PASSWORD, 10);
       adminId = uuidv4();
       await db.query(
         "INSERT INTO users (id, name, email, password_hash, role) VALUES (?,?,?,?,?)",
-        [adminId, 'Administrador', 'admin', hash, 'admin']
+        [adminId, 'Administrador', ADMIN_EMAIL, hash, 'admin']
       );
-      console.log('✅ Admin creado: admin / admin123');
+      console.log(`✅ Admin creado: ${ADMIN_EMAIL}`);
     } else {
       adminId = existingAdmin.rows[0].id;
     }

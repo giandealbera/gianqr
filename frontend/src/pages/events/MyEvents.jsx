@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 
 const initialForm = {
   name: '', description: '', date: '', start_time: '', end_time: '',
+  sale_start_at: '', sale_end_at: '',
   venue_id: '', flyer_url: '',
   ticket_types: [{ name: 'General', price: '', total_quota: '' }],
 };
@@ -40,8 +41,15 @@ const MyEvents = () => {
 
   const getStatus = (ev) => {
     if (!ev.is_active) return { label: 'Inactivo', cls: 'bg-gray-700 text-gray-300' };
+    const now = new Date();
+    if (ev.sale_end_at && now > new Date(ev.sale_end_at)) {
+      return { label: 'Venta cerrada', cls: 'bg-red-900/40 text-red-300' };
+    }
+    if (ev.sale_start_at && now < new Date(ev.sale_start_at)) {
+      return { label: 'Venta no inició', cls: 'bg-amber-900/40 text-amber-300' };
+    }
     if (ev.date < today) return { label: 'Finalizado', cls: 'bg-gray-700 text-gray-400' };
-    return { label: 'Activo', cls: 'bg-emerald-900/60 text-emerald-400' };
+    return { label: 'Venta abierta', cls: 'bg-emerald-900/60 text-emerald-400' };
   };
 
   // Form handlers
@@ -139,6 +147,17 @@ const MyEvents = () => {
                 <label className="text-sm text-gray-400 block mb-1">Hora de inicio *</label>
                 <input type="time" className="input" required value={form.start_time}
                   onChange={e => setForm(f => ({ ...f, start_time: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-sm text-gray-400 block mb-1">Apertura de venta *</label>
+                <input type="datetime-local" className="input" required value={form.sale_start_at}
+                  onChange={e => setForm(f => ({ ...f, sale_start_at: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-sm text-gray-400 block mb-1">Cierre de venta *</label>
+                <input type="datetime-local" className="input" required value={form.sale_end_at}
+                  onChange={e => setForm(f => ({ ...f, sale_end_at: e.target.value }))} />
+                <p className="text-xs text-gray-500 mt-1">Despues de esta hora ya no se podran vender entradas, pero si seguir rindiendo.</p>
               </div>
               <div className="sm:col-span-2">
                 <label className="text-sm text-gray-400 block mb-1">Descripción</label>

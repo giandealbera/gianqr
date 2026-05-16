@@ -4,7 +4,7 @@ const db = require('../config/database');
 // GET /api/rendiciones — lista de publicas con saldo
 // Devuelve todas las publicas con: vendido, comision, debe enviar, ya rindio, saldo pendiente
 const listPublicas = async (req, res) => {
-  const { search } = req.query;
+  const { search, event_id } = req.query;
   try {
     const params = [];
     let searchClause = '';
@@ -13,10 +13,21 @@ const listPublicas = async (req, res) => {
       params.push(`%${search}%`, `%${search}%`, `%${search}%`);
     }
 
+    // Si filtran por evento: tickets se cuentan sólo de ese evento y `ya_rindio` también
+    let ticketJoinClause = 'LEFT JOIN tickets t ON t.promotor_id = p.id';
+    let yaRindioClause   = '(SELECT COALESCE(SUM(amount),0) FROM rendiciones WHERE promotor_id = p.id)';
+    if (event_id) {
+      ticketJoinClause = 'LEFT JOIN tickets t ON t.promotor_id = p.id AND t.event_id = ?';
+      yaRindioClause   = '(SELECT COALESCE(SUM(amount),0) FROM rendiciones WHERE promotor_id = p.id AND event_id = ?)';
+      params.unshift(event_id);  // primer ? del query
+      params.push(event_id);     // ? del subselect
+    }
+
     const result = await db.query(
       `SELECT p.id AS promotor_id,
               u.id AS user_id, u.name, u.apellido, u.celular, u.localidad, u.email,
-              p.promo_code, p.commission, p.leader_commission,
+              p.promo_code, p.commission, p.leader_commission, p.zona_id,
+              z.name AS zona_name,
               lu.name AS leader_name,
               u.role,
               COUNT(CASE WHEN t.status IN ('pagado','usado') THEN t.id END) AS total_vendidas,
@@ -24,11 +35,12 @@ const listPublicas = async (req, res) => {
               (COUNT(CASE WHEN t.status IN ('pagado','usado') THEN t.id END) * p.commission) AS comision_promotor,
               COALESCE(SUM(CASE WHEN t.status IN ('pagado','usado') THEN t.amount_paid ELSE 0 END), 0)
                 - (COUNT(CASE WHEN t.status IN ('pagado','usado') THEN t.id END) * p.commission) AS debe_enviar,
-              (SELECT COALESCE(SUM(amount),0) FROM rendiciones WHERE promotor_id = p.id) AS ya_rindio
+              ${yaRindioClause} AS ya_rindio
        FROM promotors p
        JOIN users u ON u.id = p.user_id AND u.is_active = 1
+       LEFT JOIN zonas z ON z.id = p.zona_id
        LEFT JOIN users lu ON lu.id = p.leader_id
-       LEFT JOIN tickets t ON t.promotor_id = p.id
+       ${ticketJoinClause}
        WHERE 1=1 ${searchClause}
        GROUP BY p.id
        ORDER BY u.name ASC`,

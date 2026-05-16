@@ -42,18 +42,24 @@ const getOne = async (req, res) => {
 };
 
 const create = async (req, res) => {
-  const { venue_id, name, description, date, start_time, end_time, flyer_url, ticket_types } = req.body;
+  const { venue_id, name, description, date, start_time, end_time, flyer_url, ticket_types,
+          sale_start_at, sale_end_at } = req.body;
   if (!name || !date || !start_time)
     return res.status(400).json({ error: 'name, date y start_time son requeridos' });
+  if (!sale_start_at || !sale_end_at)
+    return res.status(400).json({ error: 'Fecha y hora de apertura y cierre de venta son requeridas' });
+  if (new Date(sale_end_at) <= new Date(sale_start_at))
+    return res.status(400).json({ error: 'El cierre de venta debe ser posterior a la apertura' });
 
   try {
     const eventId = uuidv4();
     await db.transaction(async (conn) => {
       await conn.execute(
-        `INSERT INTO events (id, venue_id, name, description, date, start_time, end_time, flyer_url, created_by)
-         VALUES (?,?,?,?,?,?,?,?,?)`,
+        `INSERT INTO events (id, venue_id, name, description, date, start_time, end_time, flyer_url,
+                             sale_start_at, sale_end_at, created_by)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
         [eventId, venue_id || null, name, description || null, date, start_time,
-         end_time || null, flyer_url || null, req.user.id]
+         end_time || null, flyer_url || null, sale_start_at, sale_end_at, req.user.id]
       );
 
       if (ticket_types && ticket_types.length > 0) {
@@ -76,12 +82,17 @@ const create = async (req, res) => {
 
 const update = async (req, res) => {
   const { id } = req.params;
-  const { name, description, date, start_time, end_time, flyer_url, is_active, venue_id } = req.body;
+  const { name, description, date, start_time, end_time, flyer_url, is_active, venue_id,
+          sale_start_at, sale_end_at } = req.body;
+  if (sale_start_at && sale_end_at && new Date(sale_end_at) <= new Date(sale_start_at))
+    return res.status(400).json({ error: 'El cierre de venta debe ser posterior a la apertura' });
   try {
     await db.query(
       `UPDATE events SET name=?, description=?, date=?, start_time=?,
-       end_time=?, flyer_url=?, is_active=?, venue_id=? WHERE id=?`,
-      [name, description, date, start_time, end_time, flyer_url, is_active ? 1 : 0, venue_id || null, id]
+       end_time=?, flyer_url=?, is_active=?, venue_id=?,
+       sale_start_at=?, sale_end_at=? WHERE id=?`,
+      [name, description, date, start_time, end_time, flyer_url, is_active ? 1 : 0, venue_id || null,
+       sale_start_at || null, sale_end_at || null, id]
     );
     const result = await db.query('SELECT * FROM events WHERE id = ?', [id]);
     res.json(result.rows[0]);
@@ -195,4 +206,97 @@ const toggleTicketType = async (req, res) => {
   }
 };
 
-module.exports = { getAll, getOne, create, update, stats, getVenues, getTicketTypes, addTicketType, updateTicketType, toggleTicketType };
+// POST /api/events/:id/reset — borra tickets/payments/rendiciones del evento y vuelve sold_count a 0 (admin)
+const resetEvent = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const evResult = await db.query('SELECT id, name FROM events WHERE id = ?', [id]);
+    if (!evResult.rows[0]) return res.status(404).json({ error: 'Evento no encontrado' });
+
+    const before = await db.query(
+      `SELECT
+         (SELECT COUNT(*) FROM tickets WHERE event_id = ?)     AS tickets,
+         (SELECT COUNT(*) FROM rendiciones WHERE event_id = ?) AS rendiciones`,
+      [id, id]
+    );
+
+    await db.transaction(async (conn) => {
+      // Borrar payments asociados a tickets de este evento (FK no tiene CASCADE)
+      await conn.execute(
+        `DELETE FROM payments
+         WHERE ticket_id IN (SELECT id FROM tickets WHERE event_id = ?)`,
+        [id]
+      );
+      await conn.execute('DELETE FROM tickets     WHERE event_id = ?', [id]);
+      await conn.execute('DELETE FROM rendiciones WHERE event_id = ?', [id]);
+      await conn.execute('UPDATE ticket_types SET sold_count = 0 WHERE event_id = ?', [id]);
+    });
+
+    res.json({
+      message: 'Evento reiniciado',
+      event_id: id,
+      borrados: {
+        tickets:     before.rows[0].tickets,
+        rendiciones: before.rows[0].rendiciones,
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al reiniciar evento' });
+  }
+};
+
+// GET /api/events/history — historial agregado por evento (admin)
+const history = async (req, res) => {
+  const { from, to, event_id, include_inactive } = req.query;
+  const where = ['1=1'];
+  const params = [];
+
+  if (!include_inactive || include_inactive === '0') where.push('e.is_active = 1');
+  if (from)     { where.push('e.date >= ?'); params.push(from); }
+  if (to)       { where.push('e.date <= ?'); params.push(to); }
+  if (event_id) { where.push('e.id = ?');    params.push(event_id); }
+
+  try {
+    const result = await db.query(
+      `SELECT e.id AS event_id, e.name, e.date, e.is_active,
+              COUNT(CASE WHEN t.status IN ('pagado','usado') AND t.payment_method != 'cortesia' THEN t.id END) AS vendidas,
+              COUNT(CASE WHEN t.status = 'usado' THEN t.id END) AS usadas,
+              COUNT(CASE WHEN t.payment_method = 'cortesia' THEN t.id END) AS cortesias,
+              COUNT(CASE WHEN t.status = 'pendiente' THEN t.id END) AS pendientes,
+              COUNT(CASE WHEN t.status = 'cancelado' THEN t.id END) AS canceladas,
+              COALESCE(SUM(CASE WHEN t.status IN ('pagado','usado') THEN t.amount_paid ELSE 0 END), 0) AS recaudado_total,
+              COALESCE(SUM(CASE WHEN t.status IN ('pagado','usado') AND t.payment_method = 'efectivo'      THEN t.amount_paid ELSE 0 END), 0) AS recaudado_efectivo,
+              COALESCE(SUM(CASE WHEN t.status IN ('pagado','usado') AND t.payment_method = 'transferencia' THEN t.amount_paid ELSE 0 END), 0) AS recaudado_transferencia,
+              COALESCE(SUM(CASE WHEN t.status IN ('pagado','usado') AND t.payment_method = 'mercadopago'   THEN t.amount_paid ELSE 0 END), 0) AS recaudado_mercadopago,
+              COALESCE((
+                SELECT SUM(p.commission) FROM tickets t2
+                JOIN promotors p ON p.id = t2.promotor_id
+                WHERE t2.event_id = e.id AND t2.status IN ('pagado','usado')
+              ), 0) AS comisiones_total,
+              COALESCE((SELECT SUM(amount) FROM rendiciones WHERE event_id = e.id), 0) AS ya_rindio
+       FROM events e
+       LEFT JOIN tickets t ON t.event_id = e.id
+       WHERE ${where.join(' AND ')}
+       GROUP BY e.id
+       ORDER BY e.date DESC`,
+      params
+    );
+
+    const rows = result.rows.map(r => {
+      const recaudado_neto = parseFloat(r.recaudado_total || 0) - parseFloat(r.comisiones_total || 0);
+      return {
+        ...r,
+        recaudado_neto,
+        pendiente_rendicion: recaudado_neto - parseFloat(r.ya_rindio || 0),
+      };
+    });
+
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al obtener historial' });
+  }
+};
+
+module.exports = { getAll, getOne, create, update, stats, history, resetEvent, getVenues, getTicketTypes, addTicketType, updateTicketType, toggleTicketType };
