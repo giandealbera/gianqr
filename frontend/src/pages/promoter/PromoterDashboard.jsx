@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import { useAuth } from '../../context/AuthContext';
@@ -73,34 +74,26 @@ const PromoterDashboard = () => {
 
   const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n || 0);
 
-  const myLink = data?.promo_code
-    ? `${window.location.origin}/comprar/${data.promo_code}`
-    : null;
-
   return (
     <Layout>
       <div className="px-4 lg:px-8 py-6 max-w-4xl mx-auto">
         <h1 className="text-2xl font-bold mb-1">Mi Panel</h1>
         <p className="text-slate-400 text-sm mb-6">Hola, {user?.name}</p>
 
-        {/* Link de venta — CTA principal */}
-        {myLink && (
-          <div className="card mb-6 border-brand/30 bg-brand/5">
-            <p className="text-xs text-slate-400 uppercase tracking-wider font-medium mb-3">Tu link de venta</p>
-            <div className="flex items-center gap-3 bg-slate-800 rounded-lg px-4 py-2.5">
-              <span className="font-mono text-brand text-sm flex-1 truncate">{myLink}</span>
-              <button
-                onClick={() => { navigator.clipboard.writeText(myLink); toast.success('Link copiado'); }}
-                className="text-xs text-brand hover:text-white shrink-0 bg-brand/20 hover:bg-brand px-3 py-1.5 rounded transition-colors"
-              >
-                Copiar
-              </button>
+        <div className="card mb-6 border-brand/30 bg-brand/5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <p className="text-xs text-slate-400 uppercase tracking-wider font-medium mb-2">Venta de entradas</p>
+              <h2 className="text-xl font-bold text-white">Generar entrada</h2>
+              <p className="text-sm text-slate-400 mt-1">
+                Elegi evento, tipo, cantidad y forma de pago para generar el link del comprador.
+              </p>
             </div>
-            <p className="text-xs text-slate-500 mt-2">
-              Compartilo con tus clientes. Ellos completan sus datos y reciben su QR.
-            </p>
+            <Link to="/promotor/vender" className="btn-primary text-center px-5 py-3 shrink-0">
+              Generar entrada
+            </Link>
           </div>
-        )}
+        </div>
 
         {loading ? (
           <div className="flex justify-center py-12">
