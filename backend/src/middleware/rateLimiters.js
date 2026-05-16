@@ -66,11 +66,29 @@ const publicScanLimiter = rateLimit({
   message: { error: 'Demasiados escaneos' },
 });
 
+// Forgot password: 3 pedidos por IP cada 15min. Evita spam de mails de reset.
+const forgotPasswordLimiter = rateLimit({
+  ...baseConfig,
+  windowMs: 15 * 60 * 1000,
+  max: 3,
+  message: { error: 'Demasiados pedidos de reset, esperá 15 minutos' },
+});
+
+// Reset password: 5 intentos de aplicar reset por IP cada 15min.
+const resetPasswordLimiter = rateLimit({
+  ...baseConfig,
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { error: 'Demasiados intentos, esperá 15 minutos' },
+});
+
 module.exports = {
   globalLimiter,
   loginLimiter,
   magicLimiter,
   publicBuyLimiter,
   publicRecoverLimiter,
+  forgotPasswordLimiter,
+  resetPasswordLimiter,
   publicScanLimiter,
 };

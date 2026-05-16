@@ -1,6 +1,8 @@
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const jwt    = require('jsonwebtoken');
 const db     = require('../config/database');
+const { sendMail } = require('../utils/mailer');
 
 // POST /api/auth/login
 const login = async (req, res) => {
@@ -79,4 +81,89 @@ const magicLogin = async (req, res) => {
   }
 };
 
-module.exports = { login, me, magicLogin };
+// POST /api/auth/forgot-password — recibe email, genera reset_token, envia mail
+// (o lo loguea si no hay Resend configurado). Siempre devuelve la misma respuesta
+// generica para no permitir enumeracion de emails.
+const forgotPassword = async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email requerido' });
+
+  // Respuesta generica: enviada incluso si el email no existe (anti-enumeration)
+  const genericReply = { message: 'Si el email existe en el sistema, te enviamos las instrucciones para resetear tu contraseña' };
+
+  try {
+    const result = await db.query(
+      'SELECT id, name, email FROM users WHERE email = ? AND is_active = 1',
+      [email.toLowerCase()]
+    );
+    const user = result.rows[0];
+    if (!user) {
+      // No revelamos que el email no existe. Esperamos un poco para que el
+      // timing no delate la diferencia.
+      await new Promise(r => setTimeout(r, 200));
+      return res.json(genericReply);
+    }
+
+    // Token random de 32 bytes hex (64 chars) — imposible de adivinar
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1h
+    await db.query(
+      'UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE id = ?',
+      [resetToken, expiresAt, user.id]
+    );
+
+    const frontUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const resetLink = `${frontUrl}/reset-password/${resetToken}`;
+
+    await sendMail({
+      to: user.email,
+      subject: 'GianQR — Reset de contraseña',
+      text: `Hola ${user.name},\n\nPediste resetear tu contraseña. Hacé click en este link (vale 1 hora):\n\n${resetLink}\n\nSi no fuiste vos, ignorá este mensaje.\n\n— GianQR`,
+      html: `<p>Hola ${user.name},</p><p>Pediste resetear tu contraseña. Hacé click en este link (vale 1 hora):</p><p><a href="${resetLink}">${resetLink}</a></p><p>Si no fuiste vos, ignorá este mensaje.</p><p>— GianQR</p>`,
+    });
+
+    res.json(genericReply);
+  } catch (err) {
+    console.error('forgotPassword error:', err.message);
+    // Aun en caso de error, respondemos generico para no filtrar info
+    res.json(genericReply);
+  }
+};
+
+// POST /api/auth/reset-password — recibe token + nueva password, valida y resetea
+const resetPassword = async (req, res) => {
+  const { token, password } = req.body;
+  if (!token || !password)
+    return res.status(400).json({ error: 'Token y nueva contraseña son requeridos' });
+  if (password.length < 8)
+    return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres' });
+
+  try {
+    const result = await db.query(
+      'SELECT id, reset_token_expires FROM users WHERE reset_token = ? AND is_active = 1',
+      [token]
+    );
+    const user = result.rows[0];
+    if (!user) return res.status(400).json({ error: 'Link inválido o ya usado' });
+
+    // Verificar expiracion
+    if (new Date(user.reset_token_expires) < new Date()) {
+      // Limpiar el token expirado y devolver error
+      await db.query('UPDATE users SET reset_token = NULL, reset_token_expires = NULL WHERE id = ?', [user.id]);
+      return res.status(400).json({ error: 'El link expiró. Pedí uno nuevo desde "Olvidé mi contraseña"' });
+    }
+
+    const hash = await bcrypt.hash(password, 10);
+    await db.query(
+      'UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?',
+      [hash, user.id]
+    );
+
+    res.json({ message: 'Contraseña actualizada. Ya podés iniciar sesión.' });
+  } catch (err) {
+    console.error('resetPassword error:', err.message);
+    res.status(500).json({ error: 'Error al resetear contraseña' });
+  }
+};
+
+module.exports = { login, me, magicLogin, forgotPassword, resetPassword };

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
@@ -82,6 +82,18 @@ const Login = () => {
           >
             {loading ? 'Ingresando...' : 'Ingresar'}
           </button>
+
+          <div className="text-center pt-2">
+            <Link
+              to="/olvide-password"
+              className="text-xs hover:underline transition-colors"
+              style={{ color: '#6B7280' }}
+              onMouseEnter={e => e.target.style.color = '#C9974D'}
+              onMouseLeave={e => e.target.style.color = '#6B7280'}
+            >
+              Olvidé mi contraseña
+            </Link>
+          </div>
         </div>
 
         <p className="text-center text-xs mt-6" style={{ color: '#2D3748' }}>GianQR v1.0</p>

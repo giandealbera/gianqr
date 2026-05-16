@@ -1,11 +1,13 @@
 const express = require('express');
 const router  = express.Router();
 const auth    = require('../middleware/auth');
-const { loginLimiter, magicLimiter } = require('../middleware/rateLimiters');
-const { login, me, magicLogin } = require('../controllers/authController');
+const { loginLimiter, magicLimiter, forgotPasswordLimiter, resetPasswordLimiter } = require('../middleware/rateLimiters');
+const { login, me, magicLogin, forgotPassword, resetPassword } = require('../controllers/authController');
 
 router.post('/login', loginLimiter, login);
 router.get('/me', auth, me);
 router.get('/magic/:token', magicLimiter, magicLogin);
+router.post('/forgot-password', forgotPasswordLimiter, forgotPassword);
+router.post('/reset-password',  resetPasswordLimiter, resetPassword);
 
 module.exports = router;

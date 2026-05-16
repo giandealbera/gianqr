@@ -5,6 +5,8 @@ import ProtectedRoute from './components/ProtectedRoute';
 
 // Páginas
 import Login             from './pages/Login';
+import ForgotPassword    from './pages/ForgotPassword';
+import ResetPassword     from './pages/ResetPassword';
 import MyEvents          from './pages/events/MyEvents';
 import EventDashboard    from './pages/events/EventDashboard';
 import SoldTickets       from './pages/events/SoldTickets';
@@ -49,6 +51,8 @@ const App = () => (
       <Routes>
         {/* Público */}
         <Route path="/login" element={<Login />} />
+        <Route path="/olvide-password" element={<ForgotPassword />} />
+        <Route path="/reset-password/:token" element={<ResetPassword />} />
         <Route path="/scan/:token" element={<PublicScanner />} />
         <Route path="/acceso/:token" element={<MagicLogin />} />
         <Route path="/comprar/:code" element={<PublicBuy />} />

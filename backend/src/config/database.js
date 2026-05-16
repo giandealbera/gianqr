@@ -313,6 +313,9 @@ async function runMigrations(queryFn, execFn) {
     'ALTER TABLE events ADD COLUMN sale_start_at DATETIME',
     'ALTER TABLE events ADD COLUMN sale_end_at DATETIME',
     'ALTER TABLE promotors ADD COLUMN zona_id TEXT REFERENCES zonas(id) ON DELETE SET NULL',
+    // Reset de contraseña: token random + expiracion. Se invalida tras un uso.
+    'ALTER TABLE users ADD COLUMN reset_token TEXT',
+    'ALTER TABLE users ADD COLUMN reset_token_expires DATETIME',
   ];
   for (const sql of incrementals) {
     try { await execFn(sql); } catch (e) { /* columna ya existe */ }
