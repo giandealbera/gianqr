@@ -1,16 +1,38 @@
 require('dotenv').config();
 const express = require('express');
 const cors    = require('cors');
+const helmet  = require('helmet');
 const { initDb } = require('./src/config/database');
+const { globalLimiter } = require('./src/middleware/rateLimiters');
 
 const app = express();
+
+// Detras de Railway/Cloudflare/Vercel — necesario para que rate-limit lea la IP real
+app.set('trust proxy', 1);
+
+// Saca el header X-Powered-By: Express (fingerprinting fácil sino)
+app.disable('x-powered-by');
+
+// Helmet: pone headers de seguridad (X-Frame-Options, nosniff, HSTS, etc.)
+// Desactivamos CSP porque es API only — la CSP del frontend la maneja Vercel.
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+}));
 
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:5173',
   credentials: true,
 }));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+
+// Body parsers — bajamos de 10mb a 1mb. Si en algun momento hace falta subir
+// imagenes grandes, se mueve a un endpoint específico con limite mas alto.
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+// Rate limit global como red de seguridad — los limiters por-endpoint son mas
+// estrictos para login/public.
+app.use('/api', globalLimiter);
 
 app.use('/api/auth',            require('./src/routes/auth'));
 app.use('/api/users',           require('./src/routes/users'));
@@ -22,23 +44,35 @@ app.use('/api/scan',            require('./src/routes/publicScan'));
 app.use('/api/public',          require('./src/routes/public'));
 app.use('/api/rendiciones',     require('./src/routes/rendiciones'));
 app.use('/api/cortesias',       require('./src/routes/cortesias'));
+app.use('/api/proveedores',     require('./src/routes/proveedores'));
+app.use('/api/zonas',           require('./src/routes/zonas'));
 
-app.get('/api/health', (req, res) =>
-  res.json({ status: 'ok', sistema: 'GianQR', version: '1.0.0' })
-);
+// Health check sin fingerprinting (no exponemos version ni nombre)
+app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
 app.use((req, res) => res.status(404).json({ error: `Ruta no encontrada: ${req.path}` }));
 app.use((err, req, res, next) => {
-  console.error('Error no manejado:', err);
+  // PayloadTooLargeError: body excede el limit. Devolvemos 413, no 500.
+  if (err.type === 'entity.too.large' || err.status === 413) {
+    return res.status(413).json({ error: 'El cuerpo de la solicitud es demasiado grande' });
+  }
+  // JSON malformado
+  if (err.type === 'entity.parse.failed') {
+    return res.status(400).json({ error: 'JSON inválido' });
+  }
+  // Solo logueamos el message — el stack completo en prod queda en logs internos
+  // pero no se filtra al cliente.
+  console.error('Error no manejado:', err.message);
   res.status(500).json({ error: 'Error interno del servidor' });
 });
 
 const PORT = process.env.PORT || 4000;
 
 const start = async () => {
-  // Inicializar la base de datos SQLite (crea tablas si no existen)
+  // Inicializar la base (auto-detecta driver via DATABASE_URL)
+  const { PG_MODE } = require('./src/config/database');
   await initDb();
-  console.log('  ✅ Base de datos SQLite lista');
+  console.log(`  ✅ Base de datos lista (${PG_MODE ? 'Postgres' : 'SQLite local'})`);
 
   // Ejecutar seed (crea admin y sala por defecto)
   try { await require('./src/seed')(); } catch(e) { /* ya seedeado */ }
