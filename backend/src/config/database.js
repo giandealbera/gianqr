@@ -1,178 +1,75 @@
-const sqlite3 = require('sqlite3');
-const { open } = require('sqlite');
+/**
+ * Capa de DB con soporte dual:
+ *   - SQLite en desarrollo (sin DATABASE_URL)
+ *   - PostgreSQL en producción (con DATABASE_URL seteada en Railway/Neon/etc.)
+ *
+ * Los controllers usan db.query(text, params) y db.transaction(fn). Internamente
+ * traducimos sintaxis específica (placeholders, INSERT OR IGNORE, tipos) según
+ * el driver activo.
+ */
 const path = require('path');
 
-let dbInstance = null;
+const PG_MODE = !!process.env.DATABASE_URL;
 
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, '../../../database/gianqr.sqlite');
+// ---------------------------------------------------------------------------
+// Traducciones SQLite -> Postgres
+// ---------------------------------------------------------------------------
+function translateForPostgres(text) {
+  let out = text;
 
-const initDb = async () => {
-  if (!dbInstance) {
-    // Asegurar que el directorio exista
-    const fs = require('fs');
-    const dir = path.dirname(DB_PATH);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  // INSERT OR IGNORE INTO / INSERT IGNORE INTO -> INSERT INTO ... ON CONFLICT DO NOTHING
+  const hadIgnore = /\bINSERT\s+(OR\s+)?IGNORE\s+INTO\b/i.test(out);
+  out = out.replace(/\bINSERT\s+(OR\s+)?IGNORE\s+INTO\b/gi, 'INSERT INTO');
 
-    dbInstance = await open({
-      filename: DB_PATH,
-      driver: sqlite3.Database
-    });
-    await dbInstance.run('PRAGMA journal_mode = WAL');
-    await dbInstance.run('PRAGMA foreign_keys = ON');
+  // DATETIME -> TIMESTAMP (postgres no entiende DATETIME)
+  out = out.replace(/\bDATETIME\b/gi, 'TIMESTAMP');
 
-    // Auto-crear tablas si no existen
-    await dbInstance.exec(`
-      CREATE TABLE IF NOT EXISTS users (
-        id           TEXT PRIMARY KEY,
-        name         TEXT NOT NULL,
-        email        TEXT NOT NULL UNIQUE,
-        password_hash TEXT NOT NULL,
-        role         TEXT NOT NULL DEFAULT 'cajero',
-        is_active    INTEGER NOT NULL DEFAULT 1,
-        created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
+  // NOW() ya funciona en postgres tal cual; CURRENT_TIMESTAMP también.
+  // FOR UPDATE: postgres lo soporta nativo, no hace falta sacarlo.
 
-      CREATE TABLE IF NOT EXISTS promotors (
-        id          TEXT PRIMARY KEY,
-        user_id     TEXT NOT NULL,
-        promo_code  TEXT NOT NULL UNIQUE,
-        commission  REAL DEFAULT 0.00,
-        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-      );
+  // Reemplazo de placeholders ? por $1,$2,... (último paso para no contar dentro de literales)
+  let n = 0;
+  out = out.replace(/\?/g, () => `$${++n}`);
 
-      CREATE TABLE IF NOT EXISTS venues (
-        id          TEXT PRIMARY KEY,
-        name        TEXT NOT NULL,
-        capacity    INTEGER NOT NULL DEFAULT 200,
-        description TEXT,
-        is_active   INTEGER NOT NULL DEFAULT 1,
-        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS events (
-        id           TEXT PRIMARY KEY,
-        venue_id     TEXT,
-        name         TEXT NOT NULL,
-        description  TEXT,
-        date         TEXT NOT NULL,
-        start_time   TEXT NOT NULL,
-        end_time     TEXT,
-        flyer_url    TEXT,
-        is_active    INTEGER NOT NULL DEFAULT 1,
-        created_by   TEXT,
-        created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (venue_id) REFERENCES venues(id) ON DELETE SET NULL,
-        FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS ticket_types (
-        id           TEXT PRIMARY KEY,
-        event_id     TEXT NOT NULL,
-        name         TEXT NOT NULL,
-        price        REAL NOT NULL DEFAULT 0.00,
-        total_quota  INTEGER NOT NULL,
-        sold_count   INTEGER NOT NULL DEFAULT 0,
-        is_active    INTEGER NOT NULL DEFAULT 1,
-        created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
-      );
-
-      CREATE TABLE IF NOT EXISTS tickets (
-        id             TEXT PRIMARY KEY,
-        ticket_type_id TEXT NOT NULL,
-        event_id       TEXT NOT NULL,
-        buyer_name     TEXT NOT NULL,
-        buyer_email    TEXT NOT NULL,
-        buyer_dni      TEXT,
-        qr_code        TEXT NOT NULL UNIQUE,
-        payment_method TEXT NOT NULL,
-        payment_ref    TEXT,
-        amount_paid    REAL NOT NULL DEFAULT 0.00,
-        status         TEXT NOT NULL DEFAULT 'pendiente',
-        promotor_id    TEXT,
-        scanned_at     DATETIME,
-        scanned_by     TEXT,
-        sold_by        TEXT,
-        created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (ticket_type_id) REFERENCES ticket_types(id),
-        FOREIGN KEY (event_id)       REFERENCES events(id),
-        FOREIGN KEY (promotor_id)    REFERENCES promotors(id) ON DELETE SET NULL,
-        FOREIGN KEY (scanned_by)     REFERENCES users(id) ON DELETE SET NULL,
-        FOREIGN KEY (sold_by)        REFERENCES users(id) ON DELETE SET NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS payments (
-        id          TEXT PRIMARY KEY,
-        ticket_id   TEXT NOT NULL,
-        method      TEXT NOT NULL,
-        amount      REAL NOT NULL,
-        status      TEXT NOT NULL DEFAULT 'pendiente',
-        external_id TEXT,
-        external_data TEXT,
-        notes       TEXT,
-        created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (ticket_id) REFERENCES tickets(id)
-      );
-
-      CREATE INDEX IF NOT EXISTS idx_tickets_event_id    ON tickets(event_id);
-      CREATE INDEX IF NOT EXISTS idx_tickets_status      ON tickets(status);
-      CREATE INDEX IF NOT EXISTS idx_tickets_buyer_email ON tickets(buyer_email);
-      CREATE INDEX IF NOT EXISTS idx_events_date         ON events(date);
-      CREATE INDEX IF NOT EXISTS idx_ticket_types_event  ON ticket_types(event_id);
-      CREATE INDEX IF NOT EXISTS idx_payments_ticket     ON payments(ticket_id);
-    `);
-
-    // Migraciones incrementales
-    try { await dbInstance.exec('ALTER TABLE promotors ADD COLUMN leader_id TEXT REFERENCES users(id) ON DELETE SET NULL'); } catch(e) {}
-    try { await dbInstance.exec('ALTER TABLE promotors ADD COLUMN leader_commission REAL DEFAULT 400.00'); } catch(e) {}
-    try { await dbInstance.exec('ALTER TABLE users ADD COLUMN apellido TEXT'); } catch(e) {}
-    try { await dbInstance.exec('ALTER TABLE users ADD COLUMN celular TEXT'); } catch(e) {}
-    try { await dbInstance.exec('ALTER TABLE users ADD COLUMN localidad TEXT'); } catch(e) {}
-    try { await dbInstance.exec('ALTER TABLE tickets ADD COLUMN buyer_celular TEXT'); } catch(e) {}
-    try { await dbInstance.exec('ALTER TABLE tickets ADD COLUMN buyer_apellido TEXT'); } catch(e) {}
-    try { await dbInstance.exec('ALTER TABLE tickets ADD COLUMN buyer_edad TEXT'); } catch(e) {}
-    try { await dbInstance.exec('ALTER TABLE tickets ADD COLUMN buyer_localidad TEXT'); } catch(e) {}
-
-    // Tabla de rendiciones (pagos que el publica entrega al admin)
-    try { await dbInstance.exec(`CREATE TABLE IF NOT EXISTS rendiciones (
-      id          TEXT PRIMARY KEY,
-      promotor_id TEXT NOT NULL,
-      amount      REAL NOT NULL,
-      note        TEXT,
-      event_id    TEXT,
-      created_by  TEXT,
-      created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (promotor_id) REFERENCES promotors(id) ON DELETE CASCADE,
-      FOREIGN KEY (event_id)    REFERENCES events(id) ON DELETE SET NULL,
-      FOREIGN KEY (created_by)  REFERENCES users(id) ON DELETE SET NULL
-    )`); } catch(e) {}
-    try { await dbInstance.exec('ALTER TABLE users ADD COLUMN magic_token TEXT'); } catch(e) {}
-    try { await dbInstance.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_magic_token ON users(magic_token)'); } catch(e) {}
-    try { await dbInstance.exec(`CREATE TABLE IF NOT EXISTS scanner_tokens (
-      id             TEXT PRIMARY KEY,
-      token          TEXT UNIQUE NOT NULL,
-      event_id       TEXT NOT NULL,
-      ticket_type_id TEXT NOT NULL,
-      label          TEXT,
-      is_active      INTEGER DEFAULT 1,
-      created_by     TEXT,
-      created_at     DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`); } catch(e) {}
+  // Si era INSERT OR IGNORE, agregar ON CONFLICT DO NOTHING al final (idempotente)
+  if (hadIgnore && !/\bON\s+CONFLICT\b/i.test(out)) {
+    out = out.trimEnd().replace(/;$/, '') + ' ON CONFLICT DO NOTHING';
   }
-  return dbInstance;
-};
 
-/**
- * Ejecuta una query. Reemplaza NOW() por CURRENT_TIMESTAMP para compat MySQL.
- * Retorna { rows } para SELECTs, { rows: [], insertId, affectedRows } para escrituras.
- */
-const query = async (text, params = []) => {
-  const db = await initDb();
+  return out;
+}
+
+// SQLite no quiere ;PRAGMA si está embebido, pero acepta cualquier statement.
+// Postgres no entiende PRAGMA — saltamos esos statements.
+function isSkippableInPg(text) {
+  return /^\s*PRAGMA\b/i.test(text);
+}
+
+// ---------------------------------------------------------------------------
+// SQLite driver (dev)
+// ---------------------------------------------------------------------------
+let sqliteInstance = null;
+
+async function initSqlite() {
+  if (sqliteInstance) return sqliteInstance;
+  const sqlite3 = require('sqlite3');
+  const { open } = require('sqlite');
+
+  const DB_PATH = process.env.DB_PATH || path.join(__dirname, '../../../database/gianqr.sqlite');
+  const fs = require('fs');
+  const dir = path.dirname(DB_PATH);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+  sqliteInstance = await open({ filename: DB_PATH, driver: sqlite3.Database });
+  await sqliteInstance.run('PRAGMA journal_mode = WAL');
+  await sqliteInstance.run('PRAGMA foreign_keys = ON');
+  await runMigrations(sqliteQuery, sqliteExec);
+  return sqliteInstance;
+}
+
+async function sqliteQuery(text, params = []) {
+  const db = await initSqlite();
+  // Conserva la lógica MySQL legacy para los controllers que aún usen NOW() o IGNORE
   const cleanText = text
     .replace(/NOW\(\)/gi, 'CURRENT_TIMESTAMP')
     .replace(/INSERT IGNORE INTO/gi, 'INSERT OR IGNORE INTO');
@@ -180,20 +77,20 @@ const query = async (text, params = []) => {
   if (cleanText.trim().toUpperCase().startsWith('SELECT')) {
     const rows = await db.all(cleanText, params);
     return { rows };
-  } else {
-    const result = await db.run(cleanText, params);
-    return { rows: [], insertId: result.lastID, affectedRows: result.changes };
   }
-};
+  const result = await db.run(cleanText, params);
+  return { rows: [], insertId: result.lastID, affectedRows: result.changes };
+}
 
-/**
- * Ejecuta una transacción: recibe un callback async que recibe un objeto conn
- * con los métodos execute() y query() — imita la API de mysql2.
- */
-const transaction = async (callback) => {
-  const db = await initDb();
+async function sqliteExec(sql) {
+  const db = await initSqlite();
+  await db.exec(sql);
+}
+
+async function sqliteTransaction(callback) {
+  const db = await initSqlite();
+  await db.run('BEGIN');
   try {
-    await db.run('BEGIN');
     const conn = {
       execute: async (text, params = []) => {
         const cleanText = text
@@ -203,14 +100,11 @@ const transaction = async (callback) => {
         if (cleanText.trim().toUpperCase().startsWith('SELECT')) {
           const rows = await db.all(cleanText, params);
           return [rows];
-        } else {
-          const result = await db.run(cleanText, params);
-          return [[], result];
         }
+        const result = await db.run(cleanText, params);
+        return [[], result];
       },
-      query: async (text, params = []) => {
-        return await query(text, params);
-      }
+      query: (text, params) => sqliteQuery(text, params),
     };
     const result = await callback(conn);
     await db.run('COMMIT');
@@ -219,6 +113,264 @@ const transaction = async (callback) => {
     await db.run('ROLLBACK');
     throw err;
   }
-};
+}
 
-module.exports = { query, initDb, transaction };
+// ---------------------------------------------------------------------------
+// Postgres driver (prod)
+// ---------------------------------------------------------------------------
+let pgPool = null;
+
+async function initPg() {
+  if (pgPool) return pgPool;
+  const { Pool } = require('pg');
+  pgPool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    // Railway/Neon/Supabase usan SSL pero sin CA en el cliente
+    ssl: process.env.PGSSL === 'disable' ? false : { rejectUnauthorized: false },
+    max: 10,
+  });
+  await runMigrations(pgQuery, pgExec);
+  return pgPool;
+}
+
+async function pgQuery(text, params = []) {
+  const pool = await initPg();
+  if (isSkippableInPg(text)) return { rows: [] };
+  const translated = translateForPostgres(text);
+  const result = await pool.query(translated, params);
+  return {
+    rows: result.rows,
+    affectedRows: result.rowCount,
+    // Postgres no devuelve lastID; los controllers generan UUIDs upfront así
+    // que no lo necesitamos. Si alguna query lo necesitara hay que agregar RETURNING id.
+  };
+}
+
+async function pgExec(sql) {
+  // Postgres acepta múltiples statements en una sola query del pool driver,
+  // pero los hace en una sola transacción implícita. Para migraciones esto
+  // está OK porque queremos atomicidad por bloque.
+  const pool = await initPg();
+  const translated = translateForPostgres(sql);
+  await pool.query(translated);
+}
+
+async function pgTransaction(callback) {
+  const pool = await initPg();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const conn = {
+      execute: async (text, params = []) => {
+        if (isSkippableInPg(text)) return [[], { rowCount: 0 }];
+        const translated = translateForPostgres(text);
+        const result = await client.query(translated, params);
+        return [result.rows, result];
+      },
+      query: async (text, params = []) => {
+        if (isSkippableInPg(text)) return { rows: [] };
+        const translated = translateForPostgres(text);
+        const result = await client.query(translated, params);
+        return { rows: result.rows, affectedRows: result.rowCount };
+      },
+    };
+    const result = await callback(conn);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Migraciones (compartidas entre ambos drivers)
+// ---------------------------------------------------------------------------
+async function runMigrations(queryFn, execFn) {
+  // Tablas base — el wrapper traduce DATETIME -> TIMESTAMP para postgres
+  await execFn(`
+    CREATE TABLE IF NOT EXISTS users (
+      id            TEXT PRIMARY KEY,
+      name          TEXT NOT NULL,
+      email         TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      role          TEXT NOT NULL DEFAULT 'cajero',
+      is_active     INTEGER NOT NULL DEFAULT 1,
+      created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS promotors (
+      id          TEXT PRIMARY KEY,
+      user_id     TEXT NOT NULL,
+      promo_code  TEXT NOT NULL UNIQUE,
+      commission  REAL DEFAULT 0.00,
+      created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS venues (
+      id          TEXT PRIMARY KEY,
+      name        TEXT NOT NULL,
+      capacity    INTEGER NOT NULL DEFAULT 200,
+      description TEXT,
+      is_active   INTEGER NOT NULL DEFAULT 1,
+      created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS events (
+      id           TEXT PRIMARY KEY,
+      venue_id     TEXT,
+      name         TEXT NOT NULL,
+      description  TEXT,
+      date         TEXT NOT NULL,
+      start_time   TEXT NOT NULL,
+      end_time     TEXT,
+      flyer_url    TEXT,
+      is_active    INTEGER NOT NULL DEFAULT 1,
+      created_by   TEXT,
+      created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (venue_id)   REFERENCES venues(id) ON DELETE SET NULL,
+      FOREIGN KEY (created_by) REFERENCES users(id)  ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS ticket_types (
+      id           TEXT PRIMARY KEY,
+      event_id     TEXT NOT NULL,
+      name         TEXT NOT NULL,
+      price        REAL NOT NULL DEFAULT 0.00,
+      total_quota  INTEGER NOT NULL,
+      sold_count   INTEGER NOT NULL DEFAULT 0,
+      is_active    INTEGER NOT NULL DEFAULT 1,
+      created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS tickets (
+      id             TEXT PRIMARY KEY,
+      ticket_type_id TEXT NOT NULL,
+      event_id       TEXT NOT NULL,
+      buyer_name     TEXT NOT NULL,
+      buyer_email    TEXT NOT NULL,
+      buyer_dni      TEXT,
+      qr_code        TEXT NOT NULL UNIQUE,
+      payment_method TEXT NOT NULL,
+      payment_ref    TEXT,
+      amount_paid    REAL NOT NULL DEFAULT 0.00,
+      status         TEXT NOT NULL DEFAULT 'pendiente',
+      promotor_id    TEXT,
+      scanned_at     DATETIME,
+      scanned_by     TEXT,
+      sold_by        TEXT,
+      created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (ticket_type_id) REFERENCES ticket_types(id),
+      FOREIGN KEY (event_id)       REFERENCES events(id),
+      FOREIGN KEY (promotor_id)    REFERENCES promotors(id) ON DELETE SET NULL,
+      FOREIGN KEY (scanned_by)     REFERENCES users(id)     ON DELETE SET NULL,
+      FOREIGN KEY (sold_by)        REFERENCES users(id)     ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS payments (
+      id            TEXT PRIMARY KEY,
+      ticket_id     TEXT NOT NULL,
+      method        TEXT NOT NULL,
+      amount        REAL NOT NULL,
+      status        TEXT NOT NULL DEFAULT 'pendiente',
+      external_id   TEXT,
+      external_data TEXT,
+      notes         TEXT,
+      created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (ticket_id) REFERENCES tickets(id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_tickets_event_id    ON tickets(event_id);
+    CREATE INDEX IF NOT EXISTS idx_tickets_status      ON tickets(status);
+    CREATE INDEX IF NOT EXISTS idx_tickets_buyer_email ON tickets(buyer_email);
+    CREATE INDEX IF NOT EXISTS idx_events_date         ON events(date);
+    CREATE INDEX IF NOT EXISTS idx_ticket_types_event  ON ticket_types(event_id);
+    CREATE INDEX IF NOT EXISTS idx_payments_ticket     ON payments(ticket_id);
+  `);
+
+  // Migraciones incrementales (cada ALTER en su propio try/catch — fallan si la
+  // columna ya existe, eso es esperado y aceptable). Postgres lanza distintos
+  // mensajes pero el comportamiento es el mismo.
+  const incrementals = [
+    'ALTER TABLE promotors ADD COLUMN leader_id TEXT REFERENCES users(id) ON DELETE SET NULL',
+    'ALTER TABLE promotors ADD COLUMN leader_commission REAL DEFAULT 400.00',
+    'ALTER TABLE users ADD COLUMN apellido TEXT',
+    'ALTER TABLE users ADD COLUMN celular TEXT',
+    'ALTER TABLE users ADD COLUMN localidad TEXT',
+    'ALTER TABLE tickets ADD COLUMN buyer_celular TEXT',
+    'ALTER TABLE tickets ADD COLUMN buyer_apellido TEXT',
+    'ALTER TABLE tickets ADD COLUMN buyer_edad TEXT',
+    'ALTER TABLE tickets ADD COLUMN buyer_localidad TEXT',
+    'ALTER TABLE users ADD COLUMN magic_token TEXT',
+    'ALTER TABLE events ADD COLUMN sale_start_at DATETIME',
+    'ALTER TABLE events ADD COLUMN sale_end_at DATETIME',
+    'ALTER TABLE promotors ADD COLUMN zona_id TEXT REFERENCES zonas(id) ON DELETE SET NULL',
+  ];
+  for (const sql of incrementals) {
+    try { await execFn(sql); } catch (e) { /* columna ya existe */ }
+  }
+
+  await execFn(`CREATE TABLE IF NOT EXISTS rendiciones (
+    id          TEXT PRIMARY KEY,
+    promotor_id TEXT NOT NULL,
+    amount      REAL NOT NULL,
+    note        TEXT,
+    event_id    TEXT,
+    created_by  TEXT,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (promotor_id) REFERENCES promotors(id) ON DELETE CASCADE,
+    FOREIGN KEY (event_id)    REFERENCES events(id) ON DELETE SET NULL,
+    FOREIGN KEY (created_by)  REFERENCES users(id) ON DELETE SET NULL
+  )`);
+
+  try { await execFn('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_magic_token ON users(magic_token)'); } catch (e) {}
+
+  await execFn(`CREATE TABLE IF NOT EXISTS scanner_tokens (
+    id             TEXT PRIMARY KEY,
+    token          TEXT UNIQUE NOT NULL,
+    event_id       TEXT NOT NULL,
+    ticket_type_id TEXT NOT NULL,
+    label          TEXT,
+    is_active      INTEGER DEFAULT 1,
+    created_by     TEXT,
+    created_at     DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+
+  await execFn(`CREATE TABLE IF NOT EXISTS zonas (
+    id          TEXT PRIMARY KEY,
+    name        TEXT NOT NULL UNIQUE,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+
+  await execFn(`CREATE TABLE IF NOT EXISTS proveedores (
+    id          TEXT PRIMARY KEY,
+    nombre      TEXT NOT NULL,
+    apellido    TEXT,
+    alias_cbu   TEXT,
+    notas       TEXT,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+
+  // El zona_id en promotors quedo en el array de incrementales arriba pero
+  // intentamos una vez mas DESPUES de crear zonas para que el FK resuelva
+  // en SQLite (que comprueba referencias en runtime aunque sea soft).
+  try { await execFn('ALTER TABLE promotors ADD COLUMN zona_id TEXT REFERENCES zonas(id) ON DELETE SET NULL'); } catch (e) {}
+}
+
+// ---------------------------------------------------------------------------
+// API pública
+// ---------------------------------------------------------------------------
+const initDb = () => (PG_MODE ? initPg() : initSqlite());
+const query = (text, params) => (PG_MODE ? pgQuery(text, params) : sqliteQuery(text, params));
+const transaction = (callback) => (PG_MODE ? pgTransaction(callback) : sqliteTransaction(callback));
+
+module.exports = { query, initDb, transaction, PG_MODE };
