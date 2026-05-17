@@ -20,8 +20,18 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
 }));
 
+// CORS: acepta una lista de origins separados por coma (FRONTEND_URL puede ser
+// "https://gianqr.com,https://www.gianqr.com,https://gianqr.vercel.app").
+// Asi el cambio a dominio propio no rompe el deploy de Vercel actual.
+const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
+  .split(',').map(s => s.trim()).filter(Boolean);
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: (origin, cb) => {
+    // requests sin origin (curl, mobile apps) pasan
+    if (!origin) return cb(null, true);
+    if (allowedOrigins.includes(origin)) return cb(null, true);
+    return cb(new Error(`CORS blocked: ${origin}`));
+  },
   credentials: true,
 }));
 
