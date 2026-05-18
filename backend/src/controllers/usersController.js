@@ -158,7 +158,7 @@ const getMyTeam = async (req, res) => {
        LEFT JOIN zonas z ON z.id = p.zona_id
        LEFT JOIN tickets t ON t.promotor_id = p.id
        WHERE p.leader_id = ?
-       GROUP BY u.id
+       GROUP BY u.id, p.id, z.id
        ORDER BY total_recaudado DESC`,
       [leaderCommission, jefeId]
     );
@@ -242,7 +242,7 @@ const getPromoterSales = async (req, res) => {
        JOIN users u ON u.id = p.user_id AND u.is_active = 1
        LEFT JOIN users lu ON lu.id = p.leader_id
        LEFT JOIN tickets t ON t.promotor_id = p.id ${eventFilter}
-       GROUP BY p.id
+       GROUP BY p.id, u.id, lu.id
        ORDER BY total_recaudado DESC`,
       params
     );

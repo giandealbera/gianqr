@@ -9,7 +9,7 @@ const getAll = async (req, res) => {
        FROM events e
        LEFT JOIN venues v ON v.id = e.venue_id
        LEFT JOIN tickets t ON t.event_id = e.id
-       GROUP BY e.id
+       GROUP BY e.id, v.id
        ORDER BY e.date DESC, e.start_time DESC`
     );
     res.json(result.rows);

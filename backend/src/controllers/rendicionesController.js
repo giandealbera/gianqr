@@ -42,7 +42,7 @@ const listPublicas = async (req, res) => {
        LEFT JOIN users lu ON lu.id = p.leader_id
        ${ticketJoinClause}
        WHERE 1=1 ${searchClause}
-       GROUP BY p.id
+       GROUP BY p.id, u.id, z.id, lu.id
        ORDER BY u.name ASC`,
       params
     );
