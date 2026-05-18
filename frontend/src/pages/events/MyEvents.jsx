@@ -20,6 +20,7 @@ const MyEvents = () => {
   const [loading, setLoading]   = useState(true);
   const [search, setSearch]     = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [editId, setEditId]     = useState(null);   // null = nuevo, id = editando
   const [form, setForm]         = useState(initialForm);
   const [saving, setSaving]     = useState(false);
 
@@ -66,23 +67,75 @@ const MyEvents = () => {
   const removeTT = (i) =>
     setForm(f => ({ ...f, ticket_types: f.ticket_types.filter((_, idx) => idx !== i) }));
 
+  const openNew = () => {
+    setEditId(null);
+    setForm(initialForm);
+    setShowForm(true);
+  };
+
+  const openEdit = (ev) => {
+    // Solo admin puede editar
+    if (user?.role !== 'admin') return;
+    setEditId(ev.id);
+    setForm({
+      name: ev.name || '',
+      description: ev.description || '',
+      date: ev.date || '',
+      start_time: (ev.start_time || '').slice(0, 5),
+      end_time: (ev.end_time || '').slice(0, 5),
+      sale_start_at: ev.sale_start_at ? ev.sale_start_at.slice(0, 16) : '',
+      sale_end_at: ev.sale_end_at ? ev.sale_end_at.slice(0, 16) : '',
+      venue_id: ev.venue_id || '',
+      flyer_url: ev.flyer_url || '',
+      ticket_types: [],  // En edit no tocamos tipos (van a /evento/:id/tipos)
+      is_active: ev.is_active !== 0,
+    });
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const cancelForm = () => {
+    setShowForm(false);
+    setEditId(null);
+    setForm(initialForm);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
     try {
-      const res = await api.post('/events', {
-        ...form,
-        ticket_types: form.ticket_types.map(tt => ({
-          ...tt, price: parseFloat(tt.price), total_quota: parseInt(tt.total_quota),
-        })),
-      });
-      toast.success('Evento creado!');
-      setShowForm(false);
-      setForm(initialForm);
-      load();
-      navigate(`/evento/${res.data.id}`);
+      if (editId) {
+        // EDIT — no manda ticket_types (se gestionan aparte)
+        await api.put(`/events/${editId}`, {
+          name: form.name,
+          description: form.description || null,
+          date: form.date,
+          start_time: form.start_time,
+          end_time: form.end_time || null,
+          flyer_url: form.flyer_url || null,
+          is_active: form.is_active,
+          venue_id: form.venue_id || null,
+          sale_start_at: form.sale_start_at || null,
+          sale_end_at: form.sale_end_at || null,
+        });
+        toast.success('Evento actualizado!');
+        cancelForm();
+        load();
+      } else {
+        // CREATE
+        const res = await api.post('/events', {
+          ...form,
+          ticket_types: form.ticket_types.map(tt => ({
+            ...tt, price: parseFloat(tt.price), total_quota: parseInt(tt.total_quota),
+          })),
+        });
+        toast.success('Evento creado!');
+        cancelForm();
+        load();
+        navigate(`/evento/${res.data.id}`);
+      }
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Error al crear evento');
+      toast.error(err.response?.data?.error || 'Error al guardar evento');
     } finally {
       setSaving(false);
     }
@@ -109,9 +162,9 @@ const MyEvents = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
           </div>
-          {user?.role === 'admin' && (
+          {user?.role === 'admin' && !showForm && (
             <button
-              onClick={() => setShowForm(!showForm)}
+              onClick={openNew}
               className="btn-primary shrink-0 flex items-center gap-1.5"
             >
               <span className="text-lg leading-none">+</span>
@@ -120,10 +173,12 @@ const MyEvents = () => {
           )}
         </div>
 
-        {/* Create form */}
+        {/* Create/Edit form */}
         {showForm && (
           <form onSubmit={handleSubmit} className="card mb-6 space-y-4 animate-in">
-            <h2 className="font-semibold text-lg">Nuevo evento</h2>
+            <h2 className="font-semibold text-lg">
+              {editId ? `✏️ Editar evento — ${form.name}` : 'Nuevo evento'}
+            </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-sm text-gray-400 block mb-1">Nombre *</label>
@@ -166,34 +221,39 @@ const MyEvents = () => {
               </div>
             </div>
 
-            {/* Ticket types */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-sm font-medium text-gray-300">Tipos de entrada</label>
-                <button type="button" onClick={addTicketType} className="text-xs text-brand hover:underline">+ Agregar tipo</button>
-              </div>
-              {form.ticket_types.map((tt, i) => (
-                <div key={i} className="grid grid-cols-3 gap-3 mb-2">
-                  <input className="input" placeholder="Nombre" value={tt.name}
-                    onChange={e => updateTT(i, 'name', e.target.value)} required />
-                  <input className="input" placeholder="Precio $" type="number" min="0" value={tt.price}
-                    onChange={e => updateTT(i, 'price', e.target.value)} required />
-                  <div className="flex gap-2">
-                    <input className="input" placeholder="Cupo" type="number" min="1" value={tt.total_quota}
-                      onChange={e => updateTT(i, 'total_quota', e.target.value)} required />
-                    {form.ticket_types.length > 1 && (
-                      <button type="button" onClick={() => removeTT(i)} className="text-red-400 hover:text-red-300 px-2">✕</button>
-                    )}
-                  </div>
+            {/* Ticket types — solo en CREATE. En edit se gestionan en /evento/:id/tipos */}
+            {!editId && (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm font-medium text-gray-300">Tipos de entrada</label>
+                  <button type="button" onClick={addTicketType} className="text-xs text-brand hover:underline">+ Agregar tipo</button>
                 </div>
-              ))}
-            </div>
+                {form.ticket_types.map((tt, i) => (
+                  <div key={i} className="grid grid-cols-3 gap-3 mb-2">
+                    <input className="input" placeholder="Nombre" value={tt.name}
+                      onChange={e => updateTT(i, 'name', e.target.value)} required />
+                    <input className="input" placeholder="Precio $" type="number" min="0" value={tt.price}
+                      onChange={e => updateTT(i, 'price', e.target.value)} required />
+                    <div className="flex gap-2">
+                      <input className="input" placeholder="Cupo" type="number" min="1" value={tt.total_quota}
+                        onChange={e => updateTT(i, 'total_quota', e.target.value)} required />
+                      {form.ticket_types.length > 1 && (
+                        <button type="button" onClick={() => removeTT(i)} className="text-red-400 hover:text-red-300 px-2">✕</button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {editId && (
+              <p className="text-xs text-gray-500">Los tipos de entrada (nombre, precio, cupo) se editan desde el evento → <span className="text-brand">🏷️ Tandas de entradas</span>.</p>
+            )}
 
             <div className="flex gap-3">
               <button type="submit" disabled={saving} className="btn-primary flex-1">
-                {saving ? 'Creando...' : 'Crear evento'}
+                {saving ? 'Guardando...' : editId ? 'Guardar cambios' : 'Crear evento'}
               </button>
-              <button type="button" onClick={() => setShowForm(false)} className="btn-secondary">Cancelar</button>
+              <button type="button" onClick={cancelForm} className="btn-secondary">Cancelar</button>
             </div>
           </form>
         )}
@@ -208,7 +268,7 @@ const MyEvents = () => {
             <p className="text-4xl mb-3">🎉</p>
             <p className="text-gray-400">{search ? 'No se encontraron eventos' : 'No hay eventos todavía'}</p>
             {!search && user?.role === 'admin' && (
-              <button onClick={() => setShowForm(true)} className="btn-primary mt-4">+ Crear primer evento</button>
+              <button onClick={openNew} className="btn-primary mt-4">+ Crear primer evento</button>
             )}
           </div>
         ) : (
@@ -216,13 +276,23 @@ const MyEvents = () => {
             {filtered.map(ev => {
               const status = getStatus(ev);
               return (
-                <button
+                <div
                   key={ev.id}
+                  className="card w-full text-left hover:border-gray-700 transition-all group cursor-pointer active:scale-[0.98] relative"
                   onClick={() => navigate(`/evento/${ev.id}`)}
-                  className="card w-full text-left hover:border-gray-700 transition-all group cursor-pointer active:scale-[0.98]"
                 >
+                  {user?.role === 'admin' && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); openEdit(ev); }}
+                      className="absolute top-3 right-3 p-1.5 rounded-lg bg-gray-800/60 hover:bg-gray-700 text-gray-300 transition-colors z-10"
+                      title="Editar evento"
+                    >
+                      ✏️
+                    </button>
+                  )}
                   <div className="flex items-start justify-between">
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 pr-12">
                       <h3 className="font-semibold text-white group-hover:text-brand transition-colors truncate">
                         {ev.name}
                       </h3>
@@ -230,7 +300,7 @@ const MyEvents = () => {
                         {new Date(ev.date + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'numeric', year: 'numeric' })}
                         {ev.start_time && ` · ${ev.start_time.slice(0, 5)} hs`}
                       </p>
-                      <div className="flex items-center gap-2 mt-2">
+                      <div className="flex items-center gap-2 mt-2 flex-wrap">
                         <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${status.cls}`}>
                           {status.label}
                         </span>
@@ -239,12 +309,12 @@ const MyEvents = () => {
                         )}
                       </div>
                     </div>
-                    <div className="text-right shrink-0 ml-4">
+                    <div className="text-right shrink-0 ml-4 mt-6">
                       <span className="text-lg font-bold text-green-400">{ev.tickets_sold || 0}</span>
                       <p className="text-[10px] text-gray-500 uppercase tracking-wide">vendidas</p>
                     </div>
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>

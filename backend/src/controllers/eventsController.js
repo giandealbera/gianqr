@@ -170,14 +170,51 @@ const addTicketType = async (req, res) => {
 };
 
 // PUT /api/events/:id/ticket-types/:ttId — solo agregar cupo
+// PUT /api/events/:id/ticket-types/:ttId — actualizar tipo:
+//   - add_quota: agrega N al cupo (no permite restar abajo de lo vendido)
+//   - name: cambia nombre
+//   - price: cambia precio. Si hay tickets vendidos, advierte que solo afecta a futuros.
 const updateTicketType = async (req, res) => {
-  const { add_quota } = req.body;
-  if (!add_quota || parseInt(add_quota) <= 0)
-    return res.status(400).json({ error: 'add_quota debe ser mayor a 0' });
+  const { add_quota, name, price } = req.body;
   try {
+    // Cargar estado actual para validaciones
+    const cur = (await db.query(
+      'SELECT * FROM ticket_types WHERE id = ? AND event_id = ?',
+      [req.params.ttId, req.params.id]
+    )).rows[0];
+    if (!cur) return res.status(404).json({ error: 'Tipo de entrada no encontrado' });
+
+    const updates = [];
+    const params = [];
+
+    if (add_quota !== undefined && add_quota !== null && add_quota !== '') {
+      const qty = parseInt(add_quota);
+      if (isNaN(qty) || qty <= 0)
+        return res.status(400).json({ error: 'add_quota debe ser mayor a 0' });
+      updates.push('total_quota = total_quota + ?');
+      params.push(qty);
+    }
+
+    if (name !== undefined && name !== null && name.trim() !== '') {
+      updates.push('name = ?');
+      params.push(name.trim());
+    }
+
+    if (price !== undefined && price !== null && price !== '') {
+      const p = parseFloat(price);
+      if (isNaN(p) || p < 0)
+        return res.status(400).json({ error: 'El precio debe ser un numero mayor o igual a 0' });
+      updates.push('price = ?');
+      params.push(p);
+    }
+
+    if (updates.length === 0)
+      return res.status(400).json({ error: 'Nada para actualizar (envia add_quota, name o price)' });
+
+    params.push(req.params.ttId, req.params.id);
     await db.query(
-      'UPDATE ticket_types SET total_quota = total_quota + ? WHERE id=? AND event_id=?',
-      [parseInt(add_quota), req.params.ttId, req.params.id]
+      `UPDATE ticket_types SET ${updates.join(', ')} WHERE id=? AND event_id=?`,
+      params
     );
     const result = await db.query(
       'SELECT *, (total_quota - sold_count) AS available FROM ticket_types WHERE id = ?',
@@ -185,7 +222,8 @@ const updateTicketType = async (req, res) => {
     );
     res.json(result.rows[0]);
   } catch (err) {
-    res.status(500).json({ error: 'Error al agregar cupo' });
+    console.error('updateTicketType error:', err.message);
+    res.status(500).json({ error: 'Error al actualizar tipo de entrada' });
   }
 };
 

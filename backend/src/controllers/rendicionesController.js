@@ -154,21 +154,60 @@ const getPublicaDetail = async (req, res) => {
 };
 
 // POST /api/rendiciones — registrar pago
+// Valida que el monto no exceda el saldo pendiente (global o por evento)
+// para evitar errores tipo "registré 50.000 cuando solo debe 10.000".
 const registrarPago = async (req, res) => {
   const { promotor_id, amount, note, event_id } = req.body;
   if (!promotor_id || !amount) return res.status(400).json({ error: 'Faltan datos' });
-  if (parseFloat(amount) <= 0) return res.status(400).json({ error: 'El monto debe ser mayor a 0' });
+  const amountNum = parseFloat(amount);
+  if (isNaN(amountNum) || amountNum <= 0)
+    return res.status(400).json({ error: 'El monto debe ser un numero mayor a 0' });
 
   try {
+    // Calcular el saldo pendiente actual (global o filtrado por evento).
+    // Reusa la misma logica que getPublicaDetail.
+    const eventFilter = event_id ? 'AND t.event_id = ?' : '';
+    const eventRendicionFilter = event_id ? 'AND event_id = ?' : '';
+    const rendicionParams = event_id ? [promotor_id, event_id] : [promotor_id];
+
+    const totals = (await db.query(
+      `SELECT
+         COUNT(CASE WHEN t.status IN ('pagado','usado') THEN t.id END) AS total_vendidas,
+         COALESCE(SUM(CASE WHEN t.status IN ('pagado','usado') THEN t.amount_paid ELSE 0 END), 0) AS total_recaudado
+       FROM tickets t
+       WHERE t.promotor_id = ? ${eventFilter}`,
+      event_id ? [promotor_id, event_id] : [promotor_id]
+    )).rows[0];
+
+    const promoResult = await db.query('SELECT commission FROM promotors WHERE id = ?', [promotor_id]);
+    const commission = parseFloat(promoResult.rows[0]?.commission || 0);
+    const debeEnviar = parseFloat(totals.total_recaudado || 0) - (parseInt(totals.total_vendidas || 0) * commission);
+
+    const yaRindioResult = await db.query(
+      `SELECT COALESCE(SUM(amount),0) AS ya_rindio FROM rendiciones
+       WHERE promotor_id = ? ${eventRendicionFilter}`,
+      rendicionParams
+    );
+    const yaRindio = parseFloat(yaRindioResult.rows[0]?.ya_rindio || 0);
+    const saldoPendiente = debeEnviar - yaRindio;
+
+    // Tolerancia de $0.01 para evitar problemas de floating-point
+    if (amountNum > saldoPendiente + 0.01) {
+      return res.status(400).json({
+        error: `El monto excede el saldo pendiente ($${saldoPendiente.toFixed(2)}). Si querés registrar un pago mayor, agregalo en notas o creá una nota de credito.`,
+        saldo_pendiente: saldoPendiente,
+      });
+    }
+
     const id = uuidv4();
     await db.query(
       `INSERT INTO rendiciones (id, promotor_id, amount, note, event_id, created_by)
        VALUES (?,?,?,?,?,?)`,
-      [id, promotor_id, parseFloat(amount), note || null, event_id || null, req.user.id]
+      [id, promotor_id, amountNum, note || null, event_id || null, req.user.id]
     );
-    res.status(201).json({ id, promotor_id, amount, note, event_id });
+    res.status(201).json({ id, promotor_id, amount: amountNum, note, event_id, saldo_restante: saldoPendiente - amountNum });
   } catch (err) {
-    console.error(err);
+    console.error('registrarPago error:', err.message);
     res.status(500).json({ error: 'Error al registrar pago' });
   }
 };

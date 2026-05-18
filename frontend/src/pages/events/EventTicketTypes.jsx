@@ -19,6 +19,7 @@ const EventTicketTypes = () => {
   const [saving,   setSaving]   = useState(false);
   const [tokens,   setTokens]   = useState([]);
   const [genningFor, setGenningFor] = useState(null); // ticket_type_id generando link
+  const [origType, setOrigType] = useState(null); // snapshot del tipo al abrir edit para detectar cambios
 
   const load = async () => {
     try {
@@ -78,16 +79,31 @@ const EventTicketTypes = () => {
   };
 
   const openNew = () => { setEditId(null); setForm(emptyForm); setShowForm(true); };
-  const openEdit = (tt) => { setEditId(tt.id); setForm({ name: tt.name, price: tt.price, total_quota: '' }); setShowForm(true); };
-  const cancel = () => { setShowForm(false); setEditId(null); setForm(emptyForm); };
+  // En edit, precargo name y price (editables) y dejo total_quota vacio (es "cuanto agregar")
+  const openEdit = (tt) => { setEditId(tt.id); setOrigType(tt); setForm({ name: tt.name, price: String(tt.price), total_quota: '' }); setShowForm(true); };
+  const cancel = () => { setShowForm(false); setEditId(null); setOrigType(null); setForm(emptyForm); };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
     try {
       if (editId) {
-        await api.put(`/events/${id}/ticket-types/${editId}`, { add_quota: parseInt(form.total_quota) });
-        toast.success(`+${form.total_quota} entradas agregadas`);
+        // Solo mandamos los campos que cambiaron
+        const body = {};
+        if (form.name && form.name.trim() !== origType?.name) body.name = form.name.trim();
+        if (form.price && parseFloat(form.price) !== parseFloat(origType?.price)) body.price = parseFloat(form.price);
+        if (form.total_quota && parseInt(form.total_quota) > 0) body.add_quota = parseInt(form.total_quota);
+        if (Object.keys(body).length === 0) {
+          toast.error('No cambiaste nada');
+          setSaving(false);
+          return;
+        }
+        await api.put(`/events/${id}/ticket-types/${editId}`, body);
+        const msgs = [];
+        if (body.name) msgs.push(`nombre`);
+        if (body.price !== undefined) msgs.push(`precio`);
+        if (body.add_quota) msgs.push(`+${body.add_quota} entradas`);
+        toast.success(`Actualizado: ${msgs.join(', ')}`);
       } else {
         await api.post(`/events/${id}/ticket-types`, { name: form.name, price: parseFloat(form.price), total_quota: parseInt(form.total_quota) });
         toast.success('Tanda agregada');
@@ -139,33 +155,32 @@ const EventTicketTypes = () => {
         {/* Formulario nueva/editar tanda */}
         {showForm && (
           <form onSubmit={handleSubmit} className="card mb-6 space-y-4">
-            <h2 className="font-semibold">{editId ? `Agregar entradas — ${form.name}` : 'Nueva tanda'}</h2>
-            {!editId && (
-              <>
-                <div>
-                  <label className="text-sm text-gray-400 block mb-1">Nombre *</label>
-                  <input className="input" required placeholder="ej: Early Bird, General, VIP"
-                    value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-                </div>
-                <div>
-                  <label className="text-sm text-gray-400 block mb-1">Precio *</label>
-                  <input className="input" required type="number" min="0" placeholder="$"
-                    value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} />
-                </div>
-              </>
+            <h2 className="font-semibold">{editId ? `Editar tanda — ${origType?.name}` : 'Nueva tanda'}</h2>
+            {editId && (
+              <p className="text-xs text-amber-400 -mt-2">Si ya hay entradas vendidas, el cambio de precio solo afecta a las nuevas.</p>
             )}
             <div>
+              <label className="text-sm text-gray-400 block mb-1">Nombre {!editId && '*'}</label>
+              <input className="input" required={!editId} placeholder="ej: Early Bird, General, VIP"
+                value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-sm text-gray-400 block mb-1">Precio {!editId && '*'}</label>
+              <input className="input" required={!editId} type="number" min="0" step="0.01" placeholder="$"
+                value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} />
+            </div>
+            <div>
               <label className="text-sm text-gray-400 block mb-1">
-                {editId ? 'Entradas a agregar *' : 'Cupo inicial *'}
+                {editId ? 'Entradas a agregar' : 'Cupo inicial *'}
               </label>
-              <input className="input" required type="number" min="1"
-                placeholder={editId ? 'ej: 50' : 'ej: 100'}
+              <input className="input" required={!editId} type="number" min={editId ? "0" : "1"}
+                placeholder={editId ? 'opcional — ej: 50' : 'ej: 100'}
                 value={form.total_quota} onChange={e => setForm(f => ({ ...f, total_quota: e.target.value }))} />
-              {editId && <p className="text-xs text-gray-500 mt-1">Se suman al cupo actual de esta tanda</p>}
+              {editId && <p className="text-xs text-gray-500 mt-1">Si lo dejás vacío, no agrega entradas al cupo actual ({origType?.total_quota}).</p>}
             </div>
             <div className="flex gap-3">
               <button type="submit" disabled={saving} className="btn-primary flex-1">
-                {saving ? 'Guardando...' : editId ? 'Agregar entradas' : 'Crear tanda'}
+                {saving ? 'Guardando...' : editId ? 'Guardar cambios' : 'Crear tanda'}
               </button>
               <button type="button" onClick={cancel} className="btn-secondary">Cancelar</button>
             </div>
@@ -206,7 +221,7 @@ const EventTicketTypes = () => {
                   <div className="flex flex-col gap-2 shrink-0">
                     <button onClick={() => openEdit(tt)}
                       className="text-xs px-3 py-1.5 rounded-lg border border-gray-700 text-gray-300 hover:border-gray-500 transition-colors">
-                      + Entradas
+                      ✏️ Editar
                     </button>
                     <button onClick={() => generateLink(tt)} disabled={genningFor === tt.id}
                       className="text-xs px-3 py-1.5 rounded-lg border border-blue-800 text-blue-400 hover:border-blue-600 transition-colors disabled:opacity-50">
