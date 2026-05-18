@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors    = require('cors');
 const helmet  = require('helmet');
+const compression = require('compression');
 const { initDb } = require('./src/config/database');
 const { globalLimiter } = require('./src/middleware/rateLimiters');
 
@@ -19,6 +20,9 @@ app.use(helmet({
   contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false,
 }));
+
+// Gzip las respuestas — gana ~70% en JSON grandes (reportes, listados).
+app.use(compression());
 
 // CORS: acepta una lista de origins separados por coma (FRONTEND_URL puede ser
 // "https://gianqr.com,https://www.gianqr.com,https://gianqr.vercel.app").

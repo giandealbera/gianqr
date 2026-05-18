@@ -1,36 +1,47 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 
-// Páginas
+// Páginas del flujo de auth — eager (siempre cargan rápido al abrir la app)
 import Login             from './pages/Login';
 import ForgotPassword    from './pages/ForgotPassword';
 import ResetPassword     from './pages/ResetPassword';
-import MyEvents          from './pages/events/MyEvents';
-import EventDashboard    from './pages/events/EventDashboard';
-import SoldTickets       from './pages/events/SoldTickets';
-import EventStats        from './pages/events/EventStats';
-import EventTicketTypes  from './pages/events/EventTicketTypes';
-import Dashboard         from './pages/admin/Dashboard';
-import Users             from './pages/admin/Users';
-import Reports           from './pages/admin/Reports';
-import PromoterSales     from './pages/admin/PromoterSales';
-import Scanner           from './pages/scanner/Scanner';
-import Cashier           from './pages/cashier/Cashier';
-import PromoterDashboard from './pages/promoter/PromoterDashboard';
-import PromoterSell     from './pages/promoter/PromoterSell';
-import PublicScanner    from './pages/scanner/PublicScanner';
-import MagicLogin       from './pages/MagicLogin';
-import PublicBuy        from './pages/public/PublicBuy';
-import Rendicion        from './pages/admin/Rendicion';
-import LiveControl      from './pages/admin/LiveControl';
-import Cortesias        from './pages/admin/Cortesias';
-import EventHistory     from './pages/admin/EventHistory';
-import Proveedores      from './pages/admin/Proveedores';
-import ResetEventos     from './pages/admin/ResetEventos';
-import MoreMenu          from './pages/MoreMenu';
-import Configuracion     from './pages/Configuracion';
+
+// El resto: lazy. Se descargan recién cuando el user navega a esa ruta.
+// El bundle inicial baja MUCHO así (de ~600KB a ~150KB).
+const MyEvents          = lazy(() => import('./pages/events/MyEvents'));
+const EventDashboard    = lazy(() => import('./pages/events/EventDashboard'));
+const SoldTickets       = lazy(() => import('./pages/events/SoldTickets'));
+const EventStats        = lazy(() => import('./pages/events/EventStats'));
+const EventTicketTypes  = lazy(() => import('./pages/events/EventTicketTypes'));
+const Dashboard         = lazy(() => import('./pages/admin/Dashboard'));
+const Users             = lazy(() => import('./pages/admin/Users'));
+const Reports           = lazy(() => import('./pages/admin/Reports'));
+const PromoterSales     = lazy(() => import('./pages/admin/PromoterSales'));
+const Scanner           = lazy(() => import('./pages/scanner/Scanner'));
+const Cashier           = lazy(() => import('./pages/cashier/Cashier'));
+const PromoterDashboard = lazy(() => import('./pages/promoter/PromoterDashboard'));
+const PromoterSell      = lazy(() => import('./pages/promoter/PromoterSell'));
+const PublicScanner     = lazy(() => import('./pages/scanner/PublicScanner'));
+const MagicLogin        = lazy(() => import('./pages/MagicLogin'));
+const PublicBuy         = lazy(() => import('./pages/public/PublicBuy'));
+const Rendicion         = lazy(() => import('./pages/admin/Rendicion'));
+const LiveControl       = lazy(() => import('./pages/admin/LiveControl'));
+const Cortesias         = lazy(() => import('./pages/admin/Cortesias'));
+const EventHistory      = lazy(() => import('./pages/admin/EventHistory'));
+const Proveedores       = lazy(() => import('./pages/admin/Proveedores'));
+const ResetEventos      = lazy(() => import('./pages/admin/ResetEventos'));
+const MoreMenu          = lazy(() => import('./pages/MoreMenu'));
+const Configuracion     = lazy(() => import('./pages/Configuracion'));
+
+// Spinner mostrado mientras carga un chunk lazy.
+const PageLoader = () => (
+  <div className="flex justify-center items-center min-h-screen" style={{ background: '#0D1117' }}>
+    <div className="animate-spin rounded-full h-10 w-10 border-t-2" style={{ borderColor: '#C9974D' }} />
+  </div>
+);
 
 // Redirige al panel según el rol del usuario logueado
 const RoleRedirect = () => {
@@ -49,6 +60,7 @@ const App = () => (
           success: { iconTheme: { primary: '#7C3AED', secondary: '#fff' } },
         }}
       />
+      <Suspense fallback={<PageLoader />}>
       <Routes>
         {/* Público */}
         <Route path="/login" element={<Login />} />
@@ -151,6 +163,7 @@ const App = () => (
           </div>
         } />
       </Routes>
+      </Suspense>
     </BrowserRouter>
   </AuthProvider>
 );

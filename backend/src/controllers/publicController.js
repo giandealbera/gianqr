@@ -4,27 +4,42 @@ const { checkSaleWindow } = require('../utils/saleWindow');
 
 const getPublicEvents = async (req, res) => {
   try {
-    const evResult = await db.query(
-      `SELECT e.id, e.name, e.date, e.start_time, v.name as venue_name
-       FROM events e
-       LEFT JOIN venues v ON v.id = e.venue_id
-       WHERE e.is_active = 1
-       ORDER BY e.date ASC`
-    );
-    const events = [];
-    for (const ev of evResult.rows) {
-      const ttResult = await db.query(
-        `SELECT id, name, price, (total_quota - sold_count) as available
-         FROM ticket_types
-         WHERE event_id = ? AND is_active = 1 AND (total_quota - sold_count) > 0
-         ORDER BY price ASC`,
-        [ev.id]
-      );
-      if (ttResult.rows.length > 0) events.push({ ...ev, ticket_types: ttResult.rows });
+    // Antes: N+1 — 1 query para eventos + 1 query por evento para ticket_types.
+    // Ahora: 2 queries totales, agrupadas en JS. Mucho más rápido con muchos eventos.
+    const [evResult, ttResult] = await Promise.all([
+      db.query(
+        `SELECT e.id, e.name, e.date, e.start_time, v.name as venue_name
+         FROM events e
+         LEFT JOIN venues v ON v.id = e.venue_id
+         WHERE e.is_active = 1
+         ORDER BY e.date ASC`
+      ),
+      db.query(
+        `SELECT tt.id, tt.event_id, tt.name, tt.price,
+                (tt.total_quota - tt.sold_count) AS available
+         FROM ticket_types tt
+         JOIN events e ON e.id = tt.event_id
+         WHERE tt.is_active = 1 AND e.is_active = 1
+           AND (tt.total_quota - tt.sold_count) > 0
+         ORDER BY tt.price ASC`
+      ),
+    ]);
+
+    // Agrupar tipos por evento
+    const ttByEvent = {};
+    for (const tt of ttResult.rows) {
+      if (!ttByEvent[tt.event_id]) ttByEvent[tt.event_id] = [];
+      const { event_id, ...rest } = tt;
+      ttByEvent[tt.event_id].push(rest);
     }
+
+    const events = evResult.rows
+      .filter(ev => ttByEvent[ev.id])
+      .map(ev => ({ ...ev, ticket_types: ttByEvent[ev.id] }));
+
     res.json(events);
   } catch (err) {
-    console.error(err);
+    console.error('getPublicEvents error:', err.message);
     res.status(500).json({ error: 'Error al obtener eventos' });
   }
 };
