@@ -69,6 +69,7 @@ const MoreMenu = () => {
               <MenuItem iconKey="money"     label="Reportes de ventas"    desc="Resumen financiero general" onClick={() => navigate('/admin/reportes')} />
               <MenuItem iconKey="chart"     label="Historial de eventos"  desc="Ventas y rendición por evento, filtrable por fecha" onClick={() => navigate('/admin/historial')} />
               <MenuItem iconKey="users"     label="Proveedores"           desc="Contactos y datos de pago (alias/CBU)" onClick={() => navigate('/admin/proveedores')} />
+              <MenuItem iconKey="users"     label="Zonas"                 desc="Agrupar vendedores por zona (Norte, Sur, etc.)" onClick={() => navigate('/admin/zonas')} />
               <MenuItem iconKey="ticket"    label="Reiniciar eventos"     desc="Borrar tickets y rendiciones por evento (acción peligrosa)" onClick={() => navigate('/admin/reset-eventos')} />
               <MenuItem iconKey="chart"     label="Dashboard general"     desc="Vista global del sistema" onClick={() => navigate('/admin')} />
             </>

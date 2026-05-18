@@ -222,11 +222,19 @@ const PromoterDashboard = () => {
                           <div className="min-w-0">
                             <p className="font-medium text-sm">{m.name} {m.apellido || ''}</p>
                             <p className="text-xs text-slate-500">{m.celular || m.email}</p>
+                            {m.zona_name && (
+                              <p className="text-[10px] mt-0.5 inline-block px-1.5 py-0.5 rounded bg-purple-900/40 text-purple-300">
+                                📍 {m.zona_name}
+                              </p>
+                            )}
                           </div>
                           <div className="text-right shrink-0 flex items-center gap-3">
                             <div>
                               <p className="text-sm font-bold text-brand">{m.total_vendidas ?? 0} <span className="text-xs text-slate-400 font-normal">entradas</span></p>
                               <p className="text-xs text-slate-500">{fmt(m.total_recaudado)}</p>
+                              {m.mi_ganancia > 0 && (
+                                <p className="text-xs text-emerald-400 font-medium">Te gana: {fmt(m.mi_ganancia)}</p>
+                              )}
                               <span className={`text-[10px] px-1.5 py-0.5 rounded ${m.is_active ? 'bg-emerald-950 text-emerald-400' : 'bg-slate-700 text-slate-400'}`}>
                                 {m.is_active ? 'Activo' : 'Inactivo'}
                               </span>

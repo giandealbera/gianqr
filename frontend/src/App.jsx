@@ -33,6 +33,7 @@ const Cortesias         = lazy(() => import('./pages/admin/Cortesias'));
 const EventHistory      = lazy(() => import('./pages/admin/EventHistory'));
 const Proveedores       = lazy(() => import('./pages/admin/Proveedores'));
 const ResetEventos      = lazy(() => import('./pages/admin/ResetEventos'));
+const Zonas             = lazy(() => import('./pages/admin/Zonas'));
 const MoreMenu          = lazy(() => import('./pages/MoreMenu'));
 const Configuracion     = lazy(() => import('./pages/Configuracion'));
 
@@ -125,6 +126,9 @@ const App = () => (
         } />
         <Route path="/admin/reset-eventos" element={
           <ProtectedRoute allowedRoles={['admin']}><ResetEventos /></ProtectedRoute>
+        } />
+        <Route path="/admin/zonas" element={
+          <ProtectedRoute allowedRoles={['admin']}><Zonas /></ProtectedRoute>
         } />
 
         {/* Escáner (solo admin) */}

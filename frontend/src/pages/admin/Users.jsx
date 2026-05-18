@@ -12,10 +12,11 @@ const ROLE_LABELS = {
   vendedor:      'Vendedor',
 };
 const PUBLICAS_ROLES = ['promotor', 'jefe_publicas', 'vendedor'];
-const emptyForm = { name: '', apellido: '', celular: '', localidad: '', email: '', password: '', role: 'vendedor', promo_code: '', commission: 800, leader_id: '', leader_commission: 400 };
+const emptyForm = { name: '', apellido: '', celular: '', localidad: '', email: '', password: '', role: 'vendedor', promo_code: '', commission: 800, leader_id: '', leader_commission: 400, zona_id: '' };
 
 const Users = () => {
   const [users,       setUsers]       = useState([]);
+  const [zonas,       setZonas]       = useState([]);
   const [showForm,    setShowForm]    = useState(false);
   const [form,        setForm]        = useState(emptyForm);
   const [saving,      setSaving]      = useState(false);
@@ -27,7 +28,8 @@ const Users = () => {
   const jefes = users.filter(u => (u.role === 'jefe_publicas' || u.role === 'promotor') && u.is_active);
 
   const load = () => api.get('/users').then(r => setUsers(r.data));
-  useEffect(() => { load(); }, []);
+  const loadZonas = () => api.get('/zonas').then(r => setZonas(r.data)).catch(() => {});
+  useEffect(() => { load(); loadZonas(); }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -201,6 +203,17 @@ const Users = () => {
                     <label className="text-sm text-gray-400 block mb-1">Código de promotor</label>
                     <input className="input" placeholder="Ej: PROMO2024" value={form.promo_code}
                       onChange={e => setForm(f => ({ ...f, promo_code: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-400 block mb-1">Zona</label>
+                    <select className="input" value={form.zona_id}
+                      onChange={e => setForm(f => ({ ...f, zona_id: e.target.value }))}>
+                      <option value="">Sin zona</option>
+                      {zonas.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
+                    </select>
+                    {zonas.length === 0 && (
+                      <p className="text-xs text-gray-500 mt-1">Aún no hay zonas creadas. Andá a "Zonas" para crear.</p>
+                    )}
                   </div>
                   <div>
                     <label className="text-sm text-gray-400 block mb-1">Comisión propia ($ por entrada)</label>
