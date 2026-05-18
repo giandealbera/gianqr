@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
+import { downloadTicketsPdf } from '../../utils/downloadTicketsPdf';
 
 const BACKEND = (import.meta.env.VITE_API_URL || 'http://localhost:4000/api');
 
@@ -371,7 +372,7 @@ const PublicBuy = () => {
                   QR N° {i + 1}
                 </p>
                 <p className="font-semibold text-sm">{t.buyer_name} {t.buyer_apellido}</p>
-                <div className="flex justify-center p-2 bg-white rounded-lg">
+                <div id={`qr-pdf-${t.id}`} className="flex justify-center p-2 bg-white rounded-lg">
                   <QRCodeSVG
                     value={JSON.stringify({ code: t.qr_code, ticket_id: t.id })}
                     size={150} bgColor="#ffffff" fgColor="#000000"
@@ -381,8 +382,18 @@ const PublicBuy = () => {
               </div>
             ))}
 
+            <button
+              onClick={() => downloadTicketsPdf({
+                tickets: createdAll,
+                eventName: events.find(e => e.id === eventSel)?.name,
+                promoterName: promotor ? `${promotor.name || ''} ${promotor.apellido || ''}`.trim() : '',
+              })}
+              className="btn-primary w-full py-3"
+            >
+              📄 Descargar PDF
+            </button>
             <button onClick={() => window.print()} className="btn-secondary w-full py-3">
-              Imprimir todos los QRs
+              🖨️ Imprimir
             </button>
           </div>
         )}
@@ -435,7 +446,7 @@ const PublicBuy = () => {
                     <p className="text-xs" style={{ color: '#6B7280' }}>
                       {t.evento} · {t.tipo_entrada}
                     </p>
-                    <div className="flex justify-center p-2 bg-white rounded-lg">
+                    <div id={`qr-pdf-${t.id}`} className="flex justify-center p-2 bg-white rounded-lg">
                       <QRCodeSVG
                         value={JSON.stringify({ code: t.qr_code, ticket_id: t.id })}
                         size={160} bgColor="#ffffff" fgColor="#000000"
@@ -444,8 +455,18 @@ const PublicBuy = () => {
                     <p className="font-mono text-xs" style={{ color: '#4B5563' }}>{t.qr_code}</p>
                   </div>
                 ))}
+                <button
+                  onClick={() => downloadTicketsPdf({
+                    tickets: recoveredList,
+                    eventName: recoveredList[0]?.evento || 'Entradas',
+                    promoterName: '',
+                  })}
+                  className="btn-primary w-full"
+                >
+                  📄 Descargar PDF
+                </button>
                 <button onClick={() => window.print()} className="btn-secondary w-full">
-                  Imprimir
+                  🖨️ Imprimir
                 </button>
                 <button onClick={closeRecover} className="text-xs underline w-full" style={{ color: '#6B7280' }}>
                   Cerrar

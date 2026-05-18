@@ -3,6 +3,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import toast from 'react-hot-toast';
+import { downloadTicketsPdf } from '../../utils/downloadTicketsPdf';
 
 const emptyAttendee = () => ({ buyer_name: '', buyer_apellido: '', buyer_edad: '', buyer_localidad: '', buyer_email: '' });
 
@@ -74,7 +75,7 @@ const Cortesias = () => {
               </p>
               <p className="font-bold">{t.buyer_name} {t.buyer_apellido}</p>
               <p className="text-xs" style={{ color: '#C9974D' }}>{t.tipo_entrada} · CORTESIA</p>
-              <div className="flex justify-center p-3 bg-white rounded-xl">
+              <div id={`qr-pdf-${t.id}`} className="flex justify-center p-3 bg-white rounded-xl">
                 <QRCodeSVG
                   value={JSON.stringify({ code: t.qr_code, ticket_id: t.id })}
                   size={160} bgColor="#ffffff" fgColor="#000000"
@@ -85,9 +86,19 @@ const Cortesias = () => {
           ))}
         </div>
 
-        <div className="flex gap-3">
-          <button onClick={reset} className="btn-primary flex-1">Generar mas</button>
-          <button onClick={() => window.print()} className="btn-secondary flex-1">Imprimir todo</button>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <button
+            onClick={() => downloadTicketsPdf({
+              tickets: created.tickets,
+              eventName: 'Cortesías',
+              promoterName: '',
+            })}
+            className="btn-primary flex-1"
+          >
+            📄 Descargar PDF
+          </button>
+          <button onClick={() => window.print()} className="btn-secondary flex-1">🖨️ Imprimir</button>
+          <button onClick={reset} className="btn-secondary flex-1">Generar más</button>
         </div>
       </div>
     </Layout>
