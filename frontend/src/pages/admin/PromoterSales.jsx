@@ -8,8 +8,6 @@ const PromoterSales = () => {
   const [events, setEvents] = useState([]);
   const [eventFilter, setEventFilter] = useState('');
   const [loading, setLoading] = useState(true);
-  const [showMoney, setShowMoney] = useState(false);
-
   useEffect(() => {
     api.get('/events').then(res => setEvents(res.data)).catch(() => {});
   }, []);
@@ -33,16 +31,7 @@ const PromoterSales = () => {
   return (
     <Layout>
       <div className="px-4 lg:px-8 py-6 max-w-5xl mx-auto">
-        <div className="flex items-center justify-between mb-2">
-          <h1 className="text-2xl font-bold">Ventas de Públicas</h1>
-          <button
-            onClick={() => setShowMoney(!showMoney)}
-            className="text-gray-500 hover:text-gray-300 transition-colors bg-gray-800/50 p-2 rounded-lg"
-            title={showMoney ? 'Ocultar importes' : 'Mostrar importes'}
-          >
-            {showMoney ? '👁️' : '🔒'}
-          </button>
-        </div>
+        <h1 className="text-2xl font-bold mb-2">Ventas de Públicas</h1>
         <p className="text-gray-400 mb-6">Resumen del desempeño de tus promotores y liquidación de comisiones.</p>
 
         {/* Filters */}
@@ -66,15 +55,15 @@ const PromoterSales = () => {
             <p className="text-[10px] text-gray-400 uppercase tracking-wider mt-1">Vendidas por Públicas</p>
           </div>
           <div className="card text-center py-4">
-            <p className="text-3xl font-black text-white">{showMoney ? fmt(totalRecaudado) : '$ •••••'}</p>
+            <p className="text-3xl font-black text-white">{fmt(totalRecaudado)}</p>
             <p className="text-[10px] text-gray-400 uppercase tracking-wider mt-1">Total Generado</p>
           </div>
           <div className="card text-center py-4 border-red-500/30 bg-red-900/10">
-            <p className="text-3xl font-black text-red-400">{showMoney ? fmt(totalComisiones) : '$ •••••'}</p>
+            <p className="text-3xl font-black text-red-400">{fmt(totalComisiones)}</p>
             <p className="text-[10px] text-gray-400 uppercase tracking-wider mt-1">Total Comisiones (Públicas + Jefes)</p>
           </div>
           <div className="card text-center py-4 border-green-500/30 bg-green-900/10">
-            <p className="text-3xl font-black text-green-400">{showMoney ? fmt(totalAEnviar) : '$ •••••'}</p>
+            <p className="text-3xl font-black text-green-400">{fmt(totalAEnviar)}</p>
             <p className="text-[10px] text-gray-400 uppercase tracking-wider mt-1">Neto para la org.</p>
           </div>
         </div>
@@ -114,10 +103,10 @@ const PromoterSales = () => {
                       {s.leader_name && <span className="block text-[10px] text-gray-500">(+${s.leader_commission})</span>}
                     </td>
                     <td className="py-4 px-2 text-center">{s.total_vendidas}</td>
-                    <td className="py-4 pl-2 text-right">{showMoney ? fmt(s.total_recaudado) : '***'}</td>
-                    <td className="py-4 pl-2 text-right text-red-400">{showMoney ? fmt(s.comision_promotor) : '***'}</td>
-                    <td className="py-4 pl-2 text-right text-yellow-400">{showMoney ? fmt(s.comision_jefe) : '***'}</td>
-                    <td className="py-4 pl-2 text-right font-bold text-green-400">{showMoney ? fmt(s.debe_enviar) : '***'}</td>
+                    <td className="py-4 pl-2 text-right">{fmt(s.total_recaudado)}</td>
+                    <td className="py-4 pl-2 text-right text-red-400">{fmt(s.comision_promotor)}</td>
+                    <td className="py-4 pl-2 text-right text-yellow-400">{fmt(s.comision_jefe)}</td>
+                    <td className="py-4 pl-2 text-right font-bold text-green-400">{fmt(s.debe_enviar)}</td>
                   </tr>
                 ))}
                 {sales.length === 0 && (

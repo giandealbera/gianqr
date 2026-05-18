@@ -20,7 +20,6 @@ const SoldTickets = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch]   = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [showMoney, setShowMoney] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -52,15 +51,7 @@ const SoldTickets = () => {
           ← {event?.name || 'Volver'}
         </button>
 
-        <div className="flex items-center justify-between mb-1">
-          <h1 className="text-xl font-bold">📋 Entradas vendidas</h1>
-          <button
-            onClick={() => setShowMoney(!showMoney)}
-            className="text-gray-500 hover:text-gray-300 transition-colors bg-gray-800/50 p-1.5 rounded-lg text-sm"
-          >
-            {showMoney ? '👁️' : '🔒'}
-          </button>
-        </div>
+        <h1 className="text-xl font-bold mb-1">📋 Entradas vendidas</h1>
         <p className="text-sm text-gray-400 mb-5">{event?.name}</p>
 
         {/* Summary */}
@@ -78,7 +69,7 @@ const SoldTickets = () => {
             <p className="text-[10px] text-gray-500 uppercase">Usadas</p>
           </div>
           <div className="card text-center py-3">
-            <p className="text-xl font-bold text-brand">{showMoney ? fmt(totalRevenue) : '$ •••••'}</p>
+            <p className="text-xl font-bold text-brand">{fmt(totalRevenue)}</p>
             <p className="text-[10px] text-gray-500 uppercase">Recaudado</p>
           </div>
         </div>
@@ -130,7 +121,7 @@ const SoldTickets = () => {
                   </p>
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-sm font-semibold text-green-400">{showMoney ? fmt(t.amount_paid) : '***'}</p>
+                  <p className="text-sm font-semibold text-green-400">{fmt(t.amount_paid)}</p>
                   <p className="text-[10px] text-gray-600 font-mono">{t.qr_code}</p>
                 </div>
               </div>

@@ -42,7 +42,6 @@ const EventDashboard = () => {
   const [stats, setStats] = useState(null);
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showSales, setShowSales] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -138,22 +137,14 @@ const EventDashboard = () => {
 
         {/* Sales summary card */}
         <div className="card mb-6 bg-gradient-to-br from-gray-900 to-gray-900/80 border-brand/20">
-          <div className="flex items-center justify-between mb-1">
-            <h3 className="text-sm font-medium text-gray-300 flex items-center gap-2">
-              💰 Ventas
-            </h3>
-            <button
-              onClick={() => setShowSales(!showSales)}
-              className="text-gray-500 hover:text-gray-300 transition-colors"
-            >
-              {showSales ? '👁' : '🔒'}
-            </button>
-          </div>
+          <h3 className="text-sm font-medium text-gray-300 flex items-center gap-2 mb-1">
+            💰 Ventas
+          </h3>
           <p className="text-3xl font-bold text-white mt-1">
-            {showSales ? fmt(totalRevenue) : '$ •••••'}
+            {fmt(totalRevenue)}
           </p>
           <p className="text-xs text-gray-500 mt-1">
-            Hoy ({new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}): {showSales ? fmt(todayRevenue) : '$ •••'}
+            Hoy ({new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}): {fmt(todayRevenue)}
           </p>
         </div>
 
