@@ -186,6 +186,42 @@ const LiveControl = () => {
                   </p>
                 </div>
 
+                {/* Top vendedores ahora */}
+                {tickets.length > 0 && (() => {
+                  const byVendor = {};
+                  for (const t of tickets) {
+                    if (t.status !== 'pagado' && t.status !== 'usado') continue;
+                    const k = t.vendedor_code || t.vendedor_nombre || 'Caja';
+                    if (!byVendor[k]) byVendor[k] = { name: t.vendedor_nombre || 'Caja', code: t.vendedor_code, count: 0, total: 0 };
+                    byVendor[k].count += 1;
+                    byVendor[k].total += parseFloat(t.amount_paid || 0);
+                  }
+                  const top = Object.values(byVendor).sort((a, b) => b.count - a.count).slice(0, 5);
+                  if (top.length === 0) return null;
+                  return (
+                    <div className="card mb-6">
+                      <p className="text-xs uppercase tracking-widest font-semibold mb-3" style={{ color: '#6B7280' }}>
+                        🏆 Top vendedores del evento
+                      </p>
+                      <div className="space-y-2">
+                        {top.map((v, i) => (
+                          <div key={i} className="flex justify-between items-baseline text-sm">
+                            <span className="flex items-center gap-2">
+                              <span className="text-xs font-mono w-5" style={{ color: '#C9974D' }}>#{i + 1}</span>
+                              <span className="font-medium">{v.name}</span>
+                              {v.code && <span className="text-xs font-mono" style={{ color: '#6B7280' }}>({v.code})</span>}
+                            </span>
+                            <span className="text-right">
+                              <span className="font-bold text-brand">{v.count}</span>
+                              <span className="text-xs ml-2" style={{ color: '#6B7280' }}>{fmt(v.total)}</span>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Desglose por tipo */}
                 {stats?.by_type?.length > 0 && (
                   <div className="card mb-6">

@@ -1,14 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
+import { exportCsv } from '../../utils/exportCsv';
 
-const METHOD_LABEL = { efectivo: 'Efectivo', transferencia: 'Transferencia' };
+const METHOD_LABEL = { efectivo: 'Efectivo', transferencia: 'Transferencia', mercadopago: 'MercadoPago', cortesia: 'Cortesía' };
 
 const Reports = () => {
   const [events,  setEvents]  = useState([]);
   const [report,  setReport]  = useState(null);
   const [loading, setLoading] = useState(false);
-  const [filters, setFilters] = useState({ event_id: '', from: '', to: '' });
+  const [filters, setFilters] = useState({ event_id: '', from: '', to: '', method: '' });
 
   useEffect(() => { api.get('/events').then(r => setEvents(r.data)); }, []);
 
@@ -32,16 +33,53 @@ const Reports = () => {
 
   const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n || 0);
 
+  // Filtrado en cliente por método de pago (el filtro fecha/evento es server-side)
+  const filteredDetalle = useMemo(() => {
+    if (!report?.detalle) return [];
+    if (!filters.method) return report.detalle;
+    return report.detalle.filter(t => t.payment_method === filters.method);
+  }, [report, filters.method]);
+
+  // Si filtran por método, recalculamos totales en cliente
+  const resumen = useMemo(() => {
+    if (!report) return [];
+    if (!filters.method) return report.resumen;
+    const filtered = report.resumen.filter(r => r.payment_method === filters.method);
+    return filtered;
+  }, [report, filters.method]);
+
+  const totalGeneral = useMemo(() => {
+    if (!filters.method) return report?.total_general || 0;
+    return filteredDetalle.reduce((acc, t) => acc + parseFloat(t.amount_paid || 0), 0);
+  }, [report, filters.method, filteredDetalle]);
+
+  const handleExportCsv = () => {
+    if (!filteredDetalle.length) return;
+    exportCsv({
+      filename: 'reporte-ventas',
+      rows: filteredDetalle,
+      columns: [
+        { key: 'buyer_name',     label: 'Comprador' },
+        { key: 'buyer_email',    label: 'Email' },
+        { key: 'evento',         label: 'Evento' },
+        { key: 'tipo_entrada',   label: 'Tipo' },
+        { key: 'payment_method', label: 'Método', format: (v) => METHOD_LABEL[v] || v },
+        { key: 'amount_paid',    label: 'Monto', format: (v) => parseFloat(v || 0).toFixed(2) },
+        { key: 'created_at',     label: 'Fecha', format: (v) => v ? new Date(v).toISOString().slice(0, 19).replace('T', ' ') : '' },
+      ],
+    });
+  };
+
   return (
     <Layout>
-      <div className="px-4 lg:px-8 py-6 max-w-4xl mx-auto">
+      <div className="px-4 lg:px-8 py-6 max-w-5xl mx-auto">
         <h1 className="text-2xl font-bold mb-6">Reportes de ventas</h1>
 
         {/* Filtros */}
         <div className="card mb-6">
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
             <div>
-              <label className="text-sm text-gray-400 block mb-1">Evento</label>
+              <label className="text-xs text-gray-400 block mb-1">Evento</label>
               <select className="input" value={filters.event_id}
                 onChange={e => setFilters(f => ({ ...f, event_id: e.target.value }))}>
                 <option value="">Todos los eventos</option>
@@ -49,14 +87,25 @@ const Reports = () => {
               </select>
             </div>
             <div>
-              <label className="text-sm text-gray-400 block mb-1">Desde</label>
+              <label className="text-xs text-gray-400 block mb-1">Desde</label>
               <input type="date" className="input" value={filters.from}
                 onChange={e => setFilters(f => ({ ...f, from: e.target.value }))} />
             </div>
             <div>
-              <label className="text-sm text-gray-400 block mb-1">Hasta</label>
+              <label className="text-xs text-gray-400 block mb-1">Hasta</label>
               <input type="date" className="input" value={filters.to}
                 onChange={e => setFilters(f => ({ ...f, to: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-xs text-gray-400 block mb-1">Método</label>
+              <select className="input" value={filters.method}
+                onChange={e => setFilters(f => ({ ...f, method: e.target.value }))}>
+                <option value="">Todos</option>
+                <option value="efectivo">Efectivo</option>
+                <option value="transferencia">Transferencia</option>
+                <option value="mercadopago">MercadoPago</option>
+                <option value="cortesia">Cortesía</option>
+              </select>
             </div>
             <div className="flex items-end">
               <button onClick={fetchReport} className="btn-primary w-full">Buscar</button>
@@ -69,8 +118,8 @@ const Reports = () => {
         {report && (
           <>
             {/* Resumen */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-              {report.resumen.map(r => (
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-6">
+              {resumen.map(r => (
                 <div key={r.payment_method} className="card">
                   <p className="text-sm text-gray-400">{METHOD_LABEL[r.payment_method] || r.payment_method}</p>
                   <p className="text-2xl font-bold text-white mt-1">{fmt(r.total)}</p>
@@ -79,9 +128,22 @@ const Reports = () => {
               ))}
               <div className="card border-brand/40">
                 <p className="text-sm text-gray-400">Total recaudado</p>
-                <p className="text-2xl font-bold text-green-400 mt-1">{fmt(report.total_general)}</p>
+                <p className="text-2xl font-bold text-green-400 mt-1">{fmt(totalGeneral)}</p>
+                <p className="text-xs text-gray-500 mt-1">{filteredDetalle.length} entradas</p>
               </div>
             </div>
+
+            {/* Acciones de export */}
+            {filteredDetalle.length > 0 && (
+              <div className="flex gap-2 mb-3 justify-end">
+                <button onClick={handleExportCsv} className="btn-secondary text-xs">
+                  📥 Exportar CSV (Excel)
+                </button>
+                <button onClick={() => window.print()} className="btn-secondary text-xs">
+                  🖨️ Imprimir
+                </button>
+              </div>
+            )}
 
             {/* Detalle */}
             <div className="card overflow-x-auto">
@@ -98,7 +160,7 @@ const Reports = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-800">
-                  {report.detalle.map(t => (
+                  {filteredDetalle.map(t => (
                     <tr key={t.id} className="hover:bg-gray-800/40">
                       <td className="py-2">
                         <div className="font-medium">{t.buyer_name}</div>
@@ -113,7 +175,7 @@ const Reports = () => {
                       </td>
                     </tr>
                   ))}
-                  {report.detalle.length === 0 && (
+                  {filteredDetalle.length === 0 && (
                     <tr><td colSpan={6} className="py-6 text-center text-gray-500">Sin resultados</td></tr>
                   )}
                 </tbody>
