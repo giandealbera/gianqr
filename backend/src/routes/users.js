@@ -7,8 +7,8 @@ const { getAll, create, update, deactivate, getPromoterSales, getMyPromoterSales
 // Ventas de todos los promotores (admin)
 router.get('/promoter-sales', auth, roles('admin'), getPromoterSales);
 
-// Mis ventas (promotor / jefe / vendedor)
-router.get('/my-sales', auth, roles('admin', 'promotor', 'jefe_publicas', 'vendedor'), getMyPromoterSales);
+// Mis ventas (jefe / vendedor / admin)
+router.get('/my-sales', auth, roles('admin', 'jefe_publicas', 'vendedor'), getMyPromoterSales);
 
 // Jefe gestiona su equipo
 router.get('/my-team',     auth, roles('jefe_publicas'), getMyTeam);

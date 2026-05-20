@@ -4,12 +4,12 @@ const auth    = require('../middleware/auth');
 const roles   = require('../middleware/roles');
 const { create, preSell, scan, getOne, getAll, getQR, remove } = require('../controllers/ticketsController');
 
-// Venta manual (admin, promotor, jefe_publicas y vendedor)
-router.post('/', auth, roles('admin', 'promotor', 'jefe_publicas', 'vendedor'), create);
+// Venta manual (admin, jefe_publicas y vendedor)
+router.post('/', auth, roles('admin', 'jefe_publicas', 'vendedor'), create);
 
 // Pre-venta: reserva N entradas a nombre "Pendiente" y descuenta cupo ya.
 // El comprador completa nombre/apellido despues vía link publico (?tickets=).
-router.post('/pre-sell', auth, roles('admin', 'promotor', 'jefe_publicas', 'vendedor'), preSell);
+router.post('/pre-sell', auth, roles('admin', 'jefe_publicas', 'vendedor'), preSell);
 
 // Escaneo en puerta (solo admin — los demás usan links públicos /scan/:token)
 router.post('/scan', auth, roles('admin'), scan);

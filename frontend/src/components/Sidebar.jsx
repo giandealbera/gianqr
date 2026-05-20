@@ -17,7 +17,11 @@ const navItems = {
     { to: '/admin/zonas',     label: 'Zonas'       },
     { to: '/configuracion',   label: 'Configuracion' },
   ],
-  promotor: [
+  jefe_publicas: [
+    { to: '/eventos',  label: 'Eventos'  },
+    { to: '/promotor', label: 'Mi Panel' },
+  ],
+  vendedor: [
     { to: '/eventos',  label: 'Eventos'  },
     { to: '/promotor', label: 'Mi Panel' },
   ],
@@ -25,7 +29,6 @@ const navItems = {
 
 const ROLE_LABELS = {
   admin:         'Administrador',
-  promotor:      'Promotor',
   jefe_publicas: 'Jefe de Publicas',
   vendedor:      'Vendedor',
 };

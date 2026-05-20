@@ -87,9 +87,23 @@ async function sqliteExec(sql) {
   await db.exec(sql);
 }
 
+let sqliteMutex = Promise.resolve();
+
 async function sqliteTransaction(callback) {
   const db = await initSqlite();
-  await db.run('BEGIN');
+
+  // Adquirir el lock/mutex para transacciones secuenciales en SQLite
+  let releaseLock;
+  const lockAcquired = new Promise((resolve) => {
+    releaseLock = resolve;
+  });
+
+  const previousMutex = sqliteMutex;
+  sqliteMutex = lockAcquired;
+
+  await previousMutex;
+
+  await db.run('BEGIN IMMEDIATE');
   try {
     const conn = {
       execute: async (text, params = []) => {
@@ -110,8 +124,12 @@ async function sqliteTransaction(callback) {
     await db.run('COMMIT');
     return result;
   } catch (err) {
-    await db.run('ROLLBACK');
+    try {
+      await db.run('ROLLBACK');
+    } catch (e) {}
     throw err;
+  } finally {
+    releaseLock(); // Permitir que proceda la siguiente transacción
   }
 }
 
@@ -372,6 +390,10 @@ async function runMigrations(queryFn, execFn) {
   // que quedo con ese rol se promueve a admin. Es idempotente: si no
   // hay cajeros, no hace nada.
   try { await execFn(`UPDATE users SET role = 'admin' WHERE role = 'cajero'`); } catch (e) {}
+
+  // Migracion: eliminar el rol "promotor" (erradicado). Cualquier usuario
+  // con ese rol se migra a "vendedor". Es idempotente.
+  try { await execFn(`UPDATE users SET role = 'vendedor' WHERE role = 'promotor'`); } catch (e) {}
 }
 
 // ---------------------------------------------------------------------------

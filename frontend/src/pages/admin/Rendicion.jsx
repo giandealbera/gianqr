@@ -6,7 +6,6 @@ import toast from 'react-hot-toast';
 const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n || 0);
 
 const ROLE_LABELS = {
-  promotor:      'Promotor',
   jefe_publicas: 'Jefe de Públicas',
   vendedor:      'Vendedor',
 };

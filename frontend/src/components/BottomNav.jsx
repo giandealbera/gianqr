@@ -24,12 +24,6 @@ const navMap = {
     { to: '/admin/reportes', icon: 'reportes', label: 'Reportes' },
     { to: '/mas',            icon: 'mas',      label: 'Mas'      },
   ],
-  promotor: [
-    { to: '/eventos',         icon: 'eventos', label: 'Eventos'  },
-    { to: '/promotor/vender', icon: 'vender',  label: 'Vender'   },
-    { to: '/promotor',        icon: 'panel',   label: 'Mi Panel' },
-    { to: '/mas',             icon: 'mas',     label: 'Mas'      },
-  ],
   jefe_publicas: [
     { to: '/eventos',         icon: 'eventos', label: 'Eventos'  },
     { to: '/promotor/vender', icon: 'vender',  label: 'Vender'   },

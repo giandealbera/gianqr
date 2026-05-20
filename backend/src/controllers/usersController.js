@@ -3,7 +3,7 @@ const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../config/database');
 
-const PUBLICAS_ROLES = ['promotor', 'jefe_publicas', 'vendedor'];
+const PUBLICAS_ROLES = ['jefe_publicas', 'vendedor'];
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // Genera un promo_code random de 10 chars (alfabeto sin chars ambiguos).
@@ -48,7 +48,7 @@ const create = async (req, res) => {
   if (password.length < 8)
     return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres' });
 
-  const validRoles = ['admin', 'promotor', 'jefe_publicas', 'vendedor'];
+  const validRoles = ['admin', 'jefe_publicas', 'vendedor'];
   if (!validRoles.includes(role))
     return res.status(400).json({ error: 'Rol inválido' });
 
@@ -172,7 +172,35 @@ const getMyTeam = async (req, res) => {
 const update = async (req, res) => {
   const { id } = req.params;
   const { name, apellido, celular, localidad, email, role, is_active, password, commission, leader_id, leader_commission, zona_id } = req.body;
+
+  const validRoles = ['admin', 'jefe_publicas', 'vendedor'];
+  if (role && !validRoles.includes(role)) {
+    return res.status(400).json({ error: 'Rol inválido' });
+  }
+
   try {
+    // Obtener el estado actual del usuario que se quiere modificar para evitar auto-bloqueo de admin
+    const currentResult = await db.query('SELECT role, is_active FROM users WHERE id = ?', [id]);
+    const currentUser = currentResult.rows[0];
+    if (!currentUser) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    if (currentUser.role === 'admin' && currentUser.is_active === 1) {
+      const willBeDeactivated = is_active !== undefined && !is_active;
+      const willChangeRole = role !== undefined && role !== 'admin';
+
+      if (willBeDeactivated || willChangeRole) {
+        // Contar otros administradores activos
+        const adminCountResult = await db.query(
+          "SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND is_active = 1 AND id != ?",
+          [id]
+        );
+        const activeAdmins = parseInt(adminCountResult.rows[0]?.count || 0, 10);
+        if (activeAdmins === 0) {
+          return res.status(400).json({ error: 'No se puede desactivar ni cambiar el rol del único administrador activo' });
+        }
+      }
+    }
+
     if (password) {
       const hash = await bcrypt.hash(password, 10);
       await db.query(
@@ -211,8 +239,26 @@ const update = async (req, res) => {
 };
 
 const deactivate = async (req, res) => {
+  const { id } = req.params;
   try {
-    await db.query('UPDATE users SET is_active = 0 WHERE id = ?', [req.params.id]);
+    // Obtener el estado actual del usuario que se quiere desactivar
+    const currentResult = await db.query('SELECT role, is_active FROM users WHERE id = ?', [id]);
+    const currentUser = currentResult.rows[0];
+    if (!currentUser) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    if (currentUser.role === 'admin' && currentUser.is_active === 1) {
+      // Contar otros administradores activos
+      const adminCountResult = await db.query(
+        "SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND is_active = 1 AND id != ?",
+        [id]
+      );
+      const activeAdmins = parseInt(adminCountResult.rows[0]?.count || 0, 10);
+      if (activeAdmins === 0) {
+        return res.status(400).json({ error: 'No se puede desactivar al único administrador activo' });
+      }
+    }
+
+    await db.query('UPDATE users SET is_active = 0 WHERE id = ?', [id]);
     res.json({ message: 'Usuario desactivado' });
   } catch (err) {
     res.status(500).json({ error: 'Error al desactivar usuario' });

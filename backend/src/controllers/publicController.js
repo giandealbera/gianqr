@@ -87,6 +87,8 @@ const createPublicTicket = async (req, res) => {
   for (const a of attendees) {
     if (!a.buyer_name || !a.buyer_apellido)
       return res.status(400).json({ error: 'Cada persona debe tener nombre y apellido' });
+    if (a.buyer_name.length > 50 || a.buyer_apellido.length > 50)
+      return res.status(400).json({ error: 'El nombre y apellido no deben superar los 50 caracteres' });
   }
 
   try {
@@ -233,6 +235,8 @@ const completeReservedTickets = async (req, res) => {
   for (const a of attendees) {
     if (!a.buyer_name || !a.buyer_apellido)
       return res.status(400).json({ error: 'Cada persona debe tener nombre y apellido' });
+    if (a.buyer_name.length > 50 || a.buyer_apellido.length > 50)
+      return res.status(400).json({ error: 'El nombre y apellido no deben superar los 50 caracteres' });
   }
 
   try {

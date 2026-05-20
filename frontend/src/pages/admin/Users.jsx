@@ -6,11 +6,10 @@ import toast from 'react-hot-toast';
 const ROLES = ['jefe_publicas', 'vendedor', 'admin'];
 const ROLE_LABELS = {
   admin:         'Dueño',
-  promotor:      'Públicas (legacy)',
   jefe_publicas: 'Jefe de Públicas',
   vendedor:      'Vendedor',
 };
-const PUBLICAS_ROLES = ['promotor', 'jefe_publicas', 'vendedor'];
+const PUBLICAS_ROLES = ['jefe_publicas', 'vendedor'];
 const emptyForm = { name: '', apellido: '', celular: '', localidad: '', email: '', password: '', role: 'vendedor', promo_code: '', commission: 800, leader_id: '', leader_commission: 400, zona_id: '' };
 
 const Users = () => {
@@ -24,7 +23,7 @@ const Users = () => {
   const [editRoleId,  setEditRoleId]  = useState(null); // id del usuario cambiando rol
   const [createdUser, setCreatedUser] = useState(null);
 
-  const jefes = users.filter(u => (u.role === 'jefe_publicas' || u.role === 'promotor') && u.is_active);
+  const jefes = users.filter(u => u.role === 'jefe_publicas' && u.is_active);
 
   const load = () => api.get('/users').then(r => setUsers(r.data));
   const loadZonas = () => api.get('/zonas').then(r => setZonas(r.data)).catch(() => {});

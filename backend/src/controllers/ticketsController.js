@@ -22,6 +22,9 @@ const create = async (req, res) => {
   if (!event_id || !ticket_type_id || !buyer_name || !payment_method)
     return res.status(400).json({ error: 'Faltan campos obligatorios' });
 
+  if (buyer_name.length > 50 || (buyer_apellido && buyer_apellido.length > 50))
+    return res.status(400).json({ error: 'El nombre y apellido no deben superar los 50 caracteres' });
+
   // Whitelist estricto. 'cortesia' tiene su propio endpoint admin-only
   // (POST /api/cortesias) — no se acepta por aca para evitar que cualquier
   // vendedor emita entradas gratis sin pasar por el flujo admin.
@@ -48,7 +51,7 @@ const create = async (req, res) => {
 
       // Buscar promotor: si el vendedor es promotor se asigna solo, sino por código
       let promotorId = null;
-      if (['promotor', 'jefe_publicas', 'vendedor'].includes(req.user?.role)) {
+      if (['jefe_publicas', 'vendedor'].includes(req.user?.role)) {
         const [pRows] = await conn.execute('SELECT id FROM promotors WHERE user_id = ?', [req.user.id]);
         if (pRows[0]) promotorId = pRows[0].id;
       } else if (promotor_code) {
@@ -150,7 +153,7 @@ const preSell = async (req, res) => {
       let promotorId = null;
       const [pRows] = await conn.execute('SELECT id FROM promotors WHERE user_id = ?', [req.user.id]);
       if (pRows[0]) promotorId = pRows[0].id;
-      else if (['promotor', 'jefe_publicas', 'vendedor'].includes(req.user.role))
+      else if (['jefe_publicas', 'vendedor'].includes(req.user.role))
         throw new Error('PROMOTOR_NOT_FOUND');
 
       const fullPrice = parseFloat(tt.price);

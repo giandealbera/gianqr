@@ -78,12 +78,11 @@ const App = () => (
           </div>
         } />
 
-        {/* Eventos — accesible para todos los roles */}
         <Route path="/eventos" element={
-          <ProtectedRoute allowedRoles={['admin', 'promotor', 'jefe_publicas', 'vendedor']}><MyEvents /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin', 'jefe_publicas', 'vendedor']}><MyEvents /></ProtectedRoute>
         } />
         <Route path="/evento/:id" element={
-          <ProtectedRoute allowedRoles={['admin', 'promotor', 'jefe_publicas', 'vendedor']}><EventDashboard /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin', 'jefe_publicas', 'vendedor']}><EventDashboard /></ProtectedRoute>
         } />
         <Route path="/evento/:id/vendidas" element={
           <ProtectedRoute allowedRoles={['admin']}><SoldTickets /></ProtectedRoute>
@@ -143,20 +142,20 @@ const App = () => (
 
         {/* Promotor / Públicas */}
         <Route path="/promotor" element={
-          <ProtectedRoute allowedRoles={['admin', 'promotor', 'jefe_publicas', 'vendedor']}><PromoterDashboard /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin', 'jefe_publicas', 'vendedor']}><PromoterDashboard /></ProtectedRoute>
         } />
         <Route path="/promotor/vender" element={
-          <ProtectedRoute allowedRoles={['promotor', 'jefe_publicas', 'vendedor']}><PromoterSell /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['jefe_publicas', 'vendedor']}><PromoterSell /></ProtectedRoute>
         } />
 
         {/* Configuración personal (todos los roles logueados) */}
         <Route path="/configuracion" element={
-          <ProtectedRoute allowedRoles={['admin', 'promotor', 'jefe_publicas', 'vendedor']}><Configuracion /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin', 'jefe_publicas', 'vendedor']}><Configuracion /></ProtectedRoute>
         } />
 
         {/* Más opciones */}
         <Route path="/mas" element={
-          <ProtectedRoute allowedRoles={['admin', 'promotor', 'jefe_publicas', 'vendedor']}><MoreMenu /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin', 'jefe_publicas', 'vendedor']}><MoreMenu /></ProtectedRoute>
         } />
 
         {/* 404 */}
