@@ -48,6 +48,7 @@ const PageLoader = () => (
 const RoleRedirect = () => {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
+  if (user.role === 'owner') return <Navigate to="/eventos" replace />;
   return <Navigate to="/eventos" replace />;
 };
 
@@ -79,19 +80,19 @@ const App = () => (
         } />
 
         <Route path="/eventos" element={
-          <ProtectedRoute allowedRoles={['admin', 'jefe_publicas', 'vendedor']}><MyEvents /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin', 'jefe_publicas', 'vendedor', 'owner']}><MyEvents /></ProtectedRoute>
         } />
         <Route path="/evento/:id" element={
-          <ProtectedRoute allowedRoles={['admin', 'jefe_publicas', 'vendedor']}><EventDashboard /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin', 'jefe_publicas', 'vendedor', 'owner']}><EventDashboard /></ProtectedRoute>
         } />
         <Route path="/evento/:id/vendidas" element={
-          <ProtectedRoute allowedRoles={['admin']}><SoldTickets /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin', 'owner']}><SoldTickets /></ProtectedRoute>
         } />
         <Route path="/evento/:id/stats" element={
-          <ProtectedRoute allowedRoles={['admin']}><EventStats /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin', 'owner']}><EventStats /></ProtectedRoute>
         } />
         <Route path="/evento/:id/tipos" element={
-          <ProtectedRoute allowedRoles={['admin']}><EventTicketTypes /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin', 'owner']}><EventTicketTypes /></ProtectedRoute>
         } />
 
         {/* Admin */}
@@ -150,12 +151,12 @@ const App = () => (
 
         {/* Configuración personal (todos los roles logueados) */}
         <Route path="/configuracion" element={
-          <ProtectedRoute allowedRoles={['admin', 'jefe_publicas', 'vendedor']}><Configuracion /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin', 'jefe_publicas', 'vendedor', 'owner']}><Configuracion /></ProtectedRoute>
         } />
 
         {/* Más opciones */}
         <Route path="/mas" element={
-          <ProtectedRoute allowedRoles={['admin', 'jefe_publicas', 'vendedor']}><MoreMenu /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin', 'jefe_publicas', 'vendedor', 'owner']}><MoreMenu /></ProtectedRoute>
         } />
 
         {/* 404 */}

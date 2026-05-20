@@ -48,7 +48,7 @@ const create = async (req, res) => {
   if (password.length < 8)
     return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres' });
 
-  const validRoles = ['admin', 'jefe_publicas', 'vendedor'];
+  const validRoles = ['admin', 'jefe_publicas', 'vendedor', 'owner'];
   if (!validRoles.includes(role))
     return res.status(400).json({ error: 'Rol inválido' });
 
@@ -173,7 +173,7 @@ const update = async (req, res) => {
   const { id } = req.params;
   const { name, apellido, celular, localidad, email, role, is_active, password, commission, leader_id, leader_commission, zona_id } = req.body;
 
-  const validRoles = ['admin', 'jefe_publicas', 'vendedor'];
+  const validRoles = ['admin', 'jefe_publicas', 'vendedor', 'owner'];
   if (role && !validRoles.includes(role)) {
     return res.status(400).json({ error: 'Rol inválido' });
   }

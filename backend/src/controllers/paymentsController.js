@@ -35,4 +35,53 @@ const report = async (req, res) => {
   }
 };
 
-module.exports = { report };
+// GET /api/payments/monthly-overview
+// Devuelve mes a mes: entradas vendidas, cortesías y eventos realizados
+const monthlyOverview = async (req, res) => {
+  try {
+    // Entradas vendidas + cortesías por mes (últimos 12 meses)
+    const ticketsPerMonth = await db.query(
+      `SELECT
+         strftime('%Y-%m', t.created_at) AS mes,
+         COUNT(CASE WHEN t.payment_method != 'cortesia' AND t.status IN ('pagado','usado') THEN 1 END) AS vendidas,
+         COUNT(CASE WHEN t.payment_method = 'cortesia' THEN 1 END) AS cortesias
+       FROM tickets t
+       WHERE t.created_at >= date('now', '-12 months')
+       GROUP BY mes
+       ORDER BY mes ASC`
+    );
+
+    // Eventos realizados por mes (fecha del evento, no fecha de creación)
+    const eventsPerMonth = await db.query(
+      `SELECT
+         strftime('%Y-%m', e.date) AS mes,
+         COUNT(*) AS fiestas
+       FROM events e
+       WHERE e.date >= date('now', '-12 months')
+       GROUP BY mes
+       ORDER BY mes ASC`
+    );
+
+    // Merge por mes
+    const monthMap = {};
+
+    ticketsPerMonth.rows.forEach(r => {
+      if (!monthMap[r.mes]) monthMap[r.mes] = { mes: r.mes, vendidas: 0, cortesias: 0, fiestas: 0 };
+      monthMap[r.mes].vendidas  = parseInt(r.vendidas  || 0);
+      monthMap[r.mes].cortesias = parseInt(r.cortesias || 0);
+    });
+
+    eventsPerMonth.rows.forEach(r => {
+      if (!monthMap[r.mes]) monthMap[r.mes] = { mes: r.mes, vendidas: 0, cortesias: 0, fiestas: 0 };
+      monthMap[r.mes].fiestas = parseInt(r.fiestas || 0);
+    });
+
+    const data = Object.values(monthMap).sort((a, b) => a.mes.localeCompare(b.mes));
+    res.json({ monthly: data });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al generar reporte mensual' });
+  }
+};
+
+module.exports = { report, monthlyOverview };

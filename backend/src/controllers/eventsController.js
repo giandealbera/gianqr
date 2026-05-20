@@ -1,8 +1,34 @@
 const { v4: uuidv4 } = require('uuid');
 const db = require('../config/database');
 
+// Helper: verifica si un owner tiene acceso a un evento
+async function ownerHasEvent(userId, eventId) {
+  const r = await db.query(
+    'SELECT 1 FROM event_owners WHERE user_id = ? AND event_id = ?',
+    [userId, eventId]
+  );
+  return r.rows.length > 0;
+}
+
 const getAll = async (req, res) => {
   try {
+    // Owner: solo ve los eventos que le asignaron
+    if (req.user?.role === 'owner') {
+      const result = await db.query(
+        `SELECT e.*, v.name AS venue_name, v.capacity AS venue_capacity,
+                COUNT(DISTINCT CASE WHEN t.status='pagado' THEN t.id END) AS tickets_sold
+         FROM events e
+         JOIN event_owners eo ON eo.event_id = e.id AND eo.user_id = ?
+         LEFT JOIN venues v ON v.id = e.venue_id
+         LEFT JOIN tickets t ON t.event_id = e.id
+         GROUP BY e.id, v.id
+         ORDER BY e.date DESC, e.start_time DESC`,
+        [req.user.id]
+      );
+      return res.json(result.rows);
+    }
+
+    // Admin / todos: ven todos
     const result = await db.query(
       `SELECT e.*, v.name AS venue_name, v.capacity AS venue_capacity,
               COUNT(DISTINCT CASE WHEN t.status='pagado' THEN t.id END) AS tickets_sold
@@ -22,6 +48,13 @@ const getAll = async (req, res) => {
 const getOne = async (req, res) => {
   try {
     const { id } = req.params;
+
+    // Owner: verificar que le pertenece
+    if (req.user?.role === 'owner') {
+      const ok = await ownerHasEvent(req.user.id, id);
+      if (!ok) return res.status(403).json({ error: 'Sin acceso a este evento' });
+    }
+
     const eventResult = await db.query(
       `SELECT e.*, v.name AS venue_name, v.capacity AS venue_capacity
        FROM events e LEFT JOIN venues v ON v.id = e.venue_id
@@ -82,6 +115,13 @@ const create = async (req, res) => {
 
 const update = async (req, res) => {
   const { id } = req.params;
+
+  // Owner: verificar que le pertenece antes de modificar
+  if (req.user?.role === 'owner') {
+    const ok = await ownerHasEvent(req.user.id, id);
+    if (!ok) return res.status(403).json({ error: 'Sin acceso a este evento' });
+  }
+
   const { name, description, date, start_time, end_time, flyer_url, is_active, venue_id,
           sale_start_at, sale_end_at } = req.body;
   if (sale_start_at && sale_end_at && new Date(sale_end_at) <= new Date(sale_start_at))
@@ -104,6 +144,13 @@ const update = async (req, res) => {
 
 const stats = async (req, res) => {
   const { id } = req.params;
+
+  // Owner: verificar que le pertenece
+  if (req.user?.role === 'owner') {
+    const ok = await ownerHasEvent(req.user.id, id);
+    if (!ok) return res.status(403).json({ error: 'Sin acceso a este evento' });
+  }
+
   try {
     const result = await db.query(
       `SELECT tt.name AS tipo, tt.price, tt.total_quota, tt.sold_count,
@@ -135,8 +182,13 @@ const getVenues = async (req, res) => {
   }
 };
 
-// GET /api/events/:id/ticket-types — todos los tipos (admin)
+// GET /api/events/:id/ticket-types
 const getTicketTypes = async (req, res) => {
+  // Owner: verificar acceso
+  if (req.user?.role === 'owner') {
+    const ok = await ownerHasEvent(req.user.id, req.params.id);
+    if (!ok) return res.status(403).json({ error: 'Sin acceso a este evento' });
+  }
   try {
     const result = await db.query(
       `SELECT *, (total_quota - sold_count) AS available
@@ -149,8 +201,13 @@ const getTicketTypes = async (req, res) => {
   }
 };
 
-// POST /api/events/:id/ticket-types — agregar tipo
+// POST /api/events/:id/ticket-types
 const addTicketType = async (req, res) => {
+  // Owner: verificar acceso
+  if (req.user?.role === 'owner') {
+    const ok = await ownerHasEvent(req.user.id, req.params.id);
+    if (!ok) return res.status(403).json({ error: 'Sin acceso a este evento' });
+  }
   const { name, price, total_quota } = req.body;
   if (!name || price == null || !total_quota)
     return res.status(400).json({ error: 'name, price y total_quota son requeridos' });
@@ -169,15 +226,15 @@ const addTicketType = async (req, res) => {
   }
 };
 
-// PUT /api/events/:id/ticket-types/:ttId — solo agregar cupo
-// PUT /api/events/:id/ticket-types/:ttId — actualizar tipo:
-//   - add_quota: agrega N al cupo (no permite restar abajo de lo vendido)
-//   - name: cambia nombre
-//   - price: cambia precio. Si hay tickets vendidos, advierte que solo afecta a futuros.
+// PUT /api/events/:id/ticket-types/:ttId
 const updateTicketType = async (req, res) => {
+  // Owner: verificar acceso
+  if (req.user?.role === 'owner') {
+    const ok = await ownerHasEvent(req.user.id, req.params.id);
+    if (!ok) return res.status(403).json({ error: 'Sin acceso a este evento' });
+  }
   const { add_quota, name, price } = req.body;
   try {
-    // Cargar estado actual para validaciones
     const cur = (await db.query(
       'SELECT * FROM ticket_types WHERE id = ? AND event_id = ?',
       [req.params.ttId, req.params.id]
@@ -194,12 +251,10 @@ const updateTicketType = async (req, res) => {
       updates.push('total_quota = total_quota + ?');
       params.push(qty);
     }
-
     if (name !== undefined && name !== null && name.trim() !== '') {
       updates.push('name = ?');
       params.push(name.trim());
     }
-
     if (price !== undefined && price !== null && price !== '') {
       const p = parseFloat(price);
       if (isNaN(p) || p < 0)
@@ -207,7 +262,6 @@ const updateTicketType = async (req, res) => {
       updates.push('price = ?');
       params.push(p);
     }
-
     if (updates.length === 0)
       return res.status(400).json({ error: 'Nada para actualizar (envia add_quota, name o price)' });
 
@@ -227,8 +281,13 @@ const updateTicketType = async (req, res) => {
   }
 };
 
-// PATCH /api/events/:id/ticket-types/:ttId/toggle — activar/desactivar
+// PATCH /api/events/:id/ticket-types/:ttId/toggle
 const toggleTicketType = async (req, res) => {
+  // Owner: verificar acceso
+  if (req.user?.role === 'owner') {
+    const ok = await ownerHasEvent(req.user.id, req.params.id);
+    if (!ok) return res.status(403).json({ error: 'Sin acceso a este evento' });
+  }
   try {
     await db.query(
       'UPDATE ticket_types SET is_active = CASE WHEN is_active=1 THEN 0 ELSE 1 END WHERE id=? AND event_id=?',
@@ -244,7 +303,7 @@ const toggleTicketType = async (req, res) => {
   }
 };
 
-// POST /api/events/:id/reset — borra tickets/payments/rendiciones del evento y vuelve sold_count a 0 (admin)
+// POST /api/events/:id/reset
 const resetEvent = async (req, res) => {
   const { id } = req.params;
   try {
@@ -259,10 +318,8 @@ const resetEvent = async (req, res) => {
     );
 
     await db.transaction(async (conn) => {
-      // Borrar payments asociados a tickets de este evento (FK no tiene CASCADE)
       await conn.execute(
-        `DELETE FROM payments
-         WHERE ticket_id IN (SELECT id FROM tickets WHERE event_id = ?)`,
+        `DELETE FROM payments WHERE ticket_id IN (SELECT id FROM tickets WHERE event_id = ?)`,
         [id]
       );
       await conn.execute('DELETE FROM tickets     WHERE event_id = ?', [id]);
@@ -284,7 +341,7 @@ const resetEvent = async (req, res) => {
   }
 };
 
-// GET /api/events/history — historial agregado por evento (admin)
+// GET /api/events/history
 const history = async (req, res) => {
   const { from, to, event_id, include_inactive } = req.query;
   const where = ['1=1'];
@@ -307,11 +364,7 @@ const history = async (req, res) => {
               COALESCE(SUM(CASE WHEN t.status IN ('pagado','usado') AND t.payment_method = 'efectivo'      THEN t.amount_paid ELSE 0 END), 0) AS recaudado_efectivo,
               COALESCE(SUM(CASE WHEN t.status IN ('pagado','usado') AND t.payment_method = 'transferencia' THEN t.amount_paid ELSE 0 END), 0) AS recaudado_transferencia,
               COALESCE(SUM(CASE WHEN t.status IN ('pagado','usado') AND t.payment_method = 'mercadopago'   THEN t.amount_paid ELSE 0 END), 0) AS recaudado_mercadopago,
-              COALESCE((
-                SELECT SUM(p.commission) FROM tickets t2
-                JOIN promotors p ON p.id = t2.promotor_id
-                WHERE t2.event_id = e.id AND t2.status IN ('pagado','usado')
-              ), 0) AS comisiones_total,
+              COALESCE((\n                SELECT SUM(p.commission) FROM tickets t2\n                JOIN promotors p ON p.id = t2.promotor_id\n                WHERE t2.event_id = e.id AND t2.status IN ('pagado','usado')\n              ), 0) AS comisiones_total,
               COALESCE((SELECT SUM(amount) FROM rendiciones WHERE event_id = e.id), 0) AS ya_rindio
        FROM events e
        LEFT JOIN tickets t ON t.event_id = e.id
@@ -337,4 +390,66 @@ const history = async (req, res) => {
   }
 };
 
-module.exports = { getAll, getOne, create, update, stats, history, resetEvent, getVenues, getTicketTypes, addTicketType, updateTicketType, toggleTicketType };
+// ─── Owner management (solo admin) ────────────────────────────────────────────
+
+// GET /api/events/:id/owners — lista los dueños asignados a un evento
+const getOwners = async (req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT u.id, u.name, u.apellido, u.email, u.is_active, eo.created_at AS asignado_at
+       FROM event_owners eo
+       JOIN users u ON u.id = eo.user_id
+       WHERE eo.event_id = ?
+       ORDER BY eo.created_at DESC`,
+      [req.params.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al obtener dueños' });
+  }
+};
+
+// POST /api/events/:id/owners — asigna un usuario como dueño
+const addOwner = async (req, res) => {
+  const { user_id } = req.body;
+  if (!user_id) return res.status(400).json({ error: 'user_id es requerido' });
+  try {
+    // Verificar que el usuario existe y tiene rol owner
+    const userRow = await db.query(
+      "SELECT id, name, role FROM users WHERE id = ? AND role = 'owner' AND is_active = 1",
+      [user_id]
+    );
+    if (!userRow.rows[0])
+      return res.status(400).json({ error: 'Usuario no encontrado o no tiene rol de dueño' });
+
+    await db.query(
+      'INSERT OR IGNORE INTO event_owners (id, event_id, user_id) VALUES (?,?,?)',
+      [uuidv4(), req.params.id, user_id]
+    );
+    res.status(201).json({ message: 'Dueño asignado', user: userRow.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al asignar dueño' });
+  }
+};
+
+// DELETE /api/events/:id/owners/:uid — quita un dueño del evento
+const removeOwner = async (req, res) => {
+  try {
+    await db.query(
+      'DELETE FROM event_owners WHERE event_id = ? AND user_id = ?',
+      [req.params.id, req.params.uid]
+    );
+    res.json({ message: 'Dueño removido' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al remover dueño' });
+  }
+};
+
+module.exports = {
+  getAll, getOne, create, update, stats, history, resetEvent,
+  getVenues, getTicketTypes, addTicketType, updateTicketType, toggleTicketType,
+  getOwners, addOwner, removeOwner,
+};

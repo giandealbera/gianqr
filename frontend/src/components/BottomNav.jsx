@@ -36,6 +36,10 @@ const navMap = {
     { to: '/promotor',        icon: 'panel',   label: 'Mi Panel' },
     { to: '/mas',             icon: 'mas',     label: 'Mas'      },
   ],
+  owner: [
+    { to: '/eventos',       icon: 'eventos',  label: 'Eventos' },
+    { to: '/mas',           icon: 'mas',      label: 'Mas'     },
+  ],
 };
 
 const BottomNav = () => {

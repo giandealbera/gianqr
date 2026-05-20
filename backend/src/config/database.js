@@ -371,6 +371,16 @@ async function runMigrations(queryFn, execFn) {
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
 
+  await execFn(`CREATE TABLE IF NOT EXISTS event_owners (
+    id         TEXT PRIMARY KEY,
+    event_id   TEXT NOT NULL,
+    user_id    TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id)  REFERENCES users(id)  ON DELETE CASCADE
+  )`);
+  try { await execFn('CREATE UNIQUE INDEX IF NOT EXISTS idx_event_owners_unique ON event_owners(event_id, user_id)'); } catch(e) {}
+
   await execFn(`CREATE TABLE IF NOT EXISTS proveedores (
     id          TEXT PRIMARY KEY,
     nombre      TEXT NOT NULL,

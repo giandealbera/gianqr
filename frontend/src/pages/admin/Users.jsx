@@ -3,11 +3,12 @@ import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import toast from 'react-hot-toast';
 
-const ROLES = ['jefe_publicas', 'vendedor', 'admin'];
+const ROLES = ['jefe_publicas', 'vendedor', 'admin', 'owner'];
 const ROLE_LABELS = {
-  admin:         'Dueño',
+  admin:         'Administrador',
   jefe_publicas: 'Jefe de Públicas',
   vendedor:      'Vendedor',
+  owner:         'Dueño del evento',
 };
 const PUBLICAS_ROLES = ['jefe_publicas', 'vendedor'];
 const emptyForm = { name: '', apellido: '', celular: '', localidad: '', email: '', password: '', role: 'vendedor', promo_code: '', commission: 800, leader_id: '', leader_commission: 400, zona_id: '' };

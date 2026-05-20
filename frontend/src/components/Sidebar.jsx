@@ -25,12 +25,17 @@ const navItems = {
     { to: '/eventos',  label: 'Eventos'  },
     { to: '/promotor', label: 'Mi Panel' },
   ],
+  owner: [
+    { to: '/eventos',      label: 'Mis Eventos'  },
+    { to: '/configuracion', label: 'Configuración' },
+  ],
 };
 
 const ROLE_LABELS = {
   admin:         'Administrador',
   jefe_publicas: 'Jefe de Publicas',
   vendedor:      'Vendedor',
+  owner:         'Dueño del evento',
 };
 
 const Sidebar = () => {

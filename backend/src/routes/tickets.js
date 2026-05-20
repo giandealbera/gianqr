@@ -14,11 +14,11 @@ router.post('/pre-sell', auth, roles('admin', 'jefe_publicas', 'vendedor'), preS
 // Escaneo en puerta (solo admin — los demás usan links públicos /scan/:token)
 router.post('/scan', auth, roles('admin'), scan);
 
-// Consultas — solo admin. Para evitar IDOR (cualquier user autenticado
-// veia datos PII y QR descargable de cualquier ticket enumerando UUIDs).
-router.get('/',       auth, roles('admin'), getAll);
-router.get('/:id',    auth, roles('admin'), getOne);
-router.get('/:id/qr', auth, roles('admin'), getQR);
+// Consultas — admin y owner (el controller verifica scope de ownership).
+// Para evitar IDOR, owner solo ve sus propios eventos.
+router.get('/',       auth, roles('admin', 'owner'), getAll);
+router.get('/:id',    auth, roles('admin', 'owner'), getOne);
+router.get('/:id/qr', auth, roles('admin', 'owner'), getQR);
 
 // Eliminar (solo admin)
 router.delete('/:id', auth, roles('admin'), remove);

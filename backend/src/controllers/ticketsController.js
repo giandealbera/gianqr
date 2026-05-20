@@ -276,6 +276,22 @@ const getAll = async (req, res) => {
   let where = [];
   let params = [];
 
+  // Owner: solo puede ver tickets de sus eventos asignados
+  if (req.user?.role === 'owner') {
+    // Si especificó un event_id concreto, verificar que le pertenece
+    if (event_id) {
+      const ok = await db.query(
+        'SELECT 1 FROM event_owners WHERE user_id = ? AND event_id = ?',
+        [req.user.id, event_id]
+      );
+      if (!ok.rows[0]) return res.status(403).json({ error: 'Sin acceso a este evento' });
+    } else {
+      // Sin event_id: restringir a todos sus eventos
+      where.push('t.event_id IN (SELECT event_id FROM event_owners WHERE user_id = ?)');
+      params.push(req.user.id);
+    }
+  }
+
   if (event_id) { where.push('t.event_id = ?'); params.push(event_id); }
   if (status)   { where.push('t.status = ?');   params.push(status); }
   if (search)   {
