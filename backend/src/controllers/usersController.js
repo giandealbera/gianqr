@@ -48,7 +48,7 @@ const create = async (req, res) => {
   if (password.length < 8)
     return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres' });
 
-  const validRoles = ['admin', 'cajero', 'promotor', 'jefe_publicas', 'vendedor'];
+  const validRoles = ['admin', 'promotor', 'jefe_publicas', 'vendedor'];
   if (!validRoles.includes(role))
     return res.status(400).json({ error: 'Rol inválido' });
 
@@ -187,7 +187,7 @@ const update = async (req, res) => {
     }
 
     if (PUBLICAS_ROLES.includes(role)) {
-      // Si ya tenia fila en promotors -> UPDATE. Si no -> INSERT (ascenso desde cajero/admin)
+      // Si ya tenia fila en promotors -> UPDATE. Si no -> INSERT (ascenso desde admin)
       const existing = await db.query('SELECT id FROM promotors WHERE user_id = ?', [id]);
       if (existing.rows[0]) {
         await db.query(

@@ -5,7 +5,6 @@ import toast from 'react-hot-toast';
 
 const roleRedirect = {
   admin:         '/admin',
-  cajero:        '/caja',
   promotor:      '/promotor',
   jefe_publicas: '/promotor',
   vendedor:      '/promotor',

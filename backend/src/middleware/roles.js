@@ -1,6 +1,6 @@
 /**
  * Middleware para verificar roles de usuario.
- * Uso: roles('admin', 'cajero')
+ * Uso: roles('admin', 'promotor')
  */
 const roles = (...allowedRoles) => {
   return (req, res, next) => {

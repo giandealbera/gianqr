@@ -3,10 +3,9 @@ import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import toast from 'react-hot-toast';
 
-const ROLES = ['cajero', 'jefe_publicas', 'vendedor', 'admin'];
+const ROLES = ['jefe_publicas', 'vendedor', 'admin'];
 const ROLE_LABELS = {
   admin:         'Dueño',
-  cajero:        'Cajero',
   promotor:      'Públicas (legacy)',
   jefe_publicas: 'Jefe de Públicas',
   vendedor:      'Vendedor',

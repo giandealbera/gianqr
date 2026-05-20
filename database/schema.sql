@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
   name         VARCHAR(100) NOT NULL,
   email        VARCHAR(150) NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
-  role         ENUM('admin','portero','cajero','promotor') NOT NULL DEFAULT 'cajero',
+  role         ENUM('admin','portero','promotor','jefe_publicas','vendedor') NOT NULL DEFAULT 'admin',
   is_active    TINYINT(1) NOT NULL DEFAULT 1,
   created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP

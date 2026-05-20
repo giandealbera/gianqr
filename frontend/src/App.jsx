@@ -80,13 +80,13 @@ const App = () => (
 
         {/* Eventos — accesible para todos los roles */}
         <Route path="/eventos" element={
-          <ProtectedRoute allowedRoles={['admin', 'cajero', 'promotor', 'jefe_publicas', 'vendedor']}><MyEvents /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin', 'promotor', 'jefe_publicas', 'vendedor']}><MyEvents /></ProtectedRoute>
         } />
         <Route path="/evento/:id" element={
-          <ProtectedRoute allowedRoles={['admin', 'cajero', 'promotor', 'jefe_publicas', 'vendedor']}><EventDashboard /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin', 'promotor', 'jefe_publicas', 'vendedor']}><EventDashboard /></ProtectedRoute>
         } />
         <Route path="/evento/:id/vendidas" element={
-          <ProtectedRoute allowedRoles={['admin', 'cajero']}><SoldTickets /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin']}><SoldTickets /></ProtectedRoute>
         } />
         <Route path="/evento/:id/stats" element={
           <ProtectedRoute allowedRoles={['admin']}><EventStats /></ProtectedRoute>
@@ -136,9 +136,9 @@ const App = () => (
           <ProtectedRoute allowedRoles={['admin']}><Scanner /></ProtectedRoute>
         } />
 
-        {/* Cajero */}
+        {/* Caja (admin) */}
         <Route path="/caja" element={
-          <ProtectedRoute allowedRoles={['admin', 'cajero']}><Cashier /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin']}><Cashier /></ProtectedRoute>
         } />
 
         {/* Promotor / Públicas */}
@@ -151,12 +151,12 @@ const App = () => (
 
         {/* Configuración personal (todos los roles logueados) */}
         <Route path="/configuracion" element={
-          <ProtectedRoute allowedRoles={['admin', 'cajero', 'promotor', 'jefe_publicas', 'vendedor']}><Configuracion /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin', 'promotor', 'jefe_publicas', 'vendedor']}><Configuracion /></ProtectedRoute>
         } />
 
         {/* Más opciones */}
         <Route path="/mas" element={
-          <ProtectedRoute allowedRoles={['admin', 'cajero', 'promotor', 'jefe_publicas', 'vendedor']}><MoreMenu /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin', 'promotor', 'jefe_publicas', 'vendedor']}><MoreMenu /></ProtectedRoute>
         } />
 
         {/* 404 */}

@@ -10,7 +10,7 @@ async function generateQR(ticketId) {
   return { code, qrBase64 };
 }
 
-// POST /api/tickets — venta manual (cajero)
+// POST /api/tickets — venta manual
 const create = async (req, res) => {
   const {
     event_id, ticket_type_id,
@@ -23,8 +23,8 @@ const create = async (req, res) => {
     return res.status(400).json({ error: 'Faltan campos obligatorios' });
 
   // Whitelist estricto. 'cortesia' tiene su propio endpoint admin-only
-  // (POST /api/cortesias) — no se acepta por aca para evitar que un cajero
-  // emita entradas gratis sin pasar por el flujo admin.
+  // (POST /api/cortesias) — no se acepta por aca para evitar que cualquier
+  // vendedor emita entradas gratis sin pasar por el flujo admin.
   const VALID_METHODS = ['efectivo', 'transferencia', 'mercadopago'];
   if (!VALID_METHODS.includes(payment_method))
     return res.status(400).json({ error: 'Método de pago inválido' });
@@ -108,7 +108,7 @@ const create = async (req, res) => {
 // POST /api/tickets/pre-sell
 // Reserva (vende ya) N entradas sin datos del comprador. Devuelve los IDs
 // para armar el link que abre el flujo de carga de datos.
-// Cuando el admin/cajero aprieta "Generar link" en /caja, la entrada
+// Cuando el admin aprieta "Generar link" en /caja, la entrada
 // queda contada como vendida (descuenta cupo) aunque el comprador
 // todavia no haya llenado su nombre.
 const preSell = async (req, res) => {
@@ -146,7 +146,7 @@ const preSell = async (req, res) => {
       const available = tt.total_quota - tt.sold_count;
       if (available < numQty) throw new Error('NO_QUOTA');
 
-      // promotor_id: admin/cajero no tienen perfil de promotor, queda null.
+      // promotor_id: admin no tiene perfil de promotor, queda null.
       let promotorId = null;
       const [pRows] = await conn.execute('SELECT id FROM promotors WHERE user_id = ?', [req.user.id]);
       if (pRows[0]) promotorId = pRows[0].id;

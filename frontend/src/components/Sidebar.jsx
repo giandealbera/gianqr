@@ -17,10 +17,6 @@ const navItems = {
     { to: '/admin/zonas',     label: 'Zonas'       },
     { to: '/configuracion',   label: 'Configuracion' },
   ],
-  cajero: [
-    { to: '/eventos', label: 'Eventos' },
-    { to: '/caja',    label: 'Vender'  },
-  ],
   promotor: [
     { to: '/eventos',  label: 'Eventos'  },
     { to: '/promotor', label: 'Mi Panel' },
@@ -29,7 +25,6 @@ const navItems = {
 
 const ROLE_LABELS = {
   admin:         'Administrador',
-  cajero:        'Cajero',
   promotor:      'Promotor',
   jefe_publicas: 'Jefe de Publicas',
   vendedor:      'Vendedor',

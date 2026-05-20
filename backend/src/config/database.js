@@ -196,7 +196,7 @@ async function runMigrations(queryFn, execFn) {
       name          TEXT NOT NULL,
       email         TEXT NOT NULL UNIQUE,
       password_hash TEXT NOT NULL,
-      role          TEXT NOT NULL DEFAULT 'cajero',
+      role          TEXT NOT NULL DEFAULT 'admin',
       is_active     INTEGER NOT NULL DEFAULT 1,
       created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -367,6 +367,11 @@ async function runMigrations(queryFn, execFn) {
   // intentamos una vez mas DESPUES de crear zonas para que el FK resuelva
   // en SQLite (que comprueba referencias en runtime aunque sea soft).
   try { await execFn('ALTER TABLE promotors ADD COLUMN zona_id TEXT REFERENCES zonas(id) ON DELETE SET NULL'); } catch (e) {}
+
+  // Migracion: eliminar el rol "cajero" (erradicado). Cualquier usuario
+  // que quedo con ese rol se promueve a admin. Es idempotente: si no
+  // hay cajeros, no hace nada.
+  try { await execFn(`UPDATE users SET role = 'admin' WHERE role = 'cajero'`); } catch (e) {}
 }
 
 // ---------------------------------------------------------------------------

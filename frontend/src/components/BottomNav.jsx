@@ -24,11 +24,6 @@ const navMap = {
     { to: '/admin/reportes', icon: 'reportes', label: 'Reportes' },
     { to: '/mas',            icon: 'mas',      label: 'Mas'      },
   ],
-  cajero: [
-    { to: '/eventos', icon: 'eventos', label: 'Eventos' },
-    { to: '/caja',    icon: 'vender',  label: 'Vender'  },
-    { to: '/mas',     icon: 'mas',     label: 'Mas'     },
-  ],
   promotor: [
     { to: '/eventos',         icon: 'eventos', label: 'Eventos'  },
     { to: '/promotor/vender', icon: 'vender',  label: 'Vender'   },
