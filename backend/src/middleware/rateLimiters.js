@@ -26,7 +26,7 @@ const globalLimiter = rateLimit({
 const loginLimiter = rateLimit({
   ...baseConfig,
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  max: process.env.NODE_ENV === 'development' ? 5000 : 5,
   skipSuccessfulRequests: true,
   message: { error: 'Demasiados intentos de login, esperá 15 minutos' },
 });

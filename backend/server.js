@@ -64,7 +64,7 @@ app.use('/api/zonas',           require('./src/routes/zonas'));
 // Health check sin fingerprinting (no exponemos version ni nombre)
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
-app.use((req, res) => res.status(404).json({ error: `Ruta no encontrada: ${req.path}` }));
+app.use((req, res) => res.status(404).json({ error: 'Ruta no encontrada' }));
 app.use((err, req, res, next) => {
   // PayloadTooLargeError: body excede el limit. Devolvemos 413, no 500.
   if (err.type === 'entity.too.large' || err.status === 413) {
