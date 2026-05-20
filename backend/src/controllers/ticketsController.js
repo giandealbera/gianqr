@@ -105,6 +105,105 @@ const create = async (req, res) => {
   }
 };
 
+// POST /api/tickets/pre-sell
+// Reserva (vende ya) N entradas sin datos del comprador. Devuelve los IDs
+// para armar el link que abre el flujo de carga de datos.
+// Cuando el admin/cajero aprieta "Generar link" en /caja, la entrada
+// queda contada como vendida (descuenta cupo) aunque el comprador
+// todavia no haya llenado su nombre.
+const preSell = async (req, res) => {
+  const { event_id, ticket_type_id, qty, payment_method, cortesia } = req.body;
+
+  if (!event_id || !ticket_type_id || !qty)
+    return res.status(400).json({ error: 'Faltan campos obligatorios' });
+
+  const numQty = parseInt(qty, 10);
+  if (isNaN(numQty) || numQty < 1 || numQty > 10)
+    return res.status(400).json({ error: 'Cantidad invalida (maximo 10)' });
+
+  const isCortesia = !!cortesia;
+  if (isCortesia && req.user.role !== 'admin')
+    return res.status(403).json({ error: 'Solo admin puede generar cortesias' });
+
+  const VALID_METHODS = ['efectivo', 'transferencia'];
+  if (!isCortesia && !VALID_METHODS.includes(payment_method))
+    return res.status(400).json({ error: 'Metodo de pago invalido' });
+
+  const window = await checkSaleWindow(event_id);
+  if (!window.ok) return res.status(window.status).json({ error: window.message });
+
+  try {
+    const createdIds = [];
+
+    await db.transaction(async (conn) => {
+      const [ttRows] = await conn.execute(
+        'SELECT * FROM ticket_types WHERE id = ? AND event_id = ? AND is_active = 1',
+        [ticket_type_id, event_id]
+      );
+      const tt = ttRows[0];
+      if (!tt) throw new Error('TICKET_TYPE_NOT_FOUND');
+
+      const available = tt.total_quota - tt.sold_count;
+      if (available < numQty) throw new Error('NO_QUOTA');
+
+      // promotor_id: admin/cajero no tienen perfil de promotor, queda null.
+      let promotorId = null;
+      const [pRows] = await conn.execute('SELECT id FROM promotors WHERE user_id = ?', [req.user.id]);
+      if (pRows[0]) promotorId = pRows[0].id;
+      else if (['promotor', 'jefe_publicas', 'vendedor'].includes(req.user.role))
+        throw new Error('PROMOTOR_NOT_FOUND');
+
+      const fullPrice = parseFloat(tt.price);
+      const price = isCortesia ? 0 : fullPrice;
+      // El enum tickets.status no incluye 'cortesia' (mismo patron que
+      // cortesiasController.js): se distingue por payment_method.
+      const status = 'pagado';
+      const validMethod = isCortesia ? 'cortesia' : payment_method;
+
+      for (let i = 0; i < numQty; i++) {
+        const ticketId = uuidv4();
+        const { code } = await generateQR(ticketId);
+
+        await conn.execute(
+          `INSERT INTO tickets
+             (id, event_id, ticket_type_id, buyer_name, buyer_apellido, buyer_email,
+              qr_code, payment_method, payment_ref, amount_paid, status, promotor_id, sold_by)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          [ticketId, event_id, ticket_type_id, 'Pendiente', 'Pendiente', '',
+           code, validMethod, 'RESERVADO', price, status, promotorId, req.user.id]
+        );
+
+        // Para cortesias no creamos registro en payments (no hubo cobro).
+        if (!isCortesia) {
+          await conn.execute(
+            `INSERT INTO payments (id, ticket_id, method, amount, status, external_id)
+             VALUES (?,?,?,?,?,?)`,
+            [uuidv4(), ticketId, validMethod, price, 'aprobado', null]
+          );
+        }
+
+        createdIds.push(ticketId);
+      }
+
+      await conn.execute(
+        'UPDATE ticket_types SET sold_count = sold_count + ? WHERE id = ?',
+        [numQty, ticket_type_id]
+      );
+    });
+
+    res.status(201).json({ tickets: createdIds });
+  } catch (err) {
+    if (err.message === 'TICKET_TYPE_NOT_FOUND')
+      return res.status(404).json({ error: 'Tipo de entrada no encontrado' });
+    if (err.message === 'NO_QUOTA')
+      return res.status(409).json({ error: 'Sin cupo disponible suficiente' });
+    if (err.message === 'PROMOTOR_NOT_FOUND')
+      return res.status(403).json({ error: 'No tenes perfil de promotor asociado' });
+    console.error(err);
+    res.status(500).json({ error: 'Error al pre-vender tickets' });
+  }
+};
+
 // POST /api/tickets/scan
 const scan = async (req, res) => {
   const { qr_code, ticket_type_id } = req.body;
@@ -238,4 +337,4 @@ const remove = async (req, res) => {
   }
 };
 
-module.exports = { create, scan, getOne, getAll, getQR, remove };
+module.exports = { create, preSell, scan, getOne, getAll, getQR, remove };

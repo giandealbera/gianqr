@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { QRCodeSVG } from 'qrcode.react';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
@@ -25,6 +24,10 @@ const Cashier = () => {
   const [payMethod,   setPayMethod]   = useState('efectivo');
   const [cortesia,    setCortesia]    = useState(false);
 
+  // Estado del link generado tras presionar "Generar link"
+  const [generatedLink, setGeneratedLink] = useState('');
+  const [loadingLink,   setLoadingLink]   = useState(false);
+
   useEffect(() => {
     api.get('/events').then(r => setEvents(r.data.filter(e => e.is_active)));
   }, []);
@@ -34,19 +37,46 @@ const Cashier = () => {
     api.get(`/events/${eventSel}`).then(r => setTicketTypes(r.data.ticket_types || []));
   }, [eventSel]);
 
+  // Cualquier cambio invalida el link previo: hay que apretar de nuevo.
+  useEffect(() => {
+    setGeneratedLink('');
+  }, [eventSel, typeSel, qty, payMethod, cortesia]);
+
   const selectedType  = ticketTypes.find(t => t.id === typeSel);
   const selectedEvent = events.find(e => e.id === eventSel);
   const totalPrice    = cortesia ? 0 : (selectedType ? parseFloat(selectedType.price) * qty : 0);
 
-  const buyLink = eventSel && typeSel
-    ? cortesia
-      ? `${window.location.origin}/comprar/${HOUSE_CODE}?event=${eventSel}&type=${typeSel}&qty=${qty}&cortesia=1`
-      : `${window.location.origin}/comprar/${HOUSE_CODE}?event=${eventSel}&type=${typeSel}&qty=${qty}&pay=${payMethod}`
-    : '';
+  const generateLink = async () => {
+    if (!eventSel || !typeSel) return;
+    setLoadingLink(true);
+    try {
+      const response = await api.post('/tickets/pre-sell', {
+        event_id: eventSel,
+        ticket_type_id: typeSel,
+        qty,
+        payment_method: cortesia ? null : payMethod,
+        cortesia,
+      });
+      const ticketIds = response.data.tickets;
+      const link = `${window.location.origin}/comprar/${HOUSE_CODE}?tickets=${ticketIds.join(',')}`;
+      setGeneratedLink(link);
+      // Refresco el tipo para que el cupo restante se vea actualizado
+      try {
+        const r = await api.get(`/events/${eventSel}`);
+        setTicketTypes(r.data.ticket_types || []);
+      } catch { /* no-op */ }
+      toast.success(cortesia ? 'Cortesía registrada' : 'Entradas registradas');
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.error || 'Error al generar el link');
+    } finally {
+      setLoadingLink(false);
+    }
+  };
 
   const copyLink = () => {
-    if (!buyLink) return;
-    navigator.clipboard.writeText(buyLink).then(() => toast.success('Link copiado'));
+    if (!generatedLink) return;
+    navigator.clipboard.writeText(generatedLink).then(() => toast.success('Link copiado'));
   };
 
   return (
@@ -54,7 +84,7 @@ const Cashier = () => {
       <div className="px-4 lg:px-8 py-6 max-w-2xl mx-auto">
         <h1 className="text-2xl font-bold mb-1">Caja</h1>
         <p className="text-sm mb-6" style={{ color: '#6B7280' }}>
-          Definí evento, tipo, cantidad y forma de pago. El comprador escanea el QR y completa sus propios datos.
+          Definí evento, tipo, cantidad y forma de pago. Al apretar Generar link la entrada queda registrada como vendida; mandale el link al comprador para que cargue sus datos.
         </p>
 
         <div className="card space-y-5">
@@ -140,22 +170,19 @@ const Cashier = () => {
             </div>
           )}
 
-          {/* QR + link */}
-          {buyLink ? (
+          {/* Generar link / mostrar link */}
+          {generatedLink ? (
             <div className="space-y-4 pt-2 border-t border-gray-800">
               <p className="text-xs uppercase tracking-widest font-semibold text-center" style={{ color: '#6B7280' }}>
-                Link de compra — que el comprador lo escanee con su celular
+                Link para el comprador — ya quedó registrada como {cortesia ? 'cortesía' : 'vendida'}
               </p>
               <p className="text-[10px] text-center -mt-2" style={{ color: '#4B5563' }}>
-                (Esto NO es la entrada — el comprador genera su propio QR al cargar sus datos)
+                (El comprador carga sus datos y verá su propio QR)
               </p>
-              <div className="flex justify-center p-4 bg-white rounded-xl">
-                <QRCodeSVG value={buyLink} size={220} bgColor="#ffffff" fgColor="#000000" />
-              </div>
 
               <div className="rounded-lg p-3 break-all font-mono text-xs"
                    style={{ background: '#161B24', border: '1px solid #1E2530', color: '#C9974D' }}>
-                {buyLink}
+                {generatedLink}
               </div>
 
               <button onClick={copyLink} className="btn-primary w-full py-3">Copiar link</button>
@@ -166,9 +193,21 @@ const Cashier = () => {
               </p>
             </div>
           ) : (
-            <p className="text-sm text-center py-4" style={{ color: '#4B5563' }}>
-              Seleccioná evento y tipo para mostrar el QR
-            </p>
+            <div className="space-y-3 pt-2 border-t border-gray-800">
+              {eventSel && typeSel ? (
+                <button
+                  onClick={generateLink}
+                  disabled={loadingLink}
+                  className="btn-primary w-full py-3 text-base font-semibold"
+                >
+                  {loadingLink ? 'Generando...' : 'Generar link'}
+                </button>
+              ) : (
+                <p className="text-sm text-center py-4" style={{ color: '#4B5563' }}>
+                  Elegí evento y tipo para poder generar el link
+                </p>
+              )}
+            </div>
           )}
         </div>
       </div>

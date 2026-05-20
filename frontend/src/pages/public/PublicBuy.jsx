@@ -13,11 +13,23 @@ const emptyForm = () => ({
 const PublicBuy = () => {
   const { code }       = useParams();
   const [searchParams] = useSearchParams();
+
+  // Modo "reservado": link generado desde /caja con entradas ya vendidas
+  // (?tickets=ID1,ID2). El comprador solo carga nombre/apellido.
+  const presetTickets  = searchParams.get('tickets') || '';
+  const isReserved     = !!presetTickets;
+  const reservedIds    = presetTickets ? presetTickets.split(',').filter(Boolean) : [];
+
   const presetEventId  = searchParams.get('event') || '';
   const presetTypeId   = searchParams.get('type')  || '';
-  const presetQty      = Math.min(Math.max(parseInt(searchParams.get('qty') || '1', 10) || 1, 1), 10);
+  const presetQtyParam = Math.min(Math.max(parseInt(searchParams.get('qty') || '1', 10) || 1, 1), 10);
+  const presetQty      = isReserved ? reservedIds.length : presetQtyParam;
   const presetPay      = searchParams.get('pay') || 'efectivo';
-  const isCortesia     = searchParams.get('cortesia') === '1';
+  const isCortesiaParam = searchParams.get('cortesia') === '1';
+  // En modo reservado el flag de cortesia lo decide el server (lo seteamos
+  // luego con setReservedInfo). Por defecto, el del query string.
+  const [reservedInfo, setReservedInfo] = useState(null);
+  const isCortesia      = isReserved ? !!reservedInfo?.cortesia : isCortesiaParam;
 
   const [promotor,    setPromotor]    = useState(null);
   const [events,      setEvents]      = useState([]);
@@ -44,6 +56,27 @@ const PublicBuy = () => {
   const [recoverError,   setRecoverError]   = useState(null);
 
   useEffect(() => {
+    if (isReserved) {
+      // Modo reservado: traemos la info de los tickets ya emitidos.
+      Promise.all([
+        fetch(`${BACKEND}/public/tickets-info?ids=${encodeURIComponent(presetTickets)}`).then(r => r.json()),
+        fetch(`${BACKEND}/public/events`).then(r => r.json()),
+      ])
+        .then(([info, evs]) => {
+          if (info.error) { setError(info.error || 'Link invalido o ya utilizado.'); return; }
+          setReservedInfo(info);
+          const list = Array.isArray(evs) ? evs : [];
+          setEvents(list);
+          setEventSel(info.event_id);
+          setTypeSel(info.ticket_type_id);
+          const target = list.find(e => e.id === info.event_id);
+          setTicketTypes(target?.ticket_types || []);
+        })
+        .catch(() => setError('No se pudo cargar la pagina.'))
+        .finally(() => setLoading(false));
+      return;
+    }
+
     Promise.all([
       fetch(`${BACKEND}/public/promotor/${code}`).then(r => r.json()),
       fetch(`${BACKEND}/public/events`).then(r => r.json()),
@@ -83,19 +116,32 @@ const PublicBuy = () => {
 
     setSaving(true);
     try {
-      const r = await fetch(`${BACKEND}/public/tickets/${code}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          event_id: eventSel,
-          ticket_type_id: typeSel,
-          payment_method: isCortesia ? 'cortesia' : presetPay,
-          cortesia: isCortesia,
-          attendees: [form],
-        }),
-      });
-      const data = await r.json();
-      if (!r.ok) throw new Error(data.error || 'Error al registrar');
+      let data;
+      if (isReserved) {
+        // Modo reservado: completamos UN ticket reservado por vez (el del step actual).
+        const tid = reservedIds[step];
+        const r = await fetch(`${BACKEND}/public/tickets-complete/${code}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ticket_ids: [tid], attendees: [form] }),
+        });
+        data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'Error al registrar');
+      } else {
+        const r = await fetch(`${BACKEND}/public/tickets/${code}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event_id: eventSel,
+            ticket_type_id: typeSel,
+            payment_method: isCortesia ? 'cortesia' : presetPay,
+            cortesia: isCortesia,
+            attendees: [form],
+          }),
+        });
+        data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'Error al registrar');
+      }
       const t = data.tickets[0];
       setCurrentTicket(t);
       setCreatedAll(prev => [...prev, t]);
@@ -160,8 +206,8 @@ const PublicBuy = () => {
 
   const selectedType  = ticketTypes.find(t => t.id === typeSel);
   const selectedEvent = events.find(e => e.id === eventSel);
-  const eventLocked   = !!presetEventId && !!selectedEvent;
-  const typeLocked    = !!presetTypeId  && !!selectedType;
+  const eventLocked   = (isReserved || !!presetEventId) && !!selectedEvent;
+  const typeLocked    = (isReserved || !!presetTypeId)  && !!selectedType;
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: '#07090E' }}>

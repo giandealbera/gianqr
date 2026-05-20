@@ -165,6 +165,130 @@ const createPublicTicket = async (req, res) => {
   }
 };
 
+// GET /api/public/tickets-info?ids=ID1,ID2
+// Devuelve info para que el comprador vea evento/tipo/cantidad cuando llega
+// por un link de "pre-venta" (/comprar/CASA?tickets=...). Sin datos sensibles.
+const getReservedTickets = async (req, res) => {
+  const idsParam = (req.query.ids || '').toString().trim();
+  if (!idsParam) return res.status(400).json({ error: 'ids requerido' });
+
+  const ids = idsParam.split(',').map(s => s.trim()).filter(Boolean);
+  if (ids.length === 0 || ids.length > 10)
+    return res.status(400).json({ error: 'Cantidad de ids invalida' });
+
+  try {
+    const placeholders = ids.map(() => '?').join(',');
+    const result = await db.query(
+      `SELECT t.id, t.payment_method, t.payment_ref, t.event_id, t.ticket_type_id,
+              t.buyer_name, t.buyer_apellido,
+              tt.name AS tipo_entrada, tt.price,
+              e.name AS evento_name, e.date AS evento_date
+         FROM tickets t
+         JOIN ticket_types tt ON tt.id = t.ticket_type_id
+         JOIN events e ON e.id = t.event_id
+        WHERE t.id IN (${placeholders})`,
+      ids
+    );
+
+    const rows = result.rows || [];
+    if (rows.length === 0) return res.status(404).json({ error: 'No se encontraron entradas' });
+
+    // Todos deben ser del mismo evento+tipo y estar pendientes de carga (payment_ref='RESERVADO')
+    const allSame = rows.every(r =>
+      r.event_id === rows[0].event_id &&
+      r.ticket_type_id === rows[0].ticket_type_id &&
+      r.payment_ref === 'RESERVADO'
+    );
+    if (!allSame) return res.status(409).json({ error: 'Link invalido o ya utilizado' });
+
+    res.json({
+      event_id: rows[0].event_id,
+      event_name: rows[0].evento_name,
+      event_date: rows[0].evento_date,
+      ticket_type_id: rows[0].ticket_type_id,
+      ticket_type_name: rows[0].tipo_entrada,
+      price: rows[0].price,
+      payment_method: rows[0].payment_method,
+      cortesia: rows[0].payment_method === 'cortesia',
+      ticket_ids: rows.map(r => r.id),
+    });
+  } catch (err) {
+    console.error('getReservedTickets error:', err.message);
+    res.status(500).json({ error: 'Error al consultar entradas' });
+  }
+};
+
+// POST /api/public/tickets-complete/:code
+// El comprador completa nombre/apellido en cada entrada reservada.
+// Devuelve los QRs igual que createPublicTicket.
+const completeReservedTickets = async (req, res) => {
+  const { code } = req.params;
+  const { ticket_ids, attendees } = req.body;
+
+  if (!Array.isArray(ticket_ids) || ticket_ids.length === 0)
+    return res.status(400).json({ error: 'ticket_ids requerido' });
+  if (!Array.isArray(attendees) || attendees.length !== ticket_ids.length)
+    return res.status(400).json({ error: 'attendees debe coincidir con ticket_ids' });
+
+  for (const a of attendees) {
+    if (!a.buyer_name || !a.buyer_apellido)
+      return res.status(400).json({ error: 'Cada persona debe tener nombre y apellido' });
+  }
+
+  try {
+    const placeholders = ticket_ids.map(() => '?').join(',');
+    const result = await db.query(
+      `SELECT id, payment_ref, event_id, ticket_type_id, qr_code
+         FROM tickets WHERE id IN (${placeholders})`,
+      ticket_ids
+    );
+    const rows = result.rows || [];
+    if (rows.length !== ticket_ids.length)
+      return res.status(404).json({ error: 'Entradas no encontradas' });
+    if (rows.some(r => r.payment_ref !== 'RESERVADO'))
+      return res.status(409).json({ error: 'Estas entradas ya estan completas' });
+
+    // Para CASA no requerimos validar promotor (admin generó la reserva).
+    if (code !== 'CASA') {
+      const promo = await db.query(
+        `SELECT p.id FROM promotors p
+          JOIN users u ON u.id = p.user_id
+         WHERE p.promo_code = ? AND u.is_active = 1`,
+        [code]
+      );
+      if (!promo.rows[0]) return res.status(404).json({ error: 'Link invalido' });
+    }
+
+    const created = [];
+    await db.transaction(async (conn) => {
+      for (let i = 0; i < ticket_ids.length; i++) {
+        const tid = ticket_ids[i];
+        const a = attendees[i];
+        await conn.execute(
+          `UPDATE tickets
+              SET buyer_name = ?, buyer_apellido = ?,
+                  buyer_edad = ?, buyer_localidad = ?, buyer_email = ?,
+                  payment_ref = ''
+            WHERE id = ? AND payment_ref = 'RESERVADO'`,
+          [a.buyer_name, a.buyer_apellido,
+           a.buyer_edad || null, a.buyer_localidad || null, a.buyer_email || '',
+           tid]
+        );
+        const row = rows.find(r => r.id === tid);
+        created.push({
+          id: tid, qr_code: row.qr_code,
+          buyer_name: a.buyer_name, buyer_apellido: a.buyer_apellido,
+        });
+      }
+    });
+
+    res.status(200).json({ tickets: created });
+  } catch (err) {
+    console.error('completeReservedTickets error:', err.message);
+    res.status(500).json({ error: 'Error al completar entradas' });
+  }
+};
+
 // POST /api/public/recover/:code — comprador busca sus tickets por nombre+apellido
 const recoverTickets = async (req, res) => {
   const { code } = req.params;
@@ -199,4 +323,11 @@ const recoverTickets = async (req, res) => {
   }
 };
 
-module.exports = { getPublicEvents, getPromoterInfo, createPublicTicket, recoverTickets };
+module.exports = {
+  getPublicEvents,
+  getPromoterInfo,
+  createPublicTicket,
+  recoverTickets,
+  getReservedTickets,
+  completeReservedTickets,
+};
