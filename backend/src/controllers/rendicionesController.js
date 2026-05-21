@@ -41,7 +41,7 @@ const listPublicas = async (req, res) => {
        LEFT JOIN zonas z ON z.id = p.zona_id
        LEFT JOIN users lu ON lu.id = p.leader_id
        ${ticketJoinClause}
-       WHERE 1=1 ${searchClause}
+       WHERE u.role != 'admin' AND p.promo_code != 'CASA' ${searchClause}
        GROUP BY p.id, u.id, z.id, lu.id
        ORDER BY u.name ASC`,
       params

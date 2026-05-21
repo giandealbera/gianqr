@@ -42,7 +42,12 @@ const SoldTickets = () => {
     return true;
   });
 
-  const totalRevenue = filtered.reduce((acc, t) => acc + (t.status === 'pagado' ? parseFloat(t.amount_paid || 0) : 0), 0);
+  // Recaudado = todas las entradas que ingresaron dinero (pagado + usado).
+  // Antes excluia "usado" y daba inconsistencia con Reportes/Historial.
+  const totalRevenue = filtered.reduce((acc, t) => {
+    if (t.status === 'pagado' || t.status === 'usado') return acc + parseFloat(t.amount_paid || 0);
+    return acc;
+  }, 0);
 
   return (
     <Layout>

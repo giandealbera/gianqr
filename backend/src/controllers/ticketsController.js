@@ -138,8 +138,12 @@ const preSell = async (req, res) => {
   if (!isCortesia && !VALID_METHODS.includes(payment_method))
     return res.status(400).json({ error: 'Metodo de pago invalido' });
 
-  const window = await checkSaleWindow(event_id);
-  if (!window.ok) return res.status(window.status).json({ error: window.message });
+  // Cortesia bypasea la ventana de venta (consistente con createPublicTicket
+  // para code='CASA'): el admin puede regalar entradas fuera de la ventana.
+  if (!isCortesia) {
+    const window = await checkSaleWindow(event_id);
+    if (!window.ok) return res.status(window.status).json({ error: window.message });
+  }
 
   try {
     const createdIds = [];

@@ -288,6 +288,7 @@ const getPromoterSales = async (req, res) => {
        JOIN users u ON u.id = p.user_id AND u.is_active = 1
        LEFT JOIN users lu ON lu.id = p.leader_id
        LEFT JOIN tickets t ON t.promotor_id = p.id ${eventFilter}
+       WHERE u.role != 'admin' AND p.promo_code != 'CASA'
        GROUP BY p.id, u.id, lu.id
        ORDER BY total_recaudado DESC`,
       params
