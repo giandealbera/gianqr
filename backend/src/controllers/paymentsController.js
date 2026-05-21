@@ -39,25 +39,31 @@ const report = async (req, res) => {
 // Devuelve mes a mes: entradas vendidas, cortesías y eventos realizados
 const monthlyOverview = async (req, res) => {
   try {
+    const { PG_MODE } = require('../config/database');
+    // Postgres usa TO_CHAR + INTERVAL, SQLite usa strftime + date('-12 months').
+    const monthExpr = (col) => PG_MODE ? `TO_CHAR(${col}, 'YYYY-MM')` : `strftime('%Y-%m', ${col})`;
+    const last12 = PG_MODE ? `(NOW() - INTERVAL '12 months')` : `date('now', '-12 months')`;
+
     // Entradas vendidas + cortesías por mes (últimos 12 meses)
     const ticketsPerMonth = await db.query(
       `SELECT
-         strftime('%Y-%m', t.created_at) AS mes,
+         ${monthExpr('t.created_at')} AS mes,
          COUNT(CASE WHEN t.payment_method != 'cortesia' AND t.status IN ('pagado','usado') THEN 1 END) AS vendidas,
          COUNT(CASE WHEN t.payment_method = 'cortesia' THEN 1 END) AS cortesias
        FROM tickets t
-       WHERE t.created_at >= date('now', '-12 months')
+       WHERE t.created_at >= ${last12}
        GROUP BY mes
        ORDER BY mes ASC`
     );
 
     // Eventos realizados por mes (fecha del evento, no fecha de creación)
+    // events.date es TEXT 'YYYY-MM-DD', usamos SUBSTR universal.
     const eventsPerMonth = await db.query(
       `SELECT
-         strftime('%Y-%m', e.date) AS mes,
+         SUBSTR(e.date, 1, 7) AS mes,
          COUNT(*) AS fiestas
        FROM events e
-       WHERE e.date >= date('now', '-12 months')
+       WHERE e.date >= ${PG_MODE ? `TO_CHAR(NOW() - INTERVAL '12 months', 'YYYY-MM-DD')` : `date('now', '-12 months')`}
        GROUP BY mes
        ORDER BY mes ASC`
     );

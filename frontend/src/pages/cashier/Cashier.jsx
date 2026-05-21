@@ -46,6 +46,26 @@ const Cashier = () => {
   const selectedEvent = events.find(e => e.id === eventSel);
   const totalPrice    = cortesia ? 0 : (selectedType ? parseFloat(selectedType.price) * qty : 0);
 
+  // Estado de la ventana de venta del evento seleccionado. Si esta cerrada
+  // (no abrio aun o ya cerro), evitamos que el cajero apriete "Generar link"
+  // y vea el error del backend recien al final. Cortesia bypasea la ventana
+  // porque el endpoint pre-sell tambien lo permite.
+  const saleWindowStatus = (() => {
+    if (!selectedEvent) return { open: true };
+    if (cortesia) return { open: true };
+    const now = new Date();
+    if (selectedEvent.sale_start_at) {
+      const start = new Date(selectedEvent.sale_start_at);
+      if (now < start) return { open: false, reason: `Las ventas abren el ${start.toLocaleString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })}` };
+    }
+    if (selectedEvent.sale_end_at) {
+      const end = new Date(selectedEvent.sale_end_at);
+      if (now > end) return { open: false, reason: `Ventas cerradas el ${end.toLocaleString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })}` };
+    }
+    if (selectedEvent.is_active === 0) return { open: false, reason: 'El evento está inactivo' };
+    return { open: true };
+  })();
+
   const generateLink = async () => {
     if (!eventSel || !typeSel) return;
     setLoadingLink(true);
@@ -195,13 +215,21 @@ const Cashier = () => {
           ) : (
             <div className="space-y-3 pt-2 border-t border-gray-800">
               {eventSel && typeSel ? (
-                <button
-                  onClick={generateLink}
-                  disabled={loadingLink}
-                  className="btn-primary w-full py-3 text-base font-semibold"
-                >
-                  {loadingLink ? 'Generando...' : 'Generar link'}
-                </button>
+                <>
+                  {!saleWindowStatus.open && (
+                    <div className="rounded-lg p-3 text-sm"
+                         style={{ background: 'rgba(185,28,28,0.10)', border: '1px solid rgba(185,28,28,0.35)', color: '#FCA5A5' }}>
+                      {saleWindowStatus.reason}
+                    </div>
+                  )}
+                  <button
+                    onClick={generateLink}
+                    disabled={loadingLink || !saleWindowStatus.open}
+                    className="btn-primary w-full py-3 text-base font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {loadingLink ? 'Generando...' : 'Generar link'}
+                  </button>
+                </>
               ) : (
                 <p className="text-sm text-center py-4" style={{ color: '#4B5563' }}>
                   Elegí evento y tipo para poder generar el link

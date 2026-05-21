@@ -107,8 +107,17 @@ const Scanner = () => {
         label: `${selEv?.name || ''} — ${selType?.name || ''}`,
       });
       const url = `${window.location.origin}/scan/${res.data.token}`;
-      await navigator.clipboard.writeText(url);
-      toast.success('Link copiado — listo para compartir');
+      // El link YA esta creado en backend. El copiado al clipboard puede fallar
+      // (permisos, falta de gesture, http vs https). No tiramos error global por
+      // eso: refrescamos la lista y damos feedback adecuado.
+      let copied = false;
+      try {
+        await navigator.clipboard.writeText(url);
+        copied = true;
+      } catch { /* swallow: el link se ve en la lista de abajo */ }
+      toast.success(copied
+        ? 'Link creado y copiado'
+        : 'Link creado — copialo desde la lista de abajo');
       loadTokens(eventSel);
     } catch (err) {
       toast.error(err.response?.data?.error || 'Error al crear link');

@@ -32,6 +32,12 @@ const create = async (req, res) => {
   if (!VALID_METHODS.includes(payment_method))
     return res.status(400).json({ error: 'Método de pago inválido' });
 
+  // payment_ref='RESERVADO' es un sentinel interno usado por pre-sell.
+  // No permitir que se envie desde una venta manual normal: el cliente
+  // podria confundir las reservas con tickets ya completos.
+  if (payment_ref && payment_ref.toString().toUpperCase() === 'RESERVADO')
+    return res.status(400).json({ error: 'payment_ref inválido' });
+
   const window = await checkSaleWindow(event_id);
   if (!window.ok) return res.status(window.status).json({ error: window.message });
 

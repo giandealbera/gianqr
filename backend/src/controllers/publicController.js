@@ -195,13 +195,32 @@ const getReservedTickets = async (req, res) => {
     const rows = result.rows || [];
     if (rows.length === 0) return res.status(404).json({ error: 'No se encontraron entradas' });
 
-    // Todos deben ser del mismo evento+tipo y estar pendientes de carga (payment_ref='RESERVADO')
-    const allSame = rows.every(r =>
+    // Validacion estricta: necesitamos TODOS los ids que pidio el cliente.
+    // Antes solo chequeaba que rows fuese >0, asi 1 de 3 ids validos pasaba.
+    if (rows.length !== ids.length)
+      return res.status(404).json({ error: 'No se encontraron todas las entradas' });
+
+    // Todos deben ser del mismo evento+tipo. Si payment_ref != 'RESERVADO'
+    // es porque el comprador ya cargo sus datos: devolvemos un error
+    // distinguible para que el front pueda ofrecer "recuperar QR".
+    const sameEvent = rows.every(r =>
       r.event_id === rows[0].event_id &&
-      r.ticket_type_id === rows[0].ticket_type_id &&
-      r.payment_ref === 'RESERVADO'
+      r.ticket_type_id === rows[0].ticket_type_id
     );
-    if (!allSame) return res.status(409).json({ error: 'Link invalido o ya utilizado' });
+    if (!sameEvent) return res.status(409).json({ error: 'Link invalido' });
+
+    const alreadyCompleted = rows.every(r => r.payment_ref !== 'RESERVADO');
+    if (alreadyCompleted) {
+      return res.status(410).json({
+        error: 'Estas entradas ya fueron cargadas. Si perdiste tu QR podes recuperarlo con nombre y apellido.',
+        code: 'ALREADY_COMPLETED',
+        event_id: rows[0].event_id,
+      });
+    }
+
+    // Mezcla (algunas completadas, otras no) — caso raro, link manipulado.
+    if (rows.some(r => r.payment_ref !== 'RESERVADO'))
+      return res.status(409).json({ error: 'Link parcialmente utilizado, contactá al organizador' });
 
     res.json({
       event_id: rows[0].event_id,
@@ -242,8 +261,12 @@ const completeReservedTickets = async (req, res) => {
   try {
     const placeholders = ticket_ids.map(() => '?').join(',');
     const result = await db.query(
-      `SELECT id, payment_ref, event_id, ticket_type_id, qr_code
-         FROM tickets WHERE id IN (${placeholders})`,
+      `SELECT t.id, t.payment_ref, t.event_id, t.ticket_type_id, t.qr_code,
+              t.amount_paid, t.payment_method,
+              tt.name AS tipo_entrada
+         FROM tickets t
+         JOIN ticket_types tt ON tt.id = t.ticket_type_id
+         WHERE t.id IN (${placeholders})`,
       ticket_ids
     );
     const rows = result.rows || [];
@@ -282,6 +305,9 @@ const completeReservedTickets = async (req, res) => {
         created.push({
           id: tid, qr_code: row.qr_code,
           buyer_name: a.buyer_name, buyer_apellido: a.buyer_apellido,
+          amount_paid: row.amount_paid,
+          payment_method: row.payment_method,
+          tipo_entrada: row.tipo_entrada,
         });
       }
     });
@@ -302,8 +328,21 @@ const recoverTickets = async (req, res) => {
     return res.status(400).json({ error: 'Cargá nombre y apellido para recuperar tus entradas' });
 
   try {
-    const promo = await db.query('SELECT id FROM promotors WHERE promo_code = ?', [code]);
-    if (!promo.rows[0]) return res.status(404).json({ error: 'Link invalido' });
+    // CASA es el "promotor virtual" de la caja interna. Sus tickets no tienen
+    // promotor_id (admin no tiene perfil de promotor), asi que filtramos por NULL.
+    let promotorId = null;
+    if (code !== 'CASA') {
+      const promo = await db.query('SELECT id FROM promotors WHERE promo_code = ?', [code]);
+      if (!promo.rows[0]) return res.status(404).json({ error: 'Link invalido' });
+      promotorId = promo.rows[0].id;
+    }
+
+    const promotorWhere = promotorId === null
+      ? 't.promotor_id IS NULL'
+      : 't.promotor_id = ?';
+    const params = promotorId === null
+      ? [nombre, apellido]
+      : [promotorId, nombre, apellido];
 
     const result = await db.query(
       `SELECT t.id, t.qr_code, t.buyer_name, t.buyer_apellido, t.amount_paid, t.created_at, t.status,
@@ -311,13 +350,13 @@ const recoverTickets = async (req, res) => {
        FROM tickets t
        JOIN ticket_types tt ON tt.id = t.ticket_type_id
        JOIN events e ON e.id = t.event_id
-       WHERE t.promotor_id = ?
+       WHERE ${promotorWhere}
          AND LOWER(TRIM(t.buyer_name))     = LOWER(TRIM(?))
          AND LOWER(TRIM(t.buyer_apellido)) = LOWER(TRIM(?))
          AND t.status IN ('pagado','usado')
        ORDER BY t.created_at DESC
        LIMIT 20`,
-      [promo.rows[0].id, nombre, apellido]
+      params
     );
 
     res.json({ tickets: result.rows });

@@ -59,6 +59,16 @@ const deleteToken = async (req, res) => {
 };
 
 // GET /api/scan/:token — info del escáner (público, sin auth)
+// Un token deja de servir 24h despues del evento: evita que un portero
+// (o cualquiera con el link) siga marcando entradas como "usadas" dias
+// despues. Es una baranda — el admin puede desactivar manualmente igual.
+function tokenExpired(event_date) {
+  if (!event_date) return false;
+  const eventDay = new Date(`${event_date}T23:59:59`);
+  const cutoff = new Date(eventDay.getTime() + 24 * 60 * 60 * 1000);
+  return new Date() > cutoff;
+}
+
 const getScannerInfo = async (req, res) => {
   const { token } = req.params;
   try {
@@ -73,6 +83,8 @@ const getScannerInfo = async (req, res) => {
     );
     if (!result.rows[0]) return res.status(404).json({ error: 'Link inválido o desactivado' });
     const row = result.rows[0];
+    if (tokenExpired(row.event_date))
+      return res.status(410).json({ error: 'Link vencido: el evento ya finalizó' });
     res.json({
       event_name:        row.event_name,
       event_date:        row.event_date,
@@ -94,7 +106,7 @@ const publicScan = async (req, res) => {
 
   try {
     const tokenResult = await db.query(
-      `SELECT st.*, tt.name AS ticket_type_name, e.name AS event_name
+      `SELECT st.*, tt.name AS ticket_type_name, e.name AS event_name, e.date AS event_date
        FROM scanner_tokens st
        JOIN events e ON e.id = st.event_id
        JOIN ticket_types tt ON tt.id = st.ticket_type_id
@@ -104,6 +116,8 @@ const publicScan = async (req, res) => {
     if (!tokenResult.rows[0]) return res.status(403).json({ error: 'Link inválido o desactivado' });
 
     const scannerInfo = tokenResult.rows[0];
+    if (tokenExpired(scannerInfo.event_date))
+      return res.status(410).json({ valid: false, error: 'Link vencido: el evento ya finalizó' });
 
     const ticketResult = await db.query(
       `SELECT t.*, tt.name AS tipo_entrada, e.name AS evento

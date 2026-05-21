@@ -59,17 +59,27 @@ const PublicBuy = () => {
     if (isReserved) {
       // Modo reservado: traemos la info de los tickets ya emitidos.
       Promise.all([
-        fetch(`${BACKEND}/public/tickets-info?ids=${encodeURIComponent(presetTickets)}`).then(r => r.json()),
+        fetch(`${BACKEND}/public/tickets-info?ids=${encodeURIComponent(presetTickets)}`).then(async r => ({ status: r.status, body: await r.json() })),
         fetch(`${BACKEND}/public/events`).then(r => r.json()),
       ])
         .then(([info, evs]) => {
-          if (info.error) { setError(info.error || 'Link invalido o ya utilizado.'); return; }
-          setReservedInfo(info);
+          if (info.body?.error) {
+            // Si el link ya fue usado, ofrecer recuperar con nombre+apellido.
+            if (info.body.code === 'ALREADY_COMPLETED') {
+              setError(info.body.error);
+              setRecoverOpen(true);
+              return;
+            }
+            setError(info.body.error || 'Link invalido o ya utilizado.');
+            return;
+          }
+          const i = info.body;
+          setReservedInfo(i);
           const list = Array.isArray(evs) ? evs : [];
           setEvents(list);
-          setEventSel(info.event_id);
-          setTypeSel(info.ticket_type_id);
-          const target = list.find(e => e.id === info.event_id);
+          setEventSel(i.event_id);
+          setTypeSel(i.ticket_type_id);
+          const target = list.find(e => e.id === i.event_id);
           setTicketTypes(target?.ticket_types || []);
         })
         .catch(() => setError('No se pudo cargar la pagina.'))
@@ -217,9 +227,18 @@ const PublicBuy = () => {
 
   if (error) return (
     <div className="min-h-screen flex items-center justify-center px-4" style={{ background: '#07090E' }}>
-      <div className="text-center space-y-3">
+      <div className="text-center space-y-4 max-w-sm">
         <p className="text-4xl font-black text-brand">GianQR</p>
         <p className="text-red-400">{error}</p>
+        {/* Para CASA (link de caja ya completado) ofrecemos recuperar el QR */}
+        {isReserved && (
+          <button
+            onClick={() => setRecoverOpen(true)}
+            className="btn-primary px-6 py-2 text-sm"
+          >
+            Recuperar mi QR
+          </button>
+        )}
       </div>
     </div>
   );

@@ -318,7 +318,8 @@ const EventDashboard = () => {
               </div>
 
               <div>
-                {TOOLS.map(({ iconKey, label, sub, to, disabled }, idx) => {
+                {TOOLS.map((tool, idx) => {
+                  const { iconKey, label, sub, to, disabled, onClick } = tool;
                   const inner = (
                     <div
                       key={label}
@@ -358,8 +359,8 @@ const EventDashboard = () => {
                     </div>
                   );
 
-                  if (disabled || (!to && !tool.onClick)) return <div key={label}>{inner}</div>;
-                  if (tool.onClick) return <div key={label} onClick={tool.onClick} style={{ cursor: 'pointer' }}>{inner}</div>;
+                  if (disabled || (!to && !onClick)) return <div key={label}>{inner}</div>;
+                  if (onClick) return <div key={label} onClick={onClick} style={{ cursor: 'pointer' }}>{inner}</div>;
                   return (
                     <Link key={label} to={to} style={{ textDecoration: 'none', display: 'block' }}>
                       {inner}
