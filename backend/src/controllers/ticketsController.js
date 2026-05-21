@@ -290,6 +290,11 @@ const getOne = async (req, res) => {
        WHERE t.id = ?`, [req.params.id]
     );
     if (!result.rows[0]) return res.status(404).json({ error: 'Ticket no encontrado' });
+    // Owner solo puede ver tickets de SUS eventos (anti-IDOR).
+    if (req.user?.role === 'owner') {
+      const own = await db.query('SELECT 1 FROM event_owners WHERE event_id = ? AND user_id = ?', [result.rows[0].event_id, req.user.id]);
+      if (!own.rows[0]) return res.status(403).json({ error: 'Sin acceso a este ticket' });
+    }
     res.json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: 'Error al obtener ticket' });
@@ -348,8 +353,13 @@ const getAll = async (req, res) => {
 
 const getQR = async (req, res) => {
   try {
-    const result = await db.query('SELECT qr_code FROM tickets WHERE id = ?', [req.params.id]);
+    const result = await db.query('SELECT qr_code, event_id FROM tickets WHERE id = ?', [req.params.id]);
     if (!result.rows[0]) return res.status(404).json({ error: 'Ticket no encontrado' });
+    // Owner solo puede generar QR de tickets de SUS eventos (anti-IDOR).
+    if (req.user?.role === 'owner') {
+      const own = await db.query('SELECT 1 FROM event_owners WHERE event_id = ? AND user_id = ?', [result.rows[0].event_id, req.user.id]);
+      if (!own.rows[0]) return res.status(403).json({ error: 'Sin acceso a este ticket' });
+    }
     const qrData   = JSON.stringify({ code: result.rows[0].qr_code, ticket_id: req.params.id });
     const qrBase64 = await QRCode.toDataURL(qrData, { width: 300 });
     res.json({ qr_image: qrBase64 });
