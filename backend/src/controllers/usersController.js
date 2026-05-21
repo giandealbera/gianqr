@@ -373,9 +373,13 @@ const getPromoterSales = async (req, res) => {
        LEFT JOIN users lu ON lu.id = p.leader_id
        LEFT JOIN tickets t ON t.promotor_id = p.id ${eventFilter}
        WHERE u.role != 'admin' AND p.promo_code != 'CASA'
+       ${req.user.role === 'owner'
+         ? `AND (u.created_by = ?
+                 OR u.created_by IN (SELECT id FROM users WHERE created_by = ?))`
+         : ''}
        GROUP BY p.id, u.id, lu.id
        ORDER BY total_recaudado DESC`,
-      params
+      req.user.role === 'owner' ? [...params, req.user.id, req.user.id] : params
     );
     res.json(result.rows);
   } catch (err) {
