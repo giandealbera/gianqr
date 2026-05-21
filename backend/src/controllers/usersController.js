@@ -481,6 +481,18 @@ const getMyPromoterSales = async (req, res) => {
 const updateCommission = async (req, res) => {
   const { commission, leader_commission } = req.body;
   try {
+    // Owner solo puede modificar comisión de SU staff.
+    if (req.user.role === 'owner') {
+      const u = await db.query('SELECT created_by FROM users WHERE id = ?', [req.params.id]);
+      const cb = u.rows[0]?.created_by;
+      if (!cb) return res.status(403).json({ error: 'Sin acceso a este usuario' });
+      if (cb !== req.user.id) {
+        // ¿el creador es jefe del owner?
+        const jefe = await db.query('SELECT created_by FROM users WHERE id = ?', [cb]);
+        if (jefe.rows[0]?.created_by !== req.user.id)
+          return res.status(403).json({ error: 'Sin acceso a este usuario' });
+      }
+    }
     await db.query(
       'UPDATE promotors SET commission=?, leader_commission=? WHERE user_id=?',
       [commission ?? 800, leader_commission ?? 400, req.params.id]

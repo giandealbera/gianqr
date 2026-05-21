@@ -63,10 +63,29 @@ const listPublicas = async (req, res) => {
   }
 };
 
+// Helper: ¿este owner puede ver/modificar esta pública?
+// Tenant check: la pública debe ser del staff del owner (chain created_by).
+async function ownerCanAccessPromotor(req, promotorId) {
+  if (req.user?.role !== 'owner') return true;
+  const r = await db.query(
+    `SELECT u.created_by AS lvl1, lvl2.created_by AS lvl2
+       FROM promotors p
+       JOIN users u ON u.id = p.user_id
+       LEFT JOIN users lvl2 ON lvl2.id = u.created_by
+      WHERE p.id = ?`,
+    [promotorId]
+  );
+  const row = r.rows[0];
+  if (!row) return false;
+  return row.lvl1 === req.user.id || row.lvl2 === req.user.id;
+}
+
 // GET /api/rendiciones/:promotorId — detalle de un publica
 const getPublicaDetail = async (req, res) => {
   const { promotorId } = req.params;
   try {
+    if (!(await ownerCanAccessPromotor(req, promotorId)))
+      return res.status(403).json({ error: 'Sin acceso a esta pública' });
     // perfil
     const profileResult = await db.query(
       `SELECT p.id AS promotor_id,
@@ -168,6 +187,8 @@ const registrarPago = async (req, res) => {
     return res.status(400).json({ error: 'El monto debe ser un numero mayor a 0' });
 
   try {
+    if (!(await ownerCanAccessPromotor(req, promotor_id)))
+      return res.status(403).json({ error: 'Sin acceso a esta pública' });
     // Calcular el saldo pendiente actual (global o filtrado por evento).
     // Reusa la misma logica que getPublicaDetail.
     const eventFilter = event_id ? 'AND t.event_id = ?' : '';
@@ -216,9 +237,13 @@ const registrarPago = async (req, res) => {
   }
 };
 
-// DELETE /api/rendiciones/:id — borrar un pago (admin)
+// DELETE /api/rendiciones/:id — borrar un pago
 const eliminarPago = async (req, res) => {
   try {
+    const r = await db.query('SELECT promotor_id FROM rendiciones WHERE id = ?', [req.params.id]);
+    if (!r.rows[0]) return res.status(404).json({ error: 'Pago no encontrado' });
+    if (!(await ownerCanAccessPromotor(req, r.rows[0].promotor_id)))
+      return res.status(403).json({ error: 'Sin acceso a esta pública' });
     await db.query('DELETE FROM rendiciones WHERE id = ?', [req.params.id]);
     res.json({ message: 'Pago eliminado' });
   } catch (err) {
