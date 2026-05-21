@@ -16,7 +16,7 @@ const getAll = async (req, res) => {
     if (req.user?.role === 'owner') {
       const result = await db.query(
         `SELECT e.*, v.name AS venue_name, v.capacity AS venue_capacity,
-                COUNT(DISTINCT CASE WHEN t.status='pagado' THEN t.id END) AS tickets_sold
+                COUNT(DISTINCT CASE WHEN t.status IN ('pagado','usado') THEN t.id END) AS tickets_sold
          FROM events e
          JOIN event_owners eo ON eo.event_id = e.id AND eo.user_id = ?
          LEFT JOIN venues v ON v.id = e.venue_id
@@ -31,7 +31,7 @@ const getAll = async (req, res) => {
     // Admin / todos: ven todos
     const result = await db.query(
       `SELECT e.*, v.name AS venue_name, v.capacity AS venue_capacity,
-              COUNT(DISTINCT CASE WHEN t.status='pagado' THEN t.id END) AS tickets_sold
+              COUNT(DISTINCT CASE WHEN t.status IN ('pagado','usado') THEN t.id END) AS tickets_sold
        FROM events e
        LEFT JOIN venues v ON v.id = e.venue_id
        LEFT JOIN tickets t ON t.event_id = e.id
@@ -163,7 +163,7 @@ const stats = async (req, res) => {
          COUNT(CASE WHEN status='pagado' THEN 1 END)   AS total_pagados,
          COUNT(CASE WHEN status='usado' THEN 1 END)    AS total_usados,
          COUNT(CASE WHEN status='pendiente' THEN 1 END) AS total_pendientes,
-         SUM(CASE WHEN status='pagado' THEN amount_paid ELSE 0 END) AS total_recaudado
+         SUM(CASE WHEN status IN ('pagado','usado') THEN amount_paid ELSE 0 END) AS total_recaudado
        FROM tickets WHERE event_id = ?`, [id]
     );
     res.json({ by_type: result.rows, totals: totals.rows[0] });
