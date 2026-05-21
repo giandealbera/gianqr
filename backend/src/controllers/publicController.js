@@ -328,21 +328,25 @@ const recoverTickets = async (req, res) => {
     return res.status(400).json({ error: 'Cargá nombre y apellido para recuperar tus entradas' });
 
   try {
-    // CASA es el "promotor virtual" de la caja interna. Sus tickets no tienen
-    // promotor_id (admin no tiene perfil de promotor), asi que filtramos por NULL.
-    let promotorId = null;
-    if (code !== 'CASA') {
+    // CASA es el "promotor virtual" de la caja interna. Antes los tickets
+    // de caja tenian promotor_id NULL pero ahora apuntan al promotor CASA
+    // (porque admin SI tiene fila en promotors). Hay que aceptar ambos:
+    // promotor_id de CASA o NULL.
+    let promotorWhere;
+    let params;
+    if (code === 'CASA') {
+      const casa = await db.query("SELECT id FROM promotors WHERE promo_code = 'CASA'");
+      const casaId = casa.rows[0]?.id || null;
+      promotorWhere = casaId
+        ? '(t.promotor_id IS NULL OR t.promotor_id = ?)'
+        : 't.promotor_id IS NULL';
+      params = casaId ? [casaId, nombre, apellido] : [nombre, apellido];
+    } else {
       const promo = await db.query('SELECT id FROM promotors WHERE promo_code = ?', [code]);
       if (!promo.rows[0]) return res.status(404).json({ error: 'Link invalido' });
-      promotorId = promo.rows[0].id;
+      promotorWhere = 't.promotor_id = ?';
+      params = [promo.rows[0].id, nombre, apellido];
     }
-
-    const promotorWhere = promotorId === null
-      ? 't.promotor_id IS NULL'
-      : 't.promotor_id = ?';
-    const params = promotorId === null
-      ? [nombre, apellido]
-      : [promotorId, nombre, apellido];
 
     const result = await db.query(
       `SELECT t.id, t.qr_code, t.buyer_name, t.buyer_apellido, t.amount_paid, t.created_at, t.status,
