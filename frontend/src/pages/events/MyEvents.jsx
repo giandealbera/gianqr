@@ -23,6 +23,10 @@ const MyEvents = () => {
   const [editId, setEditId]     = useState(null);   // null = nuevo, id = editando
   const [form, setForm]         = useState(initialForm);
   const [saving, setSaving]     = useState(false);
+  const [showCloneModal, setShowCloneModal] = useState(false);
+  const [cloneSrcId, setCloneSrcId]   = useState('');
+  const [cloneForm, setCloneForm]     = useState({ name: '', date: '', start_time: '', end_time: '', sale_start_at: '', sale_end_at: '' });
+  const [cloning, setCloning]         = useState(false);
 
   const load = () =>
     Promise.all([
@@ -74,8 +78,8 @@ const MyEvents = () => {
   };
 
   const openEdit = (ev) => {
-    // Solo admin puede editar
-    if (user?.role !== 'admin') return;
+    // Admin y owner pueden editar (owner solo SUS eventos — backend lo valida)
+    if (!['admin','owner'].includes(user?.role)) return;
     setEditId(ev.id);
     setForm({
       name: ev.name || '',
@@ -98,6 +102,36 @@ const MyEvents = () => {
     setShowForm(false);
     setEditId(null);
     setForm(initialForm);
+  };
+
+  // ---- Reciclar evento anterior ----
+  const openClone = () => {
+    setCloneSrcId('');
+    setCloneForm({ name: '', date: '', start_time: '', end_time: '', sale_start_at: '', sale_end_at: '' });
+    setShowCloneModal(true);
+  };
+  const cancelClone = () => { setShowCloneModal(false); setCloneSrcId(''); };
+  // Pre-rellena con el nombre del original "<nombre> (nuevo)" cuando elegís uno.
+  const handleSelectSource = (id) => {
+    setCloneSrcId(id);
+    const src = events.find(e => e.id === id);
+    if (src) setCloneForm(f => ({ ...f, name: f.name || `${src.name} (nuevo)` }));
+  };
+  const submitClone = async (e) => {
+    e.preventDefault();
+    if (!cloneSrcId) return toast.error('Elegí qué evento querés reciclar');
+    setCloning(true);
+    try {
+      const res = await api.post(`/events/${cloneSrcId}/clone`, cloneForm);
+      toast.success(`Evento creado. Se copiaron ${res.data.ticket_types_copied || 0} tipos de entrada.`);
+      cancelClone();
+      load();
+      navigate(`/evento/${res.data.id}`);
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Error al reciclar evento');
+    } finally {
+      setCloning(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -162,14 +196,28 @@ const MyEvents = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
           </div>
-          {user?.role === 'admin' && !showForm && (
-            <button
-              onClick={openNew}
-              className="btn-primary shrink-0 flex items-center gap-1.5"
-            >
-              <span className="text-lg leading-none">+</span>
-              <span className="hidden sm:inline">Crear</span>
-            </button>
+          {['admin','owner'].includes(user?.role) && !showForm && !showCloneModal && (
+            <>
+              {events.length > 0 && (
+                <button
+                  onClick={openClone}
+                  className="btn-secondary shrink-0 flex items-center gap-1.5"
+                  title="Crear un evento nuevo copiando los tipos de entrada y dueños de uno anterior"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v6h6M20 20v-6h-6M4 20l16-16" />
+                  </svg>
+                  <span className="hidden sm:inline">Reciclar</span>
+                </button>
+              )}
+              <button
+                onClick={openNew}
+                className="btn-primary shrink-0 flex items-center gap-1.5"
+              >
+                <span className="text-lg leading-none">+</span>
+                <span className="hidden sm:inline">Crear</span>
+              </button>
+            </>
           )}
         </div>
 
@@ -258,6 +306,71 @@ const MyEvents = () => {
           </form>
         )}
 
+        {/* Clone form: reciclar evento anterior */}
+        {showCloneModal && (
+          <form onSubmit={submitClone} className="card mb-6 space-y-4 animate-in">
+            <div>
+              <h2 className="font-semibold text-lg flex items-center gap-2">
+                <svg className="w-5 h-5 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v6h6M20 20v-6h-6M4 20l16-16" />
+                </svg>
+                Reciclar evento anterior
+              </h2>
+              <p className="text-xs text-gray-500 mt-1">
+                Copia tipos de entrada (nombres, precios, cupos) y dueños del evento elegido.
+                Ticktets, ventas y rendiciones <strong>no se copian</strong>.
+              </p>
+            </div>
+
+            <div>
+              <label className="text-sm text-gray-400 block mb-1">Evento a reciclar *</label>
+              <select className="input" required value={cloneSrcId} onChange={e => handleSelectSource(e.target.value)}>
+                <option value="">Elegí uno</option>
+                {events.map(ev => (
+                  <option key={ev.id} value={ev.id}>
+                    {ev.name} — {new Date(ev.date + 'T12:00:00').toLocaleDateString('es-AR')}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="sm:col-span-2">
+                <label className="text-sm text-gray-400 block mb-1">Nombre del nuevo evento *</label>
+                <input className="input" required value={cloneForm.name}
+                  onChange={e => setCloneForm(f => ({ ...f, name: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-sm text-gray-400 block mb-1">Fecha *</label>
+                <input type="date" className="input" required value={cloneForm.date}
+                  onChange={e => setCloneForm(f => ({ ...f, date: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-sm text-gray-400 block mb-1">Hora de inicio *</label>
+                <input type="time" className="input" required value={cloneForm.start_time}
+                  onChange={e => setCloneForm(f => ({ ...f, start_time: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-sm text-gray-400 block mb-1">Apertura de venta *</label>
+                <input type="datetime-local" className="input" required value={cloneForm.sale_start_at}
+                  onChange={e => setCloneForm(f => ({ ...f, sale_start_at: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-sm text-gray-400 block mb-1">Cierre de venta *</label>
+                <input type="datetime-local" className="input" required value={cloneForm.sale_end_at}
+                  onChange={e => setCloneForm(f => ({ ...f, sale_end_at: e.target.value }))} />
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button type="submit" disabled={cloning} className="btn-primary flex-1">
+                {cloning ? 'Creando...' : 'Reciclar y crear'}
+              </button>
+              <button type="button" onClick={cancelClone} className="btn-secondary">Cancelar</button>
+            </div>
+          </form>
+        )}
+
         {/* Event list */}
         {loading ? (
           <div className="flex justify-center py-16">
@@ -267,7 +380,7 @@ const MyEvents = () => {
           <div className="text-center py-16">
             <p className="text-4xl mb-3">🎉</p>
             <p className="text-gray-400">{search ? 'No se encontraron eventos' : 'No hay eventos todavía'}</p>
-            {!search && user?.role === 'admin' && (
+            {!search && ['admin','owner'].includes(user?.role) && (
               <button onClick={openNew} className="btn-primary mt-4">+ Crear primer evento</button>
             )}
           </div>
