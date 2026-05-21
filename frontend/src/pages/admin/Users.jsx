@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import toast from 'react-hot-toast';
+import { useAuth } from '../../context/AuthContext';
 
-const ROLES = ['jefe_publicas', 'vendedor', 'admin', 'owner'];
+const ROLES_ADMIN = ['jefe_publicas', 'vendedor', 'admin', 'owner'];
+const ROLES_OWNER = ['jefe_publicas', 'vendedor'];
 const ROLE_LABELS = {
   admin:         'Administrador',
   jefe_publicas: 'Jefe de Públicas',
@@ -11,13 +13,20 @@ const ROLE_LABELS = {
   owner:         'Dueño del evento',
 };
 const PUBLICAS_ROLES = ['jefe_publicas', 'vendedor'];
-const emptyForm = { name: '', apellido: '', celular: '', localidad: '', email: '', password: '', role: 'vendedor', promo_code: '', commission: 800, leader_id: '', leader_commission: 400, zona_id: '' };
+const emptyFormFor = (isOwner) => ({
+  name: '', apellido: '', celular: '', localidad: '', email: '', password: '',
+  role: isOwner ? 'jefe_publicas' : 'owner',
+  promo_code: '', commission: 800, leader_id: '', leader_commission: 400, zona_id: '',
+});
 
 const Users = () => {
+  const { user: me } = useAuth();
+  const isOwner = me?.role === 'owner';
+  const ROLES = isOwner ? ROLES_OWNER : ROLES_ADMIN;
   const [users,       setUsers]       = useState([]);
   const [zonas,       setZonas]       = useState([]);
   const [showForm,    setShowForm]    = useState(false);
-  const [form,        setForm]        = useState(emptyForm);
+  const [form,        setForm]        = useState(emptyFormFor(me?.role === "owner"));
   const [saving,      setSaving]      = useState(false);
   const [editCommId,  setEditCommId]  = useState(null);
   const [commForm,    setCommForm]    = useState({ commission: 800, leader_commission: 400 });
@@ -44,7 +53,7 @@ const Users = () => {
         password: form.password,
       });
       setShowForm(false);
-      setForm(emptyForm);
+      setForm(emptyFormFor(me?.role === "owner"));
       load();
     } catch (err) {
       toast.error(err.response?.data?.error || 'Error al crear usuario');
@@ -107,9 +116,9 @@ const Users = () => {
     <Layout>
       <div className="px-4 lg:px-8 py-6 max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold">Usuarios</h1>
+          <h1 className="text-2xl font-bold">{isOwner ? 'Mi Personal' : 'Dueños'}</h1>
           <button onClick={() => { setShowForm(!showForm); setCreatedUser(null); }} className="btn-primary">
-            {showForm ? 'Cancelar' : '+ Nuevo usuario'}
+            {showForm ? 'Cancelar' : (isOwner ? '+ Nuevo miembro' : '+ Nuevo dueño')}
           </button>
         </div>
 
@@ -156,7 +165,7 @@ const Users = () => {
 
         {showForm && (
           <form onSubmit={handleSubmit} className="card mb-8 space-y-4">
-            <h2 className="font-semibold">Nuevo usuario</h2>
+            <h2 className="font-semibold">{isOwner ? 'Nuevo miembro de tu equipo' : 'Nuevo dueño'}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-sm text-gray-400 block mb-1">Nombre *</label>
