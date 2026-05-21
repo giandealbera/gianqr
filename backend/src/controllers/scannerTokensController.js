@@ -1,10 +1,22 @@
 const { v4: uuidv4 } = require('uuid');
 const db = require('../config/database');
 
-// GET /api/scanner-tokens?event_id= — admin lista tokens activos de un evento
+// Helper: ¿el usuario es dueño del evento? Admin pasa siempre.
+async function canManageEvent(user, event_id) {
+  if (user.role === 'admin') return true;
+  if (user.role === 'owner') {
+    const r = await db.query('SELECT 1 FROM event_owners WHERE event_id = ? AND user_id = ?', [event_id, user.id]);
+    return r.rows.length > 0;
+  }
+  return false;
+}
+
+// GET /api/scanner-tokens?event_id= — admin/owner lista tokens activos de un evento
 const getTokens = async (req, res) => {
   const { event_id } = req.query;
   if (!event_id) return res.status(400).json({ error: 'event_id requerido' });
+  if (!(await canManageEvent(req.user, event_id)))
+    return res.status(403).json({ error: 'Sin acceso a este evento' });
   try {
     const result = await db.query(
       `SELECT st.*, tt.name AS ticket_type_name, e.name AS event_name
@@ -22,11 +34,13 @@ const getTokens = async (req, res) => {
   }
 };
 
-// POST /api/scanner-tokens — admin genera un link para una tanda
+// POST /api/scanner-tokens — admin/owner genera un link para una tanda
 const createToken = async (req, res) => {
   const { event_id, ticket_type_id, label } = req.body;
   if (!event_id || !ticket_type_id)
     return res.status(400).json({ error: 'event_id y ticket_type_id son requeridos' });
+  if (!(await canManageEvent(req.user, event_id)))
+    return res.status(403).json({ error: 'Sin acceso a este evento' });
   try {
     const id    = uuidv4();
     const token = uuidv4();
@@ -48,9 +62,13 @@ const createToken = async (req, res) => {
   }
 };
 
-// DELETE /api/scanner-tokens/:id — admin desactiva un link
+// DELETE /api/scanner-tokens/:id — admin/owner desactiva un link
 const deleteToken = async (req, res) => {
   try {
+    const tok = await db.query('SELECT event_id FROM scanner_tokens WHERE id = ?', [req.params.id]);
+    if (!tok.rows[0]) return res.status(404).json({ error: 'Token no encontrado' });
+    if (!(await canManageEvent(req.user, tok.rows[0].event_id)))
+      return res.status(403).json({ error: 'Sin acceso a este evento' });
     await db.query('UPDATE scanner_tokens SET is_active = 0 WHERE id = ?', [req.params.id]);
     res.json({ message: 'Token desactivado' });
   } catch (err) {

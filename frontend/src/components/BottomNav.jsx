@@ -37,8 +37,11 @@ const navMap = {
     { to: '/mas',             icon: 'mas',     label: 'Mas'      },
   ],
   owner: [
-    { to: '/eventos',       icon: 'eventos',  label: 'Eventos' },
-    { to: '/mas',           icon: 'mas',      label: 'Mas'     },
+    { to: '/eventos',        icon: 'eventos',  label: 'Eventos' },
+    { to: '/caja',           icon: 'vender',   label: 'Vender'  },
+    { to: '/escaner',        icon: 'escanear', label: 'Escaner' },
+    { to: '/admin/reportes', icon: 'reportes', label: 'Reportes'},
+    { to: '/mas',            icon: 'mas',      label: 'Mas'     },
   ],
 };
 

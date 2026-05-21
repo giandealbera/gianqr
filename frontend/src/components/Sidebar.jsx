@@ -26,8 +26,11 @@ const navItems = {
     { to: '/promotor', label: 'Mi Panel' },
   ],
   owner: [
-    { to: '/eventos',      label: 'Mis Eventos'  },
-    { to: '/configuracion', label: 'Configuración' },
+    { to: '/eventos',         label: 'Mis Eventos'   },
+    { to: '/caja',            label: 'Vender'        },
+    { to: '/escaner',         label: 'Escaner'       },
+    { to: '/admin/reportes',  label: 'Reportes'      },
+    { to: '/configuracion',   label: 'Configuración' },
   ],
 };
 

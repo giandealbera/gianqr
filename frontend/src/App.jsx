@@ -133,12 +133,12 @@ const App = () => (
 
         {/* Escáner (solo admin) */}
         <Route path="/escaner" element={
-          <ProtectedRoute allowedRoles={['admin']}><Scanner /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin', 'owner']}><Scanner /></ProtectedRoute>
         } />
 
-        {/* Caja (admin) */}
+        {/* Caja (admin y owner — el owner ve solo sus eventos) */}
         <Route path="/caja" element={
-          <ProtectedRoute allowedRoles={['admin']}><Cashier /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin', 'owner']}><Cashier /></ProtectedRoute>
         } />
 
         {/* Promotor / Públicas */}
