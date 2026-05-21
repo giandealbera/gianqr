@@ -328,23 +328,27 @@ const PublicBuy = () => {
                 <div>
                   <label className="text-sm text-gray-400 block mb-1">Nombre *</label>
                   <input className="input" required placeholder="Juan" value={form.buyer_name}
+                    autoComplete="given-name" autoCapitalize="words" enterKeyHint="next"
                     onChange={e => setForm(f => ({ ...f, buyer_name: e.target.value }))} />
                 </div>
                 <div>
                   <label className="text-sm text-gray-400 block mb-1">Apellido *</label>
                   <input className="input" required placeholder="Garcia" value={form.buyer_apellido}
+                    autoComplete="family-name" autoCapitalize="words" enterKeyHint="next"
                     onChange={e => setForm(f => ({ ...f, buyer_apellido: e.target.value }))} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-sm text-gray-400 block mb-1">Edad</label>
-                  <input className="input" inputMode="numeric" placeholder="25" value={form.buyer_edad}
+                  <input className="input" inputMode="numeric" pattern="[0-9]*" maxLength={3}
+                    placeholder="25" value={form.buyer_edad}
                     onChange={e => setForm(f => ({ ...f, buyer_edad: e.target.value }))} />
                 </div>
                 <div>
                   <label className="text-sm text-gray-400 block mb-1">Localidad</label>
                   <input className="input" placeholder="San Juan" value={form.buyer_localidad}
+                    autoComplete="address-level2" autoCapitalize="words"
                     onChange={e => setForm(f => ({ ...f, buyer_localidad: e.target.value }))} />
                 </div>
               </div>
@@ -353,6 +357,8 @@ const PublicBuy = () => {
                   Email <span style={{ color: '#4B5563' }}>(opcional)</span>
                 </label>
                 <input type="email" className="input" placeholder="tu@email.com" value={form.buyer_email}
+                  autoComplete="email" inputMode="email" autoCapitalize="off" spellCheck="false"
+                  enterKeyHint="done"
                   onChange={e => setForm(f => ({ ...f, buyer_email: e.target.value }))} />
               </div>
             </div>

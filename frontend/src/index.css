@@ -18,25 +18,30 @@
 }
 
 @layer components {
+  /* min-h-[44px] cumple el touch target minimo de iOS (44pt).
+     En desktop pasa desapercibido. */
   .btn-primary {
     @apply bg-brand text-white font-semibold px-4 py-2 rounded-lg
            hover:bg-brand-dark transition-all duration-150
            disabled:opacity-40 disabled:cursor-not-allowed
-           tracking-wide text-sm;
+           tracking-wide text-sm min-h-[44px] sm:min-h-0;
   }
   .btn-secondary {
     background-color: #1E2530;
     color: #E2E8F0;
-    @apply font-semibold px-4 py-2 rounded-lg transition-all duration-150 tracking-wide text-sm border;
+    @apply font-semibold px-4 py-2 rounded-lg transition-all duration-150 tracking-wide text-sm border min-h-[44px] sm:min-h-0;
     border-color: #263040;
   }
   .btn-secondary:hover { background-color: #263040; }
 
+  /* text-base (16px) en mobile evita el auto-zoom que Safari aplica
+     cuando el input tiene font-size < 16px. En sm+ usamos text-sm para
+     mantener la densidad visual del desktop. */
   .input {
     background-color: #161B24;
     border: 1px solid #1E2530;
     color: #F1F5F9;
-    @apply rounded-lg px-3 py-2.5 w-full focus:outline-none text-sm transition-colors duration-150;
+    @apply rounded-lg px-3 py-2.5 w-full focus:outline-none text-base sm:text-sm transition-colors duration-150 min-h-[44px] sm:min-h-0;
     placeholder-color: #4B5563;
   }
   .input:focus { border-color: #C9974D; box-shadow: 0 0 0 1px #C9974D33; }
