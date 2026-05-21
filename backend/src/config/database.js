@@ -414,6 +414,12 @@ async function runMigrations(queryFn, execFn) {
   // las suyas. Admin las ve todas. created_by=NULL = legacy/global (admin only).
   try { await execFn('ALTER TABLE zonas ADD COLUMN created_by TEXT REFERENCES users(id) ON DELETE SET NULL'); } catch (e) {}
   try { await execFn('ALTER TABLE proveedores ADD COLUMN created_by TEXT REFERENCES users(id) ON DELETE SET NULL'); } catch (e) {}
+
+  // Cortar venta manual (sold out, decision del dueño). Independiente de
+  // sale_end_at (la ventana planeada). Si sales_stopped_at != NULL, la
+  // venta esta cerrada. El owner puede reanudarla seteandolo a NULL.
+  // El evento sigue accesible para rendiciones, escaneo, reportes.
+  try { await execFn('ALTER TABLE events ADD COLUMN sales_stopped_at DATETIME'); } catch (e) {}
 }
 
 // ---------------------------------------------------------------------------

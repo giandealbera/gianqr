@@ -4,6 +4,7 @@ const auth    = require('../middleware/auth');
 const roles   = require('../middleware/roles');
 const {
   getAll, getOne, create, update, stats, history, resetEvent, cloneEvent,
+  stopSales, resumeSales,
   getVenues, getTicketTypes, addTicketType, updateTicketType, toggleTicketType,
   getOwners, addOwner, removeOwner,
 } = require('../controllers/eventsController');
@@ -19,6 +20,9 @@ router.get('/:id/stats', auth, roles('admin', 'owner'), stats);
 router.post('/',       auth, roles('admin', 'owner'), create);
 // Clonar evento (copia ticket_types y dueños del original).
 router.post('/:id/clone', auth, roles('admin', 'owner'), cloneEvent);
+// Corte manual de venta (sold out). El evento sigue accesible para rendir.
+router.post('/:id/stop-sales',   auth, roles('admin', 'owner'), stopSales);
+router.post('/:id/resume-sales', auth, roles('admin', 'owner'), resumeSales);
 router.post('/:id/reset', auth, roles('admin', 'owner'), resetEvent);
 router.put('/:id',     auth, roles('admin', 'owner'), update);
 

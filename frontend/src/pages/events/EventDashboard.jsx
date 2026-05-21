@@ -84,6 +84,24 @@ const EventDashboard = () => {
   const totalUsed = stats?.totals?.total_usados  || 0;
   const totalPend = stats?.totals?.total_pendientes || 0;
   const checkinPct = totalSold > 0 ? Math.round((totalUsed / totalSold) * 100) : 0;
+  const salesStopped = !!event.sales_stopped_at;
+  const canManageSales = ['admin','owner'].includes(user?.role);
+
+  const stopSales = async () => {
+    if (!confirm('¿Cortar la venta de entradas? Nadie va a poder comprar más (vos podés reanudarla cuando quieras). Tu evento sigue accesible para rendir y escanear.')) return;
+    try {
+      await api.post(`/events/${id}/stop-sales`);
+      toast.success('Venta cortada');
+      const r = await api.get(`/events/${id}`); setEvent(r.data);
+    } catch (e) { toast.error(e.response?.data?.error || 'No se pudo cortar'); }
+  };
+  const resumeSales = async () => {
+    try {
+      await api.post(`/events/${id}/resume-sales`);
+      toast.success('Venta reanudada');
+      const r = await api.get(`/events/${id}`); setEvent(r.data);
+    } catch (e) { toast.error(e.response?.data?.error || 'No se pudo reanudar'); }
+  };
 
   const TOOLS = [
     { iconKey: 'gear',   label: 'Configurar evento',    sub: 'Editar datos y ajustes',      to: `/evento/${id}/config`,    disabled: false },
@@ -158,19 +176,43 @@ const EventDashboard = () => {
                   </div>
                 </div>
 
-                {/* Status badge */}
-                <div className={`flex items-center gap-1.5 shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full border ${
-                  isActive
-                    ? 'bg-emerald-950/50 text-emerald-400 border-emerald-800/50'
-                    : 'bg-gray-800/50 text-gray-400 border-gray-700/50'
-                }`}>
-                  {isActive && (
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
-                    </span>
+                {/* Status badge + corte venta */}
+                <div className="flex items-center gap-2 shrink-0">
+                  {salesStopped && (
+                    <div className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border bg-red-950/50 text-red-300 border-red-800/50">
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
+                      </svg>
+                      Venta cortada
+                    </div>
                   )}
-                  {isActive ? 'Activo' : 'Finalizado'}
+                  <div className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border ${
+                    isActive
+                      ? 'bg-emerald-950/50 text-emerald-400 border-emerald-800/50'
+                      : 'bg-gray-800/50 text-gray-400 border-gray-700/50'
+                  }`}>
+                    {isActive && (
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
+                      </span>
+                    )}
+                    {isActive ? 'Activo' : 'Finalizado'}
+                  </div>
+                  {canManageSales && (
+                    salesStopped ? (
+                      <button onClick={resumeSales} className="btn-secondary text-xs py-1.5 px-3" title="Volver a abrir la venta">
+                        Reanudar venta
+                      </button>
+                    ) : (
+                      <button onClick={stopSales}
+                        className="text-xs py-1.5 px-3 rounded-lg font-semibold border transition-colors"
+                        style={{ background: 'rgba(185,28,28,0.12)', color: '#FCA5A5', borderColor: 'rgba(185,28,28,0.4)' }}
+                        title="Sold out o querés cortar — el evento sigue accesible para rendir">
+                        Cortar venta
+                      </button>
+                    )
+                  )}
                 </div>
               </div>
             </div>

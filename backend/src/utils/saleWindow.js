@@ -13,13 +13,17 @@ const fmt = (d) => new Date(d).toLocaleString('es-AR', {
  */
 const checkSaleWindow = async (eventId) => {
   const r = await db.query(
-    'SELECT id, name, sale_start_at, sale_end_at, is_active FROM events WHERE id = ?',
+    'SELECT id, name, sale_start_at, sale_end_at, sales_stopped_at, is_active FROM events WHERE id = ?',
     [eventId]
   );
   const ev = r.rows[0];
   if (!ev) return { ok: false, status: 404, message: 'Evento no encontrado' };
   if (!ev.is_active) {
     return { ok: false, status: 400, message: 'El evento está inactivo' };
+  }
+  // Corte manual del dueño (sold out o decision). Precede a la ventana planeada.
+  if (ev.sales_stopped_at) {
+    return { ok: false, status: 400, message: `Venta cortada por el organizador el ${fmt(ev.sales_stopped_at)}` };
   }
   const now = new Date();
   if (ev.sale_start_at) {

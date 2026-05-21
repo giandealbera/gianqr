@@ -570,8 +570,46 @@ const removeOwner = async (req, res) => {
   }
 };
 
+// POST /api/events/:id/stop-sales — corte manual de venta
+// El evento sigue accesible para rendiciones, scanner, reportes.
+// Para reanudar usar POST /api/events/:id/resume-sales.
+const stopSales = async (req, res) => {
+  const { id } = req.params;
+  try {
+    if (req.user?.role === 'owner') {
+      const ok = await ownerHasEvent(req.user.id, id);
+      if (!ok) return res.status(403).json({ error: 'No sos dueño de este evento' });
+    }
+    const ev = (await db.query('SELECT id, sales_stopped_at FROM events WHERE id = ?', [id])).rows[0];
+    if (!ev) return res.status(404).json({ error: 'Evento no encontrado' });
+    if (ev.sales_stopped_at) return res.status(200).json({ message: 'La venta ya estaba cortada', sales_stopped_at: ev.sales_stopped_at });
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    await db.query('UPDATE events SET sales_stopped_at = ? WHERE id = ?', [now, id]);
+    res.json({ message: 'Venta cortada', sales_stopped_at: now });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al cortar venta' });
+  }
+};
+
+// POST /api/events/:id/resume-sales — reanudar venta cortada manualmente
+const resumeSales = async (req, res) => {
+  const { id } = req.params;
+  try {
+    if (req.user?.role === 'owner') {
+      const ok = await ownerHasEvent(req.user.id, id);
+      if (!ok) return res.status(403).json({ error: 'No sos dueño de este evento' });
+    }
+    await db.query('UPDATE events SET sales_stopped_at = NULL WHERE id = ?', [id]);
+    res.json({ message: 'Venta reanudada' });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al reanudar venta' });
+  }
+};
+
 module.exports = {
   getAll, getOne, create, update, stats, history, resetEvent, cloneEvent,
+  stopSales, resumeSales,
   getVenues, getTicketTypes, addTicketType, updateTicketType, toggleTicketType,
   getOwners, addOwner, removeOwner,
 };
