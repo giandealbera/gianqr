@@ -103,18 +103,18 @@ const PromoterDashboard = () => {
           <p className="text-center text-slate-500 py-12">No hay datos disponibles</p>
         ) : (
           <>
-            {/* Equipo (solo jefe) */}
+            {/* Mi Zona (solo jefe) */}
             {data.summary?.es_jefe && (
               <div className="mb-6">
-                <h3 className="font-semibold text-sm mb-3 text-slate-300">Mi Equipo</h3>
+                <h3 className="font-semibold text-sm mb-3 text-slate-300">Mi Zona</h3>
                 <div className="grid grid-cols-2 gap-3 mb-4">
                   <div className="card text-center py-4">
-                    <p className="text-3xl font-black text-white">{data.summary.equipo_vendidas}</p>
-                    <p className="text-[10px] text-slate-400 uppercase tracking-wider mt-1">Entradas del equipo</p>
+                    <p className="text-3xl font-black text-white">{data.summary.zona_vendidas ?? data.summary.equipo_vendidas}</p>
+                    <p className="text-[10px] text-slate-400 uppercase tracking-wider mt-1">Entradas de mi zona</p>
                   </div>
                   <div className="card text-center py-4 border-emerald-800/40">
                     <p className="text-3xl font-black text-emerald-400">{fmt(data.summary.mi_comision_jefe)}</p>
-                    <p className="text-[10px] text-slate-400 uppercase tracking-wider mt-1">Ganancia de equipo</p>
+                    <p className="text-[10px] text-slate-400 uppercase tracking-wider mt-1">Mi ganancia por la zona</p>
                   </div>
                 </div>
 

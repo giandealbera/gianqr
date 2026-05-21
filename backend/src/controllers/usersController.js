@@ -342,20 +342,27 @@ const getMyPromoterSales = async (req, res) => {
       [promo.commission, promo.id]
     );
 
-    const teamSummary = await db.query(
-      `SELECT
-         COUNT(CASE WHEN t.status IN ('pagado','usado') THEN t.id END) AS equipo_vendidas,
-         SUM(CASE WHEN t.status IN ('pagado','usado') THEN t.amount_paid ELSE 0 END) AS equipo_recaudado,
-         SUM(CASE WHEN t.status IN ('pagado','usado') THEN p.leader_commission ELSE 0 END) AS mi_comision_jefe
-       FROM tickets t
-       JOIN promotors p ON p.id = t.promotor_id
-       WHERE p.leader_id = ?`,
-      [userId]
-    );
+    // Para jefe_publicas: agregamos vista "zona" — todas las ventas de
+    // promotors con la misma zona_id (excluyendo las propias del jefe).
+    // Antes filtrabamos por leader_id (equipo directo), pero el alcance
+    // del jefe es por zona, no por nominacion directa.
+    let zonaSummary = { rows: [{ zona_vendidas: 0, zona_recaudado: 0, mi_comision_jefe: 0 }] };
+    if (req.user.role === 'jefe_publicas' && promo.zona_id) {
+      zonaSummary = await db.query(
+        `SELECT
+           COUNT(CASE WHEN t.status IN ('pagado','usado') THEN t.id END) AS zona_vendidas,
+           SUM(CASE WHEN t.status IN ('pagado','usado') THEN t.amount_paid ELSE 0 END) AS zona_recaudado,
+           SUM(CASE WHEN t.status IN ('pagado','usado') THEN p.leader_commission ELSE 0 END) AS mi_comision_jefe
+         FROM tickets t
+         JOIN promotors p ON p.id = t.promotor_id
+         WHERE p.zona_id = ? AND p.id != ?`,
+        [promo.zona_id, promo.id]
+      );
+    }
 
     const ownTotal = summary.rows[0].total_recaudado || 0;
     const ownComm  = summary.rows[0].mi_comision || 0;
-    const teamComm = teamSummary.rows[0].mi_comision_jefe || 0;
+    const teamComm = zonaSummary.rows[0].mi_comision_jefe || 0;
     const debo_enviar = ownTotal - ownComm;
 
     const byEvent = await db.query(
@@ -390,9 +397,13 @@ const getMyPromoterSales = async (req, res) => {
         total_recaudado: ownTotal,
         mi_comision: ownComm,
         debo_enviar,
-        equipo_vendidas: teamSummary.rows[0].equipo_vendidas || 0,
+        // Métricas de zona (solo aplica al jefe). Para vendedor son 0.
+        zona_vendidas:  zonaSummary.rows[0].zona_vendidas || 0,
+        zona_recaudado: zonaSummary.rows[0].zona_recaudado || 0,
         mi_comision_jefe: teamComm,
         es_jefe: req.user.role === 'jefe_publicas',
+        // Compat: legacy "equipo_vendidas" mapeado a zona para no romper UI.
+        equipo_vendidas: zonaSummary.rows[0].zona_vendidas || 0,
       },
       by_event: byEvent.rows,
       recent: recent.rows,

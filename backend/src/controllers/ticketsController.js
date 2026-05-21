@@ -226,7 +226,7 @@ const preSell = async (req, res) => {
     if (err.message === 'NO_QUOTA')
       return res.status(409).json({ error: 'Sin cupo disponible suficiente' });
     if (err.message === 'PROMOTOR_NOT_FOUND')
-      return res.status(403).json({ error: 'No tenes perfil de promotor asociado' });
+      return res.status(403).json({ error: 'No tenés un perfil de pública asociado' });
     console.error(err);
     res.status(500).json({ error: 'Error al pre-vender tickets' });
   }

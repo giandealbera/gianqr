@@ -17,7 +17,7 @@ const PromoterSales = () => {
     const params = eventFilter ? { event_id: eventFilter } : {};
     api.get('/users/promoter-sales', { params })
       .then(res => setSales(res.data))
-      .catch(() => toast.error('Error al cargar ventas de promotores'))
+      .catch(() => toast.error('Error al cargar ventas de públicas'))
       .finally(() => setLoading(false));
   }, [eventFilter]);
 
@@ -32,7 +32,7 @@ const PromoterSales = () => {
     <Layout>
       <div className="px-4 lg:px-8 py-6 max-w-5xl mx-auto">
         <h1 className="text-2xl font-bold mb-2">Ventas de Públicas</h1>
-        <p className="text-gray-400 mb-6">Resumen del desempeño de tus promotores y liquidación de comisiones.</p>
+        <p className="text-gray-400 mb-6">Resumen del desempeño de tus públicas y liquidación de comisiones.</p>
 
         {/* Filters */}
         <div className="flex gap-3 mb-6">
@@ -78,7 +78,7 @@ const PromoterSales = () => {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-gray-400 border-b border-gray-800">
-                  <th className="text-left pb-3 font-medium">Pública (Promotor)</th>
+                  <th className="text-left pb-3 font-medium">Pública</th>
                   <th className="text-left pb-3 font-medium">Jefe de Ventas</th>
                   <th className="text-center pb-3 font-medium">Comisión</th>
                   <th className="text-center pb-3 font-medium">Vendidas</th>
@@ -110,7 +110,7 @@ const PromoterSales = () => {
                   </tr>
                 ))}
                 {sales.length === 0 && (
-                  <tr><td colSpan={6} className="text-center py-8 text-gray-500">No hay ventas registradas de promotores</td></tr>
+                  <tr><td colSpan={8} className="text-center py-8 text-gray-500">No hay ventas registradas de públicas</td></tr>
                 )}
               </tbody>
             </table>

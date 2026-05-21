@@ -199,7 +199,7 @@ const Users = () => {
               {isPublicas && (
                 <>
                   <div>
-                    <label className="text-sm text-gray-400 block mb-1">Código de promotor</label>
+                    <label className="text-sm text-gray-400 block mb-1">Código de pública</label>
                     <input className="input" placeholder="Ej: PROMO2024" value={form.promo_code}
                       onChange={e => setForm(f => ({ ...f, promo_code: e.target.value }))} />
                   </div>
