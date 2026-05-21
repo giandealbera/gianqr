@@ -410,6 +410,10 @@ async function runMigrations(queryFn, execFn) {
   // existentes quedan con created_by=NULL = compartidas (visibles para admin
   // solo, no leak entre owners).
   try { await execFn('ALTER TABLE users ADD COLUMN created_by TEXT REFERENCES users(id) ON DELETE SET NULL'); } catch (e) {}
+  // Mismo patron para zonas y proveedores: owners solo pueden ver/modificar
+  // las suyas. Admin las ve todas. created_by=NULL = legacy/global (admin only).
+  try { await execFn('ALTER TABLE zonas ADD COLUMN created_by TEXT REFERENCES users(id) ON DELETE SET NULL'); } catch (e) {}
+  try { await execFn('ALTER TABLE proveedores ADD COLUMN created_by TEXT REFERENCES users(id) ON DELETE SET NULL'); } catch (e) {}
 }
 
 // ---------------------------------------------------------------------------
