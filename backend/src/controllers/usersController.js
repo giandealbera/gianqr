@@ -18,16 +18,22 @@ function genPromoCode() {
 
 const getAll = async (req, res) => {
   try {
-    // Admin: ve todos los users. Para gestion SaaS necesita la lista
-    // completa (dueños + staff existente).
-    // Owner: ve SOLO el staff que creo el (created_by = owner.id).
-    //   - Owners no se ven a si mismos, no ven a otros owners ni al admin.
-    //   - El vendedor que un jefe (que es del owner) creo via /team
-    //     tambien debe heredar created_by = owner.
-    const where = req.user.role === 'owner'
-      ? 'WHERE u.created_by = ? OR (u.created_by IN (SELECT id FROM users WHERE created_by = ?))'
-      : '';
-    const params = req.user.role === 'owner' ? [req.user.id, req.user.id] : [];
+    // Admin SaaS: solo ve los DUEÑOS que el cargó (los clientes que le
+    // compraron el sistema). No ve staff de otros, no ve otros admins.
+    //   Filtro: role='owner' AND created_by = admin.id.
+    //   Si en el futuro un admin necesita ver otros owners, hace falta
+    //   un super-admin o un toggle "ver todos".
+    // Owner: ve SOLO el staff que creó el (created_by = owner.id) o
+    //   los vendedores que su jefe creo via /team.
+    let where = '';
+    let params = [];
+    if (req.user.role === 'admin') {
+      where  = "WHERE u.role = 'owner' AND u.created_by = ?";
+      params = [req.user.id];
+    } else if (req.user.role === 'owner') {
+      where  = 'WHERE u.created_by = ? OR (u.created_by IN (SELECT id FROM users WHERE created_by = ?))';
+      params = [req.user.id, req.user.id];
+    }
 
     const result = await db.query(
       `SELECT u.id, u.name, u.apellido, u.celular, u.localidad,

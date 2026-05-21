@@ -3,7 +3,7 @@ const router  = express.Router();
 const auth    = require('../middleware/auth');
 const roles   = require('../middleware/roles');
 const {
-  getAll, getOne, create, update, stats, history, resetEvent,
+  getAll, getOne, create, update, stats, history, resetEvent, cloneEvent,
   getVenues, getTicketTypes, addTicketType, updateTicketType, toggleTicketType,
   getOwners, addOwner, removeOwner,
 } = require('../controllers/eventsController');
@@ -15,7 +15,10 @@ router.get('/history', auth, roles('admin', 'owner'), history);
 router.get('/',        auth, getAll);
 router.get('/:id',     auth, getOne);
 router.get('/:id/stats', auth, roles('admin', 'owner'), stats);
-router.post('/',       auth, roles('admin'), create);
+// Owner puede crear sus propios eventos (se auto-asigna como dueño).
+router.post('/',       auth, roles('admin', 'owner'), create);
+// Clonar evento (copia ticket_types y dueños del original).
+router.post('/:id/clone', auth, roles('admin', 'owner'), cloneEvent);
 router.post('/:id/reset', auth, roles('admin', 'owner'), resetEvent);
 router.put('/:id',     auth, roles('admin', 'owner'), update);
 

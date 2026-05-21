@@ -12,7 +12,7 @@ async function ownerHasEvent(userId, eventId) {
 
 const getAll = async (req, res) => {
   try {
-    // Owner: solo ve los eventos que le asignaron
+    // Owner: solo ve los eventos que le asignaron.
     if (req.user?.role === 'owner') {
       const result = await db.query(
         `SELECT e.*, v.name AS venue_name, v.capacity AS venue_capacity,
@@ -28,7 +28,36 @@ const getAll = async (req, res) => {
       return res.json(result.rows);
     }
 
-    // Admin / todos: ven todos
+    // Admin SaaS: ve eventos creados por él directamente, o cuyos dueños
+    // son owners creados por él. Para multi-admin esto evita que un admin
+    // vea eventos de clientes de otro admin.
+    if (req.user?.role === 'admin') {
+      const { PG_MODE } = require('../config/database');
+      const aggOwners = PG_MODE ? `STRING_AGG(u.name, ', ')` : `GROUP_CONCAT(u.name, ', ')`;
+      const result = await db.query(
+        `SELECT e.*, v.name AS venue_name, v.capacity AS venue_capacity,
+                COUNT(DISTINCT CASE WHEN t.status IN ('pagado','usado') THEN t.id END) AS tickets_sold,
+                (SELECT ${aggOwners}
+                 FROM event_owners eo
+                 JOIN users u ON u.id = eo.user_id
+                 WHERE eo.event_id = e.id) AS owner_names
+         FROM events e
+         LEFT JOIN venues v ON v.id = e.venue_id
+         LEFT JOIN tickets t ON t.event_id = e.id
+         WHERE e.created_by = ?
+            OR e.id IN (
+              SELECT eo.event_id FROM event_owners eo
+              JOIN users u ON u.id = eo.user_id
+              WHERE u.created_by = ?
+            )
+         GROUP BY e.id, v.id
+         ORDER BY e.date DESC, e.start_time DESC`,
+        [req.user.id, req.user.id]
+      );
+      return res.json(result.rows);
+    }
+
+    // Otros roles (jefe/vendedor): catálogo global.
     const result = await db.query(
       `SELECT e.*, v.name AS venue_name, v.capacity AS venue_capacity,
               COUNT(DISTINCT CASE WHEN t.status IN ('pagado','usado') THEN t.id END) AS tickets_sold
@@ -103,6 +132,15 @@ const create = async (req, res) => {
           );
         }
       }
+
+      // Si el creador es owner, se auto-asigna como dueño del evento.
+      // El admin SaaS no se asigna; solo crea para vender el sistema.
+      if (req.user?.role === 'owner') {
+        await conn.execute(
+          'INSERT INTO event_owners (id, event_id, user_id) VALUES (?,?,?)',
+          [uuidv4(), eventId, req.user.id]
+        );
+      }
     });
 
     const result = await db.query('SELECT * FROM events WHERE id = ?', [eventId]);
@@ -110,6 +148,69 @@ const create = async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error al crear evento' });
+  }
+};
+
+// POST /api/events/:id/clone — clona un evento existente con todos sus ticket_types.
+// Owner solo puede clonar SUS eventos. Admin puede clonar cualquiera.
+// El clon arranca con sold_count=0, sin tickets ni rendiciones.
+const cloneEvent = async (req, res) => {
+  const { id } = req.params;
+  const { name, date, start_time, end_time, sale_start_at, sale_end_at } = req.body;
+
+  // Owner: scope check.
+  if (req.user?.role === 'owner') {
+    const ok = await ownerHasEvent(req.user.id, id);
+    if (!ok) return res.status(403).json({ error: 'No sos dueño de este evento' });
+  }
+  if (!name || !date || !start_time || !sale_start_at || !sale_end_at)
+    return res.status(400).json({ error: 'Faltan datos del nuevo evento (name, date, start_time, sale_start_at, sale_end_at)' });
+  if (new Date(sale_end_at) <= new Date(sale_start_at))
+    return res.status(400).json({ error: 'El cierre de venta debe ser posterior a la apertura' });
+
+  try {
+    const origR = await db.query('SELECT * FROM events WHERE id = ?', [id]);
+    const orig = origR.rows[0];
+    if (!orig) return res.status(404).json({ error: 'Evento origen no encontrado' });
+    const origTT = (await db.query('SELECT name, price, total_quota FROM ticket_types WHERE event_id = ? AND is_active = 1', [id])).rows;
+
+    const newEventId = uuidv4();
+    await db.transaction(async (conn) => {
+      await conn.execute(
+        `INSERT INTO events (id, venue_id, name, description, date, start_time, end_time, flyer_url,
+                             sale_start_at, sale_end_at, created_by)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+        [newEventId, orig.venue_id, name, orig.description, date, start_time,
+         end_time || orig.end_time, orig.flyer_url, sale_start_at, sale_end_at, req.user.id]
+      );
+      for (const tt of origTT) {
+        await conn.execute(
+          'INSERT INTO ticket_types (id, event_id, name, price, total_quota, sold_count) VALUES (?,?,?,?,?,0)',
+          [uuidv4(), newEventId, tt.name, tt.price, tt.total_quota]
+        );
+      }
+      // Heredar dueños del evento original (event_owners).
+      const origOwners = (await conn.execute('SELECT user_id FROM event_owners WHERE event_id = ?', [id]))[0];
+      for (const row of origOwners) {
+        await conn.execute(
+          'INSERT INTO event_owners (id, event_id, user_id) VALUES (?,?,?)',
+          [uuidv4(), newEventId, row.user_id]
+        );
+      }
+      // Si el clonador es owner y no estaba en los dueños originales, lo agregamos.
+      if (req.user?.role === 'owner' && !origOwners.some(o => o.user_id === req.user.id)) {
+        await conn.execute(
+          'INSERT INTO event_owners (id, event_id, user_id) VALUES (?,?,?)',
+          [uuidv4(), newEventId, req.user.id]
+        );
+      }
+    });
+
+    const newR = await db.query('SELECT * FROM events WHERE id = ?', [newEventId]);
+    res.status(201).json({ ...newR.rows[0], cloned_from: id, ticket_types_copied: origTT.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Error al clonar evento' });
   }
 };
 
@@ -363,6 +464,15 @@ const history = async (req, res) => {
     where.push('e.id IN (SELECT event_id FROM event_owners WHERE user_id = ?)');
     params.push(req.user.id);
   }
+  // Admin SaaS: solo eventos creados por el o cuyos dueños son sus owners.
+  if (req.user?.role === 'admin') {
+    where.push(`(e.created_by = ? OR e.id IN (
+      SELECT eo.event_id FROM event_owners eo
+      JOIN users u ON u.id = eo.user_id
+      WHERE u.created_by = ?
+    ))`);
+    params.push(req.user.id, req.user.id);
+  }
 
   try {
     const result = await db.query(
@@ -461,7 +571,7 @@ const removeOwner = async (req, res) => {
 };
 
 module.exports = {
-  getAll, getOne, create, update, stats, history, resetEvent,
+  getAll, getOne, create, update, stats, history, resetEvent, cloneEvent,
   getVenues, getTicketTypes, addTicketType, updateTicketType, toggleTicketType,
   getOwners, addOwner, removeOwner,
 };
