@@ -9,7 +9,8 @@ router.post('/', auth, roles('admin', 'jefe_publicas', 'vendedor'), create);
 
 // Pre-venta: reserva N entradas a nombre "Pendiente" y descuenta cupo ya.
 // El comprador completa nombre/apellido despues vía link publico (?tickets=).
-router.post('/pre-sell', auth, roles('admin', 'jefe_publicas', 'vendedor'), preSell);
+// owner puede usarlo: el controller valida que el evento sea suyo (event_owners).
+router.post('/pre-sell', auth, roles('admin', 'jefe_publicas', 'vendedor', 'owner'), preSell);
 
 // Escaneo en puerta (solo admin — los demás usan links públicos /scan/:token)
 router.post('/scan', auth, roles('admin'), scan);

@@ -44,6 +44,17 @@ const monthlyOverview = async (req, res) => {
     const monthExpr = (col) => PG_MODE ? `TO_CHAR(${col}, 'YYYY-MM')` : `strftime('%Y-%m', ${col})`;
     const last12 = PG_MODE ? `(NOW() - INTERVAL '12 months')` : `date('now', '-12 months')`;
 
+    // Si es owner, filtramos solo sus eventos (los que tiene en event_owners).
+    // Admin ve todo.
+    const isOwner = req.user?.role === 'owner';
+    const ownerFilterTickets = isOwner
+      ? `AND t.event_id IN (SELECT event_id FROM event_owners WHERE user_id = ?)`
+      : '';
+    const ownerFilterEvents = isOwner
+      ? `AND e.id IN (SELECT event_id FROM event_owners WHERE user_id = ?)`
+      : '';
+    const ownerParams = isOwner ? [req.user.id] : [];
+
     // Entradas vendidas + cortesías por mes (últimos 12 meses)
     const ticketsPerMonth = await db.query(
       `SELECT
@@ -51,9 +62,10 @@ const monthlyOverview = async (req, res) => {
          COUNT(CASE WHEN t.payment_method != 'cortesia' AND t.status IN ('pagado','usado') THEN 1 END) AS vendidas,
          COUNT(CASE WHEN t.payment_method = 'cortesia' THEN 1 END) AS cortesias
        FROM tickets t
-       WHERE t.created_at >= ${last12}
+       WHERE t.created_at >= ${last12} ${ownerFilterTickets}
        GROUP BY mes
-       ORDER BY mes ASC`
+       ORDER BY mes ASC`,
+      ownerParams
     );
 
     // Eventos realizados por mes (fecha del evento, no fecha de creación)
@@ -63,9 +75,10 @@ const monthlyOverview = async (req, res) => {
          SUBSTR(e.date, 1, 7) AS mes,
          COUNT(*) AS fiestas
        FROM events e
-       WHERE e.date >= ${PG_MODE ? `TO_CHAR(NOW() - INTERVAL '12 months', 'YYYY-MM-DD')` : `date('now', '-12 months')`}
+       WHERE e.date >= ${PG_MODE ? `TO_CHAR(NOW() - INTERVAL '12 months', 'YYYY-MM-DD')` : `date('now', '-12 months')`} ${ownerFilterEvents}
        GROUP BY mes
-       ORDER BY mes ASC`
+       ORDER BY mes ASC`,
+      ownerParams
     );
 
     // Merge por mes

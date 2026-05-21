@@ -201,28 +201,53 @@ const update = async (req, res) => {
       }
     }
 
+    // PARTIAL UPDATE: solo actualizamos los campos provistos en el body.
+    // Antes el endpoint requeria mandar TODO el user; un PUT con un solo
+    // campo seteaba el resto a null y rompia con NOT NULL constraint.
+    const userFields = [];
+    const userValues = [];
+    const setIf = (key, value, transform = v => v) => {
+      if (value !== undefined) {
+        userFields.push(`${key}=?`);
+        userValues.push(transform(value));
+      }
+    };
+    setIf('name',      name);
+    setIf('apellido',  apellido,  v => v || null);
+    setIf('celular',   celular,   v => v || null);
+    setIf('localidad', localidad, v => v || null);
+    setIf('email',     email,     v => v?.toLowerCase());
+    setIf('role',      role);
+    setIf('is_active', is_active, v => v ? 1 : 0);
     if (password) {
       const hash = await bcrypt.hash(password, 10);
-      await db.query(
-        'UPDATE users SET name=?, apellido=?, celular=?, localidad=?, email=?, role=?, is_active=?, password_hash=? WHERE id=?',
-        [name, apellido || null, celular || null, localidad || null, email?.toLowerCase(), role, is_active ? 1 : 0, hash, id]
-      );
-    } else {
-      await db.query(
-        'UPDATE users SET name=?, apellido=?, celular=?, localidad=?, email=?, role=?, is_active=? WHERE id=?',
-        [name, apellido || null, celular || null, localidad || null, email?.toLowerCase(), role, is_active ? 1 : 0, id]
-      );
+      userFields.push('password_hash=?');
+      userValues.push(hash);
+    }
+    if (userFields.length > 0) {
+      userValues.push(id);
+      await db.query(`UPDATE users SET ${userFields.join(', ')} WHERE id=?`, userValues);
     }
 
-    if (PUBLICAS_ROLES.includes(role)) {
-      // Si ya tenia fila en promotors -> UPDATE. Si no -> INSERT (ascenso desde admin)
-      const existing = await db.query('SELECT id FROM promotors WHERE user_id = ?', [id]);
-      if (existing.rows[0]) {
+    // Sincronizar fila en promotors si el usuario es (o pasa a ser) publica.
+    const finalRole = role ?? currentUser.role;
+    if (PUBLICAS_ROLES.includes(finalRole)) {
+      const existing = await db.query('SELECT id, commission, leader_id, leader_commission, zona_id FROM promotors WHERE user_id = ?', [id]);
+      const prev = existing.rows[0];
+      if (prev) {
+        // Partial update del promotor: defaults a los valores actuales si no vinieron.
         await db.query(
           'UPDATE promotors SET commission=?, leader_id=?, leader_commission=?, zona_id=? WHERE user_id=?',
-          [commission ?? 800, leader_id || null, leader_commission ?? 400, zona_id || null, id]
+          [
+            commission ?? prev.commission,
+            leader_id === undefined ? prev.leader_id : (leader_id || null),
+            leader_commission ?? prev.leader_commission,
+            zona_id === undefined ? prev.zona_id : (zona_id || null),
+            id,
+          ]
         );
       } else {
+        // Ascenso desde otro rol → crear fila nueva con defaults.
         const promoCode = genPromoCode();
         await db.query(
           'INSERT INTO promotors (id, user_id, promo_code, commission, leader_id, leader_commission, zona_id) VALUES (?,?,?,?,?,?,?)',

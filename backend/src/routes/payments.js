@@ -5,6 +5,7 @@ const roles   = require('../middleware/roles');
 const { report, monthlyOverview } = require('../controllers/paymentsController');
 
 router.get('/report',           auth, roles('admin'), report);
-router.get('/monthly-overview', auth, roles('admin'), monthlyOverview);
+// owner ve solo los meses con actividad de SUS eventos (controller filtra).
+router.get('/monthly-overview', auth, roles('admin', 'owner'), monthlyOverview);
 
 module.exports = router;

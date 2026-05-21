@@ -131,8 +131,23 @@ const preSell = async (req, res) => {
     return res.status(400).json({ error: 'Cantidad invalida (maximo 10)' });
 
   const isCortesia = !!cortesia;
-  if (isCortesia && req.user.role !== 'admin')
-    return res.status(403).json({ error: 'Solo admin puede generar cortesias' });
+  // Cortesia: admin siempre; owner solo si el evento es suyo. El resto no.
+  if (isCortesia) {
+    if (req.user.role === 'admin') {
+      /* ok */
+    } else if (req.user.role === 'owner') {
+      const own = await db.query('SELECT 1 FROM event_owners WHERE event_id = ? AND user_id = ?', [event_id, req.user.id]);
+      if (!own.rows[0]) return res.status(403).json({ error: 'No sos dueño de este evento' });
+    } else {
+      return res.status(403).json({ error: 'Solo admin o dueño del evento puede generar cortesias' });
+    }
+  }
+
+  // Owner solo puede vender en sus eventos.
+  if (req.user.role === 'owner') {
+    const own = await db.query('SELECT 1 FROM event_owners WHERE event_id = ? AND user_id = ?', [event_id, req.user.id]);
+    if (!own.rows[0]) return res.status(403).json({ error: 'No sos dueño de este evento' });
+  }
 
   const VALID_METHODS = ['efectivo', 'transferencia'];
   if (!isCortesia && !VALID_METHODS.includes(payment_method))
