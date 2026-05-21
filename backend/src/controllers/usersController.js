@@ -18,6 +18,17 @@ function genPromoCode() {
 
 const getAll = async (req, res) => {
   try {
+    // Admin: ve todos los users. Para gestion SaaS necesita la lista
+    // completa (dueños + staff existente).
+    // Owner: ve SOLO el staff que creo el (created_by = owner.id).
+    //   - Owners no se ven a si mismos, no ven a otros owners ni al admin.
+    //   - El vendedor que un jefe (que es del owner) creo via /team
+    //     tambien debe heredar created_by = owner.
+    const where = req.user.role === 'owner'
+      ? 'WHERE u.created_by = ? OR (u.created_by IN (SELECT id FROM users WHERE created_by = ?))'
+      : '';
+    const params = req.user.role === 'owner' ? [req.user.id, req.user.id] : [];
+
     const result = await db.query(
       `SELECT u.id, u.name, u.apellido, u.celular, u.localidad,
               u.email, u.role, u.is_active, u.created_at,
@@ -28,7 +39,9 @@ const getAll = async (req, res) => {
        LEFT JOIN promotors p ON p.user_id = u.id
        LEFT JOIN zonas z ON z.id = p.zona_id
        LEFT JOIN users lu ON lu.id = p.leader_id
-       ORDER BY u.created_at DESC`
+       ${where}
+       ORDER BY u.created_at DESC`,
+      params
     );
     res.json(result.rows);
   } catch (err) {
@@ -52,13 +65,20 @@ const create = async (req, res) => {
   if (!validRoles.includes(role))
     return res.status(400).json({ error: 'Rol inválido' });
 
+  // Owner solo puede crear staff propio (jefe/vendedor). No puede crear
+  // admin ni otros owners (eso es responsabilidad del admin SaaS).
+  if (req.user.role === 'owner' && !['jefe_publicas', 'vendedor'].includes(role))
+    return res.status(403).json({ error: 'Solo podés crear Jefes y Vendedores' });
+
   try {
     const hash   = await bcrypt.hash(password, 10);
     const userId = uuidv4();
+    // Marcamos quien lo creo para multi-tenant scoping.
+    const createdBy = req.user.role === 'owner' ? req.user.id : null;
 
     await db.query(
-      'INSERT INTO users (id, name, apellido, celular, localidad, email, password_hash, role) VALUES (?,?,?,?,?,?,?,?)',
-      [userId, name, apellido || null, celular || null, localidad || null, email.toLowerCase(), hash, role]
+      'INSERT INTO users (id, name, apellido, celular, localidad, email, password_hash, role, created_by) VALUES (?,?,?,?,?,?,?,?,?)',
+      [userId, name, apellido || null, celular || null, localidad || null, email.toLowerCase(), hash, role, createdBy]
     );
 
     let promoCode = null;
@@ -100,9 +120,14 @@ const createTeamMember = async (req, res) => {
     const promoCode  = genPromoCode();
     const magicToken = uuidv4();
 
+    // Hereda created_by del jefe (que lo heredo de su owner). Asi el vendedor
+    // queda en el "tenant" del owner correcto.
+    const jefeUser = await db.query('SELECT created_by FROM users WHERE id = ?', [jefeId]);
+    const inheritedCreatedBy = jefeUser.rows[0]?.created_by || null;
+
     await db.query(
-      'INSERT INTO users (id, name, apellido, celular, localidad, email, password_hash, role, magic_token) VALUES (?,?,?,?,?,?,?,?,?)',
-      [userId, name, apellido || null, celular || null, localidad || null, email.toLowerCase(), hash, 'vendedor', magicToken]
+      'INSERT INTO users (id, name, apellido, celular, localidad, email, password_hash, role, magic_token, created_by) VALUES (?,?,?,?,?,?,?,?,?,?)',
+      [userId, name, apellido || null, celular || null, localidad || null, email.toLowerCase(), hash, 'vendedor', magicToken, inheritedCreatedBy]
     );
 
     // El vendedor hereda automaticamente la zona del jefe que lo creo
@@ -180,9 +205,26 @@ const update = async (req, res) => {
 
   try {
     // Obtener el estado actual del usuario que se quiere modificar para evitar auto-bloqueo de admin
-    const currentResult = await db.query('SELECT role, is_active FROM users WHERE id = ?', [id]);
+    const currentResult = await db.query('SELECT role, is_active, created_by FROM users WHERE id = ?', [id]);
     const currentUser = currentResult.rows[0];
     if (!currentUser) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    // Owner solo puede modificar a SU propio staff (no admin/owner ajenos).
+    if (req.user.role === 'owner') {
+      const isMyStaff = currentUser.created_by === req.user.id;
+      // Vendedor creado por mi jefe: created_by del vendedor apunta al jefe;
+      // y el jefe tiene created_by = owner.id.
+      let isMyTeamMember = false;
+      if (!isMyStaff && currentUser.created_by) {
+        const c = await db.query('SELECT created_by FROM users WHERE id = ?', [currentUser.created_by]);
+        isMyTeamMember = c.rows[0]?.created_by === req.user.id;
+      }
+      if (!isMyStaff && !isMyTeamMember)
+        return res.status(403).json({ error: 'No tenés acceso a este usuario' });
+      // Owner no puede ascender a nadie a admin/owner.
+      if (role && !['jefe_publicas', 'vendedor'].includes(role))
+        return res.status(403).json({ error: 'Solo podés asignar Jefes y Vendedores' });
+    }
 
     if (currentUser.role === 'admin' && currentUser.is_active === 1) {
       const willBeDeactivated = is_active !== undefined && !is_active;
@@ -267,9 +309,21 @@ const deactivate = async (req, res) => {
   const { id } = req.params;
   try {
     // Obtener el estado actual del usuario que se quiere desactivar
-    const currentResult = await db.query('SELECT role, is_active FROM users WHERE id = ?', [id]);
+    const currentResult = await db.query('SELECT role, is_active, created_by FROM users WHERE id = ?', [id]);
     const currentUser = currentResult.rows[0];
     if (!currentUser) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    // Owner solo puede desactivar a SU staff (mismo check que update).
+    if (req.user.role === 'owner') {
+      const isMyStaff = currentUser.created_by === req.user.id;
+      let isMyTeamMember = false;
+      if (!isMyStaff && currentUser.created_by) {
+        const c = await db.query('SELECT created_by FROM users WHERE id = ?', [currentUser.created_by]);
+        isMyTeamMember = c.rows[0]?.created_by === req.user.id;
+      }
+      if (!isMyStaff && !isMyTeamMember)
+        return res.status(403).json({ error: 'No tenés acceso a este usuario' });
+    }
 
     if (currentUser.role === 'admin' && currentUser.is_active === 1) {
       // Contar otros administradores activos
@@ -290,13 +344,18 @@ const deactivate = async (req, res) => {
   }
 };
 
-// GET /api/users/promoter-sales — admin ve ventas de todos
+// GET /api/users/promoter-sales — admin ve todos; owner solo de sus eventos
 const getPromoterSales = async (req, res) => {
   const { event_id } = req.query;
   try {
     let eventFilter = '';
     let params = [];
     if (event_id) { eventFilter = 'AND t.event_id = ?'; params.push(event_id); }
+    // Owner: limitar tickets a SUS eventos.
+    if (req.user.role === 'owner') {
+      eventFilter += ' AND t.event_id IN (SELECT event_id FROM event_owners WHERE user_id = ?)';
+      params.push(req.user.id);
+    }
 
     const result = await db.query(
       `SELECT p.id AS promotor_id, u.name, u.apellido, u.celular, u.localidad,

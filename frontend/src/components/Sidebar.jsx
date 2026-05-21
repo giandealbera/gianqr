@@ -2,19 +2,16 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const navItems = {
+  // Admin = SaaS operator. Solo ve cosas cross-tenant y agregadas. Lo
+  // operativo de un evento (vender, escanear, cortesias, rendir) se
+  // hace desde el panel del Dueño. Si necesita entrar por soporte, las
+  // URLs siguen accesibles para admin pero no aparecen en el menu.
   admin: [
     { to: '/admin',           label: 'Dashboard'   },
     { to: '/eventos',         label: 'Eventos'     },
-    { to: '/caja',            label: 'Vender'      },
-    { to: '/escaner',         label: 'Escaner'     },
-    { to: '/admin/usuarios',  label: 'Usuarios'    },
-    { to: '/admin/promotores',label: 'Publicas'    },
-    { to: '/admin/rendicion', label: 'Rendicion'   },
-    { to: '/admin/control',   label: 'Control en vivo' },
+    { to: '/admin/usuarios',  label: 'Dueños'      },
     { to: '/admin/reportes',  label: 'Reportes'    },
     { to: '/admin/historial', label: 'Historial'   },
-    { to: '/admin/proveedores', label: 'Proveedores' },
-    { to: '/admin/zonas',     label: 'Zonas'       },
     { to: '/configuracion',   label: 'Configuracion' },
   ],
   jefe_publicas: [
@@ -25,12 +22,22 @@ const navItems = {
     { to: '/eventos',  label: 'Eventos'  },
     { to: '/promotor', label: 'Mi Panel' },
   ],
+  // Owner = cliente que compró el sistema. Tiene panel completo pero
+  // SOLO ve datos de SUS eventos (event_owners).
   owner: [
-    { to: '/eventos',         label: 'Mis Eventos'   },
-    { to: '/caja',            label: 'Vender'        },
-    { to: '/escaner',         label: 'Escaner'       },
-    { to: '/admin/reportes',  label: 'Reportes'      },
-    { to: '/configuracion',   label: 'Configuración' },
+    { to: '/eventos',           label: 'Mis Eventos'   },
+    { to: '/caja',              label: 'Vender'        },
+    { to: '/escaner',           label: 'Escaner'       },
+    { to: '/admin/cortesias',   label: 'Cortesías'     },
+    { to: '/admin/usuarios',    label: 'Mi Personal'   },
+    { to: '/admin/promotores',  label: 'Mis Públicas'  },
+    { to: '/admin/rendicion',   label: 'Rendición'     },
+    { to: '/admin/control',     label: 'Control en vivo' },
+    { to: '/admin/reportes',    label: 'Reportes'      },
+    { to: '/admin/historial',   label: 'Historial'     },
+    { to: '/admin/zonas',       label: 'Mis Zonas'     },
+    { to: '/admin/proveedores', label: 'Proveedores'   },
+    { to: '/configuracion',     label: 'Configuración' },
   ],
 };
 

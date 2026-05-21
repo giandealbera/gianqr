@@ -351,6 +351,11 @@ const history = async (req, res) => {
   if (from)     { where.push('e.date >= ?'); params.push(from); }
   if (to)       { where.push('e.date <= ?'); params.push(to); }
   if (event_id) { where.push('e.id = ?');    params.push(event_id); }
+  // Owner: solo sus eventos.
+  if (req.user?.role === 'owner') {
+    where.push('e.id IN (SELECT event_id FROM event_owners WHERE user_id = ?)');
+    params.push(req.user.id);
+  }
 
   try {
     const result = await db.query(

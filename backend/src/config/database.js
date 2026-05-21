@@ -404,6 +404,12 @@ async function runMigrations(queryFn, execFn) {
   // Migracion: eliminar el rol "promotor" (erradicado). Cualquier usuario
   // con ese rol se migra a "vendedor". Es idempotente.
   try { await execFn(`UPDATE users SET role = 'vendedor' WHERE role = 'promotor'`); } catch (e) {}
+
+  // Multi-tenant lite (Fase 1): users tienen un "created_by" para que cada
+  // owner solo vea SU propio staff. Admin pasa a través de todo. Las filas
+  // existentes quedan con created_by=NULL = compartidas (visibles para admin
+  // solo, no leak entre owners).
+  try { await execFn('ALTER TABLE users ADD COLUMN created_by TEXT REFERENCES users(id) ON DELETE SET NULL'); } catch (e) {}
 }
 
 // ---------------------------------------------------------------------------

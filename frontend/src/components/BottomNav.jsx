@@ -17,11 +17,12 @@ const ICONS = {
 };
 
 const navMap = {
+  // Admin: vista SaaS. Lo operativo se hace desde el panel del Dueño.
   admin: [
+    { to: '/admin',          icon: 'reportes', label: 'Dashboard'},
     { to: '/eventos',        icon: 'eventos',  label: 'Eventos'  },
-    { to: '/caja',           icon: 'vender',   label: 'Vender'   },
-    { to: '/escaner',        icon: 'escanear', label: 'Escaner'  },
-    { to: '/admin/reportes', icon: 'reportes', label: 'Reportes' },
+    { to: '/admin/usuarios', icon: 'panel',    label: 'Dueños'   },
+    { to: '/admin/historial',icon: 'reportes', label: 'Historial'},
     { to: '/mas',            icon: 'mas',      label: 'Mas'      },
   ],
   jefe_publicas: [
@@ -36,6 +37,7 @@ const navMap = {
     { to: '/promotor',        icon: 'panel',   label: 'Mi Panel' },
     { to: '/mas',             icon: 'mas',     label: 'Mas'      },
   ],
+  // Owner: lo operativo del cliente. El resto va en /mas.
   owner: [
     { to: '/eventos',        icon: 'eventos',  label: 'Eventos' },
     { to: '/caja',           icon: 'vender',   label: 'Vender'  },

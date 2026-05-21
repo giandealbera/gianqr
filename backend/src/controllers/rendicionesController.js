@@ -42,6 +42,10 @@ const listPublicas = async (req, res) => {
        LEFT JOIN users lu ON lu.id = p.leader_id
        ${ticketJoinClause}
        WHERE u.role != 'admin' AND p.promo_code != 'CASA' ${searchClause}
+       ${req.user.role === 'owner'
+         ? `AND (u.created_by = '${req.user.id.replace(/'/g, "''")}'
+                 OR u.created_by IN (SELECT id FROM users WHERE created_by = '${req.user.id.replace(/'/g, "''")}'))`
+         : ''}
        GROUP BY p.id, u.id, z.id, lu.id
        ORDER BY u.name ASC`,
       params

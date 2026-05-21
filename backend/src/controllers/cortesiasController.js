@@ -20,6 +20,12 @@ const createCortesias = async (req, res) => {
       return res.status(400).json({ error: 'Cada cortesia debe tener nombre y apellido' });
   }
 
+  // Owner solo puede emitir cortesias para SUS eventos.
+  if (req.user.role === 'owner') {
+    const own = await db.query('SELECT 1 FROM event_owners WHERE event_id = ? AND user_id = ?', [event_id, req.user.id]);
+    if (!own.rows[0]) return res.status(403).json({ error: 'No sos dueño de este evento' });
+  }
+
   try {
     // Buscar promotor CASA para asignar las cortesias
     const promo = await db.query("SELECT id FROM promotors WHERE promo_code = 'CASA'");

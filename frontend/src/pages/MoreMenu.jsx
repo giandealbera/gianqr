@@ -62,16 +62,23 @@ const MoreMenu = () => {
         <div className="space-y-2">
           {user?.role === 'admin' && (
             <>
-              <MenuItem iconKey="users"     label="Administrar personal"  desc="Usuarios, roles y permisos" onClick={() => navigate('/admin/usuarios')} />
-              <MenuItem iconKey="megaphone" label="Públicas" desc="Ventas y comisiones de públicas" onClick={() => navigate('/admin/promotores')} />
-              <MenuItem iconKey="chart"     label="Control en vivo"       desc="Ingresos en tiempo real y listado de personas" onClick={() => navigate('/admin/control')} />
-              <MenuItem iconKey="receipt"   label="Rendición de entradas" desc="Búsqueda de públicas y registro de pagos" onClick={() => navigate('/admin/rendicion')} />
-              <MenuItem iconKey="money"     label="Reportes de ventas"    desc="Resumen financiero general" onClick={() => navigate('/admin/reportes')} />
-              <MenuItem iconKey="chart"     label="Historial de eventos"  desc="Ventas y rendición por evento, filtrable por fecha" onClick={() => navigate('/admin/historial')} />
-              <MenuItem iconKey="users"     label="Proveedores"           desc="Contactos y datos de pago (alias/CBU)" onClick={() => navigate('/admin/proveedores')} />
-              <MenuItem iconKey="users"     label="Zonas"                 desc="Agrupar vendedores por zona (Norte, Sur, etc.)" onClick={() => navigate('/admin/zonas')} />
+              <MenuItem iconKey="users"     label="Dueños del sistema"    desc="Gestionar clientes que usan el sistema" onClick={() => navigate('/admin/usuarios')} />
+              <MenuItem iconKey="chart"     label="Dashboard general"     desc="Vista global cross-tenant" onClick={() => navigate('/admin')} />
+              <MenuItem iconKey="money"     label="Reportes globales"     desc="Métricas del sistema" onClick={() => navigate('/admin/reportes')} />
+              <MenuItem iconKey="chart"     label="Historial de eventos"  desc="Todos los eventos del sistema" onClick={() => navigate('/admin/historial')} />
               <MenuItem iconKey="ticket"    label="Reiniciar eventos"     desc="Borrar tickets y rendiciones por evento (acción peligrosa)" onClick={() => navigate('/admin/reset-eventos')} />
-              <MenuItem iconKey="chart"     label="Dashboard general"     desc="Vista global del sistema" onClick={() => navigate('/admin')} />
+            </>
+          )}
+          {user?.role === 'owner' && (
+            <>
+              <MenuItem iconKey="ticket"    label="Cortesías"             desc="Entradas regaladas a invitados" onClick={() => navigate('/admin/cortesias')} />
+              <MenuItem iconKey="users"     label="Mi Personal"           desc="Jefes y vendedores de tu equipo" onClick={() => navigate('/admin/usuarios')} />
+              <MenuItem iconKey="megaphone" label="Mis Públicas"          desc="Ventas y comisiones de tus públicas" onClick={() => navigate('/admin/promotores')} />
+              <MenuItem iconKey="receipt"   label="Rendición"             desc="Registrar pagos de tus públicas" onClick={() => navigate('/admin/rendicion')} />
+              <MenuItem iconKey="chart"     label="Control en vivo"       desc="Ingresos en tiempo real" onClick={() => navigate('/admin/control')} />
+              <MenuItem iconKey="chart"     label="Mi Historial"          desc="Tus eventos pasados" onClick={() => navigate('/admin/historial')} />
+              <MenuItem iconKey="users"     label="Mis Zonas"             desc="Agrupar vendedores por zona" onClick={() => navigate('/admin/zonas')} />
+              <MenuItem iconKey="users"     label="Mis Proveedores"       desc="Contactos y datos de pago" onClick={() => navigate('/admin/proveedores')} />
             </>
           )}
 

@@ -9,14 +9,14 @@ const {
 } = require('../controllers/eventsController');
 
 router.get('/venues',  auth, getVenues);
-router.get('/history', auth, roles('admin'), history);
+router.get('/history', auth, roles('admin', 'owner'), history);
 
 // owner puede ver y editar sus eventos
 router.get('/',        auth, getAll);
 router.get('/:id',     auth, getOne);
 router.get('/:id/stats', auth, roles('admin', 'owner'), stats);
 router.post('/',       auth, roles('admin'), create);
-router.post('/:id/reset', auth, roles('admin'), resetEvent);
+router.post('/:id/reset', auth, roles('admin', 'owner'), resetEvent);
 router.put('/:id',     auth, roles('admin', 'owner'), update);
 
 // Gestión de tipos de entrada (owner con verificación de ownership en el controller)

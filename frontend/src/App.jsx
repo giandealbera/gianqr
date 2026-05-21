@@ -100,35 +100,38 @@ const App = () => (
           <ProtectedRoute allowedRoles={['admin']}><Dashboard /></ProtectedRoute>
         } />
         <Route path="/admin/eventos" element={<Navigate to="/eventos" replace />} />
+        {/* Owner usa /admin/* routes con scope a sus eventos.
+            Admin tiene override total (puede entrar a todo).
+            Controllers verifican ownership. */}
         <Route path="/admin/usuarios" element={
-          <ProtectedRoute allowedRoles={['admin']}><Users /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin', 'owner']}><Users /></ProtectedRoute>
         } />
         <Route path="/admin/reportes" element={
-          <ProtectedRoute allowedRoles={['admin']}><Reports /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin', 'owner']}><Reports /></ProtectedRoute>
         } />
         <Route path="/admin/promotores" element={
-          <ProtectedRoute allowedRoles={['admin']}><PromoterSales /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin', 'owner']}><PromoterSales /></ProtectedRoute>
         } />
         <Route path="/admin/rendicion" element={
-          <ProtectedRoute allowedRoles={['admin']}><Rendicion /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin', 'owner']}><Rendicion /></ProtectedRoute>
         } />
         <Route path="/admin/control" element={
-          <ProtectedRoute allowedRoles={['admin']}><LiveControl /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin', 'owner']}><LiveControl /></ProtectedRoute>
         } />
         <Route path="/admin/cortesias" element={
-          <ProtectedRoute allowedRoles={['admin']}><Cortesias /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin', 'owner']}><Cortesias /></ProtectedRoute>
         } />
         <Route path="/admin/historial" element={
-          <ProtectedRoute allowedRoles={['admin']}><EventHistory /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin', 'owner']}><EventHistory /></ProtectedRoute>
         } />
         <Route path="/admin/proveedores" element={
-          <ProtectedRoute allowedRoles={['admin']}><Proveedores /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin', 'owner']}><Proveedores /></ProtectedRoute>
         } />
         <Route path="/admin/reset-eventos" element={
-          <ProtectedRoute allowedRoles={['admin']}><ResetEventos /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin', 'owner']}><ResetEventos /></ProtectedRoute>
         } />
         <Route path="/admin/zonas" element={
-          <ProtectedRoute allowedRoles={['admin']}><Zonas /></ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin', 'owner']}><Zonas /></ProtectedRoute>
         } />
 
         {/* Escáner (solo admin) */}
