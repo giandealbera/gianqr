@@ -12,6 +12,7 @@ const EventStats = () => {
   const [event, setEvent] = useState(null);
   const [stats, setStats] = useState(null);
   const [tickets, setTickets] = useState([]);
+  const [buyer, setBuyer] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -19,10 +20,12 @@ const EventStats = () => {
       api.get(`/events/${id}`),
       api.get(`/events/${id}/stats`).catch(() => ({ data: null })),
       api.get(`/tickets?event_id=${id}`).catch(() => ({ data: [] })),
-    ]).then(([ev, st, tk]) => {
+      api.get(`/events/${id}/buyer-stats`).catch(() => ({ data: null })),
+    ]).then(([ev, st, tk, by]) => {
       setEvent(ev.data);
       setStats(st.data);
       setTickets(tk.data);
+      setBuyer(by.data);
     }).finally(() => setLoading(false));
   }, [id]);
 
@@ -163,6 +166,84 @@ const EventStats = () => {
                   <span className="text-[10px] text-gray-500">{hour.split(':')[0]}</span>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Stats demográficas (basadas en los datos que cargan los compradores) */}
+        {buyer && buyer.total_compradores > 0 && (
+          <div className="card">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-sm">Perfil del público</h3>
+              <span className="text-[10px] text-gray-500 uppercase tracking-wider">
+                {buyer.total_compradores} compradores
+              </span>
+            </div>
+
+            {/* Edad: avg + buckets */}
+            <div className="mb-5">
+              <div className="flex items-baseline justify-between mb-2">
+                <span className="text-xs text-gray-400 uppercase tracking-wider">Edad promedio</span>
+                <span className="text-xs text-gray-500">
+                  {buyer.edad.muestra} de {buyer.total_compradores} cargaron edad ({buyer.edad.cobertura_pct}%)
+                </span>
+              </div>
+              {buyer.edad.muestra > 0 ? (
+                <>
+                  <div className="flex items-baseline gap-3 mb-3">
+                    <span className="text-3xl font-black text-brand">{buyer.edad.promedio}</span>
+                    <span className="text-sm text-gray-500">años · rango {buyer.edad.min}–{buyer.edad.max}</span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {buyer.edad.buckets.map(b => (
+                      <div key={b.rango} className="flex items-center gap-3 text-xs">
+                        <span className="w-12 text-gray-400">{b.rango}</span>
+                        <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: '#161B24' }}>
+                          <div className="h-full transition-all" style={{ width: `${b.pct}%`, background: '#C9974D' }} />
+                        </div>
+                        <span className="w-16 text-right text-gray-300 tabular-nums">{b.count} ({b.pct}%)</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p className="text-xs text-gray-500">Ningún comprador cargó su edad aún.</p>
+              )}
+            </div>
+
+            {/* Localidad */}
+            <div className="mb-5 pt-4 border-t border-gray-800">
+              <div className="flex items-baseline justify-between mb-3">
+                <span className="text-xs text-gray-400 uppercase tracking-wider">Top localidades</span>
+                <span className="text-xs text-gray-500">
+                  {buyer.localidades.muestra} cargaron localidad ({buyer.localidades.cobertura_pct}%)
+                </span>
+              </div>
+              {buyer.localidades.top.length > 0 ? (
+                <div className="space-y-1.5">
+                  {buyer.localidades.top.slice(0, 5).map((l, i) => (
+                    <div key={l.nombre} className="flex items-center gap-3 text-sm">
+                      <span className="w-5 text-center text-gray-500 text-xs">{i + 1}</span>
+                      <span className="flex-1 text-gray-200 truncate">{l.nombre}</span>
+                      <span className="text-gray-400 tabular-nums">{l.count}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-500">Sin localidades cargadas.</p>
+              )}
+            </div>
+
+            {/* Email coverage */}
+            <div className="pt-4 border-t border-gray-800 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-gray-400 uppercase tracking-wider">Emails cargados</p>
+                <p className="text-xs text-gray-500 mt-0.5">Útil para futuro marketing</p>
+              </div>
+              <div className="text-right">
+                <p className="text-2xl font-bold text-emerald-400">{buyer.email.pct}%</p>
+                <p className="text-xs text-gray-500">{buyer.email.count} de {buyer.total_compradores}</p>
+              </div>
             </div>
           </div>
         )}

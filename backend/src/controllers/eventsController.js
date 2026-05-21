@@ -570,6 +570,97 @@ const removeOwner = async (req, res) => {
   }
 };
 
+// GET /api/events/:id/buyer-stats — estadisticas demograficas del publico
+// (basadas en los datos que carga cada comprador al generar su QR).
+// Solo cuenta tickets con datos reales (excluye 'Pendiente' y cortesias
+// con buyer_name vacio). Owner solo SUS eventos.
+const buyerStats = async (req, res) => {
+  const { id } = req.params;
+  try {
+    if (req.user?.role === 'owner') {
+      const ok = await ownerHasEvent(req.user.id, id);
+      if (!ok) return res.status(403).json({ error: 'Sin acceso a este evento' });
+    }
+
+    // Base: tickets pagados o usados, con datos cargados (no "Pendiente").
+    const baseWhere = `event_id = ? AND status IN ('pagado','usado') AND buyer_name IS NOT NULL AND buyer_name != '' AND buyer_name != 'Pendiente'`;
+
+    const totalR = await db.query(`SELECT COUNT(*) AS c FROM tickets WHERE ${baseWhere}`, [id]);
+    const total = parseInt(totalR.rows[0]?.c || 0, 10);
+
+    // Edad: solo los que la cargaron.
+    // buyer_edad es TEXT en la DB; casteamos a INT para promedios.
+    const ageR = await db.query(
+      `SELECT buyer_edad FROM tickets
+       WHERE ${baseWhere} AND buyer_edad IS NOT NULL AND buyer_edad != ''`,
+      [id]
+    );
+    const ages = ageR.rows
+      .map(r => parseInt(r.buyer_edad, 10))
+      .filter(n => !isNaN(n) && n > 0 && n < 120);
+
+    const avgAge = ages.length > 0 ? ages.reduce((a, b) => a + b, 0) / ages.length : 0;
+    const minAge = ages.length > 0 ? Math.min(...ages) : 0;
+    const maxAge = ages.length > 0 ? Math.max(...ages) : 0;
+
+    const buckets = { '<18': 0, '18-24': 0, '25-34': 0, '35-44': 0, '45+': 0 };
+    ages.forEach(a => {
+      if (a < 18) buckets['<18']++;
+      else if (a < 25) buckets['18-24']++;
+      else if (a < 35) buckets['25-34']++;
+      else if (a < 45) buckets['35-44']++;
+      else buckets['45+']++;
+    });
+
+    // Localidad: top 5.
+    const locR = await db.query(
+      `SELECT buyer_localidad AS nombre, COUNT(*) AS c
+       FROM tickets
+       WHERE ${baseWhere} AND buyer_localidad IS NOT NULL AND buyer_localidad != ''
+       GROUP BY buyer_localidad
+       ORDER BY c DESC
+       LIMIT 10`,
+      [id]
+    );
+
+    // Email: % de gente que dejo email (para futuro marketing).
+    const emailR = await db.query(
+      `SELECT COUNT(*) AS c FROM tickets
+       WHERE ${baseWhere} AND buyer_email IS NOT NULL AND buyer_email != ''`,
+      [id]
+    );
+    const emailsCount = parseInt(emailR.rows[0]?.c || 0, 10);
+
+    res.json({
+      total_compradores: total,
+      edad: {
+        promedio: Math.round(avgAge * 10) / 10,
+        min: minAge,
+        max: maxAge,
+        muestra: ages.length, // cuantos cargaron edad
+        cobertura_pct: total > 0 ? Math.round((ages.length / total) * 100) : 0,
+        buckets: Object.entries(buckets).map(([rango, n]) => ({
+          rango,
+          count: n,
+          pct: ages.length > 0 ? Math.round((n / ages.length) * 100) : 0,
+        })),
+      },
+      localidades: {
+        top: locR.rows.map(r => ({ nombre: r.nombre, count: parseInt(r.c, 10) })),
+        muestra: locR.rows.reduce((s, r) => s + parseInt(r.c, 10), 0),
+        cobertura_pct: total > 0 ? Math.round((locR.rows.reduce((s, r) => s + parseInt(r.c, 10), 0) / total) * 100) : 0,
+      },
+      email: {
+        count: emailsCount,
+        pct: total > 0 ? Math.round((emailsCount / total) * 100) : 0,
+      },
+    });
+  } catch (err) {
+    console.error('buyerStats error:', err.message);
+    res.status(500).json({ error: 'Error al obtener estadísticas' });
+  }
+};
+
 // POST /api/events/:id/stop-sales — corte manual de venta
 // El evento sigue accesible para rendiciones, scanner, reportes.
 // Para reanudar usar POST /api/events/:id/resume-sales.
@@ -609,7 +700,7 @@ const resumeSales = async (req, res) => {
 
 module.exports = {
   getAll, getOne, create, update, stats, history, resetEvent, cloneEvent,
-  stopSales, resumeSales,
+  stopSales, resumeSales, buyerStats,
   getVenues, getTicketTypes, addTicketType, updateTicketType, toggleTicketType,
   getOwners, addOwner, removeOwner,
 };

@@ -4,7 +4,7 @@ const auth    = require('../middleware/auth');
 const roles   = require('../middleware/roles');
 const {
   getAll, getOne, create, update, stats, history, resetEvent, cloneEvent,
-  stopSales, resumeSales,
+  stopSales, resumeSales, buyerStats,
   getVenues, getTicketTypes, addTicketType, updateTicketType, toggleTicketType,
   getOwners, addOwner, removeOwner,
 } = require('../controllers/eventsController');
@@ -16,6 +16,8 @@ router.get('/history', auth, roles('admin', 'owner'), history);
 router.get('/',        auth, getAll);
 router.get('/:id',     auth, getOne);
 router.get('/:id/stats', auth, roles('admin', 'owner'), stats);
+// Estadísticas demográficas del público (edad/localidad/email).
+router.get('/:id/buyer-stats', auth, roles('admin', 'owner'), buyerStats);
 // Owner puede crear sus propios eventos (se auto-asigna como dueño).
 router.post('/',       auth, roles('admin', 'owner'), create);
 // Clonar evento (copia ticket_types y dueños del original).
