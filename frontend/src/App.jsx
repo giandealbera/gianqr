@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
+import { AnimatePresence, motion } from 'framer-motion';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -37,12 +38,38 @@ const Zonas             = lazy(() => import('./pages/admin/Zonas'));
 const MoreMenu          = lazy(() => import('./pages/MoreMenu'));
 const Configuracion     = lazy(() => import('./pages/Configuracion'));
 
-// Spinner mostrado mientras carga un chunk lazy.
+// Barra de progreso superior mientras carga un chunk lazy. Sustituye al
+// spinner full-screen anterior — la pantalla anterior queda visible y el
+// usuario percibe la transicion como instantanea.
 const PageLoader = () => (
-  <div className="flex justify-center items-center min-h-screen" style={{ background: '#0D1117' }}>
-    <div className="animate-spin rounded-full h-10 w-10 border-t-2" style={{ borderColor: '#C9974D' }} />
-  </div>
+  <motion.div
+    initial={{ scaleX: 0, opacity: 0.8 }}
+    animate={{ scaleX: 0.92, opacity: 1 }}
+    transition={{ duration: 1.6, ease: [0.16, 1, 0.3, 1] }}
+    style={{ transformOrigin: '0% 50%', background: '#C9974D' }}
+    className="fixed top-0 left-0 right-0 h-0.5 z-[60]"
+  />
 );
+
+// Wrapper que anima la entrada/salida de cada ruta. Slide horizontal corto
+// + fade. El mode="wait" hace que la pantalla saliente termine antes de que
+// arranque la entrante (sino se ven montadas en el mismo instante).
+const AnimatedRoutes = ({ children }) => {
+  const location = useLocation();
+  return (
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={location.pathname}
+        initial={{ opacity: 0, x: 12 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -8 }}
+        transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
+      >
+        {children}
+      </motion.div>
+    </AnimatePresence>
+  );
+};
 
 // Redirige al panel según el rol del usuario logueado
 const RoleRedirect = () => {
@@ -63,6 +90,7 @@ const App = () => (
         }}
       />
       <Suspense fallback={<PageLoader />}>
+      <AnimatedRoutes>
       <Routes>
         {/* Público */}
         <Route path="/login" element={<Login />} />
@@ -170,6 +198,7 @@ const App = () => (
           </div>
         } />
       </Routes>
+      </AnimatedRoutes>
       </Suspense>
     </BrowserRouter>
   </AuthProvider>

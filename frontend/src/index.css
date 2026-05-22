@@ -68,4 +68,30 @@
     from { opacity: 0; transform: translateY(-5px); }
     to   { opacity: 1; transform: translateY(0); }
   }
+
+  /* Tap feedback global: cualquier elemento clickeable se hunde sutilmente
+     al tocarlo. Da sensacion de boton fisico en mobile sin requerir JS por
+     cada componente. Aplica solo en pointer-coarse (touch) — en desktop
+     mantenemos solo hover. */
+  @media (pointer: coarse) {
+    button:not(:disabled):active,
+    a:active,
+    [role="button"]:active,
+    .card:active,
+    .btn-primary:active,
+    .btn-secondary:active {
+      transform: scale(0.97);
+      transition: transform 60ms ease-out;
+    }
+  }
+
+  /* Honoramos prefers-reduced-motion: si el sistema lo pide, aplanamos las
+     animaciones de framer-motion y las propias. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
 }
