@@ -23,6 +23,13 @@ const listPublicas = async (req, res) => {
       params.push(event_id);     // ? del subselect
     }
 
+    // Scope multi-tenant para owner: solo ve staff que el (o su jefe) creo.
+    let ownerScopeClause = '';
+    if (req.user.role === 'owner') {
+      ownerScopeClause = 'AND (u.created_by = ? OR u.created_by IN (SELECT id FROM users WHERE created_by = ?))';
+      params.push(req.user.id, req.user.id);
+    }
+
     const result = await db.query(
       `SELECT p.id AS promotor_id,
               u.id AS user_id, u.name, u.apellido, u.celular, u.localidad, u.email,
@@ -42,10 +49,7 @@ const listPublicas = async (req, res) => {
        LEFT JOIN users lu ON lu.id = p.leader_id
        ${ticketJoinClause}
        WHERE u.role != 'admin' AND p.promo_code != 'CASA' ${searchClause}
-       ${req.user.role === 'owner'
-         ? `AND (u.created_by = '${req.user.id.replace(/'/g, "''")}'
-                 OR u.created_by IN (SELECT id FROM users WHERE created_by = '${req.user.id.replace(/'/g, "''")}'))`
-         : ''}
+       ${ownerScopeClause}
        GROUP BY p.id, u.id, z.id, lu.id
        ORDER BY u.name ASC`,
       params
