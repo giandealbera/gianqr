@@ -35,7 +35,7 @@ const Users = () => {
 
   const jefes = users.filter(u => u.role === 'jefe_publicas' && u.is_active);
 
-  const load = () => api.get('/users').then(r => setUsers(r.data));
+  const load = () => api.get('/users').then(r => setUsers(r.data)).catch(() => toast.error('Error al cargar usuarios'));
   const loadZonas = () => api.get('/zonas').then(r => setZonas(r.data)).catch(() => {});
   useEffect(() => { load(); loadZonas(); }, []);
 
@@ -178,13 +178,15 @@ const Users = () => {
                   onChange={e => setForm(f => ({ ...f, apellido: e.target.value }))} />
               </div>
               <div>
-                <label className="text-sm text-gray-400 block mb-1">Usuario *</label>
-                <input type="text" className="input" required value={form.email}
+                <label className="text-sm text-gray-400 block mb-1">Email (para iniciar sesión) *</label>
+                <input type="email" className="input" required value={form.email}
+                  placeholder="ej: juan@email.com"
                   onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
               </div>
               <div>
                 <label className="text-sm text-gray-400 block mb-1">Contraseña *</label>
-                <input type="password" className="input" required value={form.password}
+                <input type="password" className="input" required minLength={8} value={form.password}
+                  placeholder="mín. 8 caracteres"
                   onChange={e => setForm(f => ({ ...f, password: e.target.value }))} />
               </div>
               <div>
