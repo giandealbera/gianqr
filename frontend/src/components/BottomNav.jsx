@@ -1,4 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 
 const Icon = ({ path }) => (
@@ -16,8 +17,23 @@ const ICONS = {
   mas:      'M5 12h.01M12 12h.01M19 12h.01',
 };
 
+// Prefetch del chunk de cada ruta. Cuando el dedo toca el item (touchstart)
+// o el mouse pasa por encima, ya empezamos a descargar el bundle. Para
+// cuando el usuario suelta el dedo / click, en muchos casos ya esta listo.
+const PREFETCH = {
+  '/eventos':         () => import('../pages/events/MyEvents'),
+  '/admin':           () => import('../pages/admin/Dashboard'),
+  '/admin/usuarios':  () => import('../pages/admin/Users'),
+  '/admin/historial': () => import('../pages/admin/EventHistory'),
+  '/admin/reportes':  () => import('../pages/admin/Reports'),
+  '/caja':            () => import('../pages/cashier/Cashier'),
+  '/escaner':         () => import('../pages/scanner/Scanner'),
+  '/promotor':        () => import('../pages/promoter/PromoterDashboard'),
+  '/promotor/vender': () => import('../pages/promoter/PromoterSell'),
+  '/mas':             () => import('../pages/MoreMenu'),
+};
+
 const navMap = {
-  // Admin: vista SaaS. Lo operativo se hace desde el panel del Dueño.
   admin: [
     { to: '/admin',          icon: 'reportes', label: 'Dashboard'},
     { to: '/eventos',        icon: 'eventos',  label: 'Eventos'  },
@@ -37,7 +53,6 @@ const navMap = {
     { to: '/promotor',        icon: 'panel',   label: 'Mi Panel' },
     { to: '/mas',             icon: 'mas',     label: 'Mas'      },
   ],
-  // Owner: lo operativo del cliente. El resto va en /mas.
   owner: [
     { to: '/eventos',        icon: 'eventos',  label: 'Eventos' },
     { to: '/caja',           icon: 'vender',   label: 'Vender'  },
@@ -52,6 +67,11 @@ const BottomNav = () => {
   const location   = useLocation();
   const items      = navMap[user?.role] || navMap.admin;
 
+  const prefetch = (to) => {
+    const fn = PREFETCH[to];
+    if (fn) fn().catch(() => {/* fallo silencioso, el lazy normal lo reintenta */});
+  };
+
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 safe-area-bottom"
          style={{ background: 'rgba(13,17,23,0.97)', borderTop: '1px solid #1E2530', backdropFilter: 'blur(12px)' }}>
@@ -63,14 +83,36 @@ const BottomNav = () => {
             <NavLink
               key={item.to}
               to={item.to}
-              className="relative flex flex-col items-center gap-0.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 min-w-[56px]"
-              style={{ color: isActive ? '#C9974D' : '#4B5568' }}
+              onTouchStart={() => prefetch(item.to)}
+              onMouseEnter={() => prefetch(item.to)}
+              className="relative flex flex-col items-center gap-0.5 px-3 py-2 rounded-lg text-xs font-medium min-w-[56px]"
+              style={{ color: isActive ? '#C9974D' : '#4B5568', WebkitTapHighlightColor: 'transparent' }}
             >
-              <Icon path={ICONS[item.icon]} />
-              <span className="tracking-wide">{item.label}</span>
+              {/* Pill detrás del item activo. layoutId hace que se deslice
+                  fluido entre items al cambiar de tab. */}
               {isActive && (
-                <span className="absolute -top-px left-1/2 -translate-x-1/2 w-6 h-0.5 rounded-full"
-                      style={{ background: '#C9974D' }} />
+                <motion.span
+                  layoutId="bottomNavPill"
+                  className="absolute inset-0 rounded-lg -z-0"
+                  style={{ background: 'rgba(201,151,77,0.10)' }}
+                  transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+                />
+              )}
+              <motion.div
+                whileTap={{ scale: 0.88 }}
+                transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+                className="relative z-10 flex flex-col items-center gap-0.5"
+              >
+                <Icon path={ICONS[item.icon]} />
+                <span className="tracking-wide">{item.label}</span>
+              </motion.div>
+              {isActive && (
+                <motion.span
+                  layoutId="bottomNavBar"
+                  className="absolute -top-px left-1/2 -translate-x-1/2 w-6 h-0.5 rounded-full"
+                  style={{ background: '#C9974D' }}
+                  transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+                />
               )}
             </NavLink>
           );

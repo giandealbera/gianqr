@@ -7,6 +7,7 @@ const roleRedirect = {
   admin:         '/admin',
   jefe_publicas: '/promotor',
   vendedor:      '/promotor',
+  owner:         '/eventos',
 };
 
 const Login = () => {

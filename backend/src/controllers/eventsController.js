@@ -537,13 +537,29 @@ const addOwner = async (req, res) => {
   const { user_id } = req.body;
   if (!user_id) return res.status(400).json({ error: 'user_id es requerido' });
   try {
-    // Verificar que el usuario existe y tiene rol owner
+    // Verificar que el usuario existe, tiene rol owner, y fue creado por
+    // ESTE admin (scope multi-tenant: admin_A no puede asignar a owner_B).
     const userRow = await db.query(
-      "SELECT id, name, role FROM users WHERE id = ? AND role = 'owner' AND is_active = 1",
-      [user_id]
+      "SELECT id, name, role FROM users WHERE id = ? AND role = 'owner' AND is_active = 1 AND created_by = ?",
+      [user_id, req.user.id]
     );
     if (!userRow.rows[0])
       return res.status(400).json({ error: 'Usuario no encontrado o no tiene rol de dueño' });
+
+    // Verificar que el evento tambien le pertenece a este admin (creado por el
+    // o asignado a un owner suyo). Sin esto, admin_A podia agregarse a SI mismo
+    // un owner suyo a un evento de admin_B.
+    const ev = await db.query(
+      `SELECT 1 FROM events e
+       WHERE e.id = ? AND (
+         e.created_by = ?
+         OR e.id IN (SELECT eo.event_id FROM event_owners eo
+                     JOIN users u ON u.id = eo.user_id
+                     WHERE u.created_by = ?)
+       )`,
+      [req.params.id, req.user.id, req.user.id]
+    );
+    if (!ev.rows[0]) return res.status(403).json({ error: 'Sin acceso a este evento' });
 
     await db.query(
       'INSERT OR IGNORE INTO event_owners (id, event_id, user_id) VALUES (?,?,?)',
