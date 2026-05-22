@@ -264,10 +264,15 @@ const scan = async (req, res) => {
     if (ticket.status !== 'pagado')
       return res.status(402).json({ valid: false, error: `Estado: ${ticket.status}`, ticket });
 
-    await db.query(
-      'UPDATE tickets SET status=?, scanned_at=CURRENT_TIMESTAMP, scanned_by=? WHERE id=?',
-      ['usado', req.user.id, ticket.id]
+    // UPDATE condicional: si dos porteros scanean el mismo QR a la vez, solo
+    // uno gana (el que marca 'pagado'->'usado'). El otro ve affectedRows=0
+    // y obtiene el mismo 409 que un re-escaneo normal.
+    const upd = await db.query(
+      "UPDATE tickets SET status='usado', scanned_at=CURRENT_TIMESTAMP, scanned_by=? WHERE id=? AND status='pagado'",
+      [req.user.id, ticket.id]
     );
+    if (!upd.affectedRows)
+      return res.status(409).json({ valid: false, error: 'Esta entrada ya fue utilizada', ticket });
 
     ticket.status     = 'usado';
     ticket.scanned_at = new Date();
@@ -376,13 +381,16 @@ const remove = async (req, res) => {
     const ticketTypeId = t.rows[0].ticket_type_id;
     const wasValid     = ['pagado', 'usado'].includes(t.rows[0].status);
 
-    await db.query('DELETE FROM payments WHERE ticket_id = ?', [req.params.id]);
-    await db.query('DELETE FROM tickets WHERE id = ?', [req.params.id]);
-
-    // Devolver el cupo solo si la entrada estaba contando como vendida
-    if (wasValid) {
-      await db.query('UPDATE ticket_types SET sold_count = MAX(0, sold_count - 1) WHERE id = ?', [ticketTypeId]);
-    }
+    // Atomico: payments + ticket + sold_count en la misma transaccion.
+    // Sin esto, si el delete del ticket fallaba el cupo nunca se liberaba;
+    // y si el update fallaba quedaba inconsistente entre ambos.
+    await db.transaction(async (conn) => {
+      await conn.execute('DELETE FROM payments WHERE ticket_id = ?', [req.params.id]);
+      await conn.execute('DELETE FROM tickets WHERE id = ?', [req.params.id]);
+      if (wasValid) {
+        await conn.execute('UPDATE ticket_types SET sold_count = MAX(0, sold_count - 1) WHERE id = ?', [ticketTypeId]);
+      }
+    });
 
     res.json({ message: 'Ticket eliminado' });
   } catch (err) {

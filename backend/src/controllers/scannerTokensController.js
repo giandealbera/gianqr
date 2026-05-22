@@ -164,10 +164,16 @@ const publicScan = async (req, res) => {
     if (ticket.status !== 'pagado')
       return res.status(402).json({ valid: false, error: `Estado inválido: ${ticket.status}`, ticket });
 
-    await db.query(
-      "UPDATE tickets SET status='usado', scanned_at=CURRENT_TIMESTAMP WHERE id=?",
+    // UPDATE condicional para evitar doble-uso en scans concurrentes (dos
+    // porteros con el mismo link scaneando al mismo tiempo). Si otro ya
+    // marco la entrada, affectedRows=0 y devolvemos 409.
+    const upd = await db.query(
+      "UPDATE tickets SET status='usado', scanned_at=CURRENT_TIMESTAMP WHERE id=? AND status='pagado'",
       [ticket.id]
     );
+    if (!upd.affectedRows)
+      return res.status(409).json({ valid: false, error: 'Esta entrada ya fue utilizada', ticket });
+
     ticket.status     = 'usado';
     ticket.scanned_at = new Date().toISOString();
 

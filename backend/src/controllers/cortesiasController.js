@@ -18,6 +18,8 @@ const createCortesias = async (req, res) => {
   for (const a of attendees) {
     if (!a.buyer_name || !a.buyer_apellido)
       return res.status(400).json({ error: 'Cada cortesia debe tener nombre y apellido' });
+    if (a.buyer_name.length > 50 || a.buyer_apellido.length > 50)
+      return res.status(400).json({ error: 'El nombre y apellido no deben superar los 50 caracteres' });
   }
 
   // Owner solo puede emitir cortesias para SUS eventos.
@@ -31,40 +33,53 @@ const createCortesias = async (req, res) => {
     const promo = await db.query("SELECT id FROM promotors WHERE promo_code = 'CASA'");
     const promotorId = promo.rows[0]?.id || null;
 
-    const ttResult = await db.query(
-      'SELECT * FROM ticket_types WHERE id = ? AND event_id = ?',
-      [ticket_type_id, event_id]
-    );
-    const tt = ttResult.rows[0];
-    if (!tt) return res.status(400).json({ error: 'Tipo de entrada no encontrado' });
-    if ((tt.total_quota - tt.sold_count) < attendees.length)
-      return res.status(400).json({ error: `Solo quedan ${tt.total_quota - tt.sold_count} entradas disponibles` });
-
     const created = [];
 
-    for (const a of attendees) {
-      const ticketId = uuidv4();
-      const qrCode   = `GIANQR-${ticketId.substring(0, 8).toUpperCase()}`;
-      await db.query(
-        `INSERT INTO tickets
-           (id, ticket_type_id, event_id, buyer_name, buyer_apellido, buyer_edad, buyer_localidad, buyer_email,
-            qr_code, payment_method, payment_ref, amount_paid, status, promotor_id, sold_by)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-        [ticketId, ticket_type_id, event_id, a.buyer_name, a.buyer_apellido,
-         a.buyer_edad || null, a.buyer_localidad || null, a.buyer_email || '',
-         qrCode, 'cortesia', 'CORTESIA', 0, 'pagado', promotorId, req.user.id]
+    // Toda la emision va en una transaccion: revalidamos cupo DENTRO con
+    // la fila locked, insertamos los tickets y subimos sold_count atomico.
+    // Sin esto, dos admins emitiendo cortesias al mismo tiempo pueden ambos
+    // ver cupo libre y oversold el evento.
+    await db.transaction(async (conn) => {
+      const [ttRows] = await conn.execute(
+        'SELECT * FROM ticket_types WHERE id = ? AND event_id = ?',
+        [ticket_type_id, event_id]
       );
-      created.push({
-        id: ticketId, qr_code: qrCode,
-        buyer_name: a.buyer_name, buyer_apellido: a.buyer_apellido,
-        tipo_entrada: tt.name,
-      });
-    }
+      const tt = ttRows[0];
+      if (!tt) throw new Error('TT_NOT_FOUND');
+      const available = tt.total_quota - tt.sold_count;
+      if (available < attendees.length) throw new Error(`NO_QUOTA:${available}`);
 
-    await db.query('UPDATE ticket_types SET sold_count = sold_count + ? WHERE id = ?', [attendees.length, ticket_type_id]);
+      for (const a of attendees) {
+        const ticketId = uuidv4();
+        const qrCode   = `GIANQR-${ticketId.substring(0, 8).toUpperCase()}`;
+        await conn.execute(
+          `INSERT INTO tickets
+             (id, ticket_type_id, event_id, buyer_name, buyer_apellido, buyer_edad, buyer_localidad, buyer_email,
+              qr_code, payment_method, payment_ref, amount_paid, status, promotor_id, sold_by)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          [ticketId, ticket_type_id, event_id, a.buyer_name, a.buyer_apellido,
+           a.buyer_edad || null, a.buyer_localidad || null, a.buyer_email || '',
+           qrCode, 'cortesia', 'CORTESIA', 0, 'pagado', promotorId, req.user.id]
+        );
+        created.push({
+          id: ticketId, qr_code: qrCode,
+          buyer_name: a.buyer_name, buyer_apellido: a.buyer_apellido,
+          tipo_entrada: tt.name,
+        });
+      }
+
+      await conn.execute(
+        'UPDATE ticket_types SET sold_count = sold_count + ? WHERE id = ?',
+        [attendees.length, ticket_type_id]
+      );
+    });
 
     res.status(201).json({ tickets: created });
   } catch (err) {
+    if (err.message === 'TT_NOT_FOUND')
+      return res.status(400).json({ error: 'Tipo de entrada no encontrado' });
+    if (err.message?.startsWith('NO_QUOTA:'))
+      return res.status(409).json({ error: `Solo quedan ${err.message.split(':')[1]} entradas disponibles` });
     console.error(err);
     res.status(500).json({ error: 'Error al crear cortesias' });
   }
