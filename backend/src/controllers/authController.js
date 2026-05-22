@@ -66,9 +66,20 @@ const magicLogin = async (req, res) => {
     const user = result.rows[0];
     if (!user) return res.status(404).json({ error: 'Link inválido o ya usado' });
 
+    // Expiracion: si el link tiene expiracion seteada y ya paso, lo invalidamos.
+    // magic_token_expires NULL = legacy (token sin expiracion, sigue valiendo).
+    if (user.magic_token_expires) {
+      const raw = String(user.magic_token_expires);
+      const iso = raw.includes('T') ? raw : raw.replace(' ', 'T') + 'Z';
+      if (Date.now() > new Date(iso).getTime()) {
+        await db.query('UPDATE users SET magic_token = NULL, magic_token_expires = NULL WHERE id = ?', [user.id]);
+        return res.status(410).json({ error: 'Link vencido. Pedile al jefe uno nuevo.' });
+      }
+    }
+
     // Invalidar el token: el link es de un solo uso. Si el vendedor pierde el
     // acceso, el jefe puede generarle uno nuevo desde su panel.
-    await db.query('UPDATE users SET magic_token = NULL WHERE id = ?', [user.id]);
+    await db.query('UPDATE users SET magic_token = NULL, magic_token_expires = NULL WHERE id = ?', [user.id]);
 
     const jwt_token = jwt.sign(
       { id: user.id, email: user.email, role: user.role, name: user.name },
@@ -159,7 +170,7 @@ const resetPassword = async (req, res) => {
 
     const hash = await bcrypt.hash(password, 10);
     await db.query(
-      'UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?',
+      'UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL, password_changed_at = CURRENT_TIMESTAMP WHERE id = ?',
       [hash, user.id]
     );
 
@@ -189,7 +200,7 @@ const changePassword = async (req, res) => {
     if (!valid) return res.status(401).json({ error: 'La contraseña actual es incorrecta' });
 
     const hash = await bcrypt.hash(newPassword, 10);
-    await db.query('UPDATE users SET password_hash = ? WHERE id = ?', [hash, user.id]);
+    await db.query('UPDATE users SET password_hash = ?, password_changed_at = CURRENT_TIMESTAMP WHERE id = ?', [hash, user.id]);
 
     res.json({ message: 'Contraseña actualizada correctamente' });
   } catch (err) {

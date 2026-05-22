@@ -420,6 +420,26 @@ async function runMigrations(queryFn, execFn) {
   // venta esta cerrada. El owner puede reanudarla seteandolo a NULL.
   // El evento sigue accesible para rendiciones, escaneo, reportes.
   try { await execFn('ALTER TABLE events ADD COLUMN sales_stopped_at DATETIME'); } catch (e) {}
+
+  // Invalidacion de JWT al cambiar/resetear contraseña: el middleware auth
+  // rechaza tokens emitidos antes de esta fecha. Filas legacy quedan NULL =
+  // sin restriccion (los tokens viejos siguen valiendo hasta su exp natural).
+  try { await execFn('ALTER TABLE users ADD COLUMN password_changed_at DATETIME'); } catch (e) {}
+
+  // Expiracion del magic_token: si el link no se usa en 48h, deja de servir.
+  // NULL = legacy (los tokens viejos vienen sin expiracion, en el controller
+  // los tratamos como aun validos para no romper links emitidos ya).
+  try { await execFn('ALTER TABLE users ADD COLUMN magic_token_expires DATETIME'); } catch (e) {}
+
+  // Backfill multi-tenant: owners viejos quedaron con created_by=NULL porque
+  // el controller create() no seteaba al admin como padre. Sin esto, el filtro
+  // "WHERE created_by = admin.id" para listar owners devuelve 0 filas (y el
+  // nuevo check de addOwner rechaza asignar). Asignamos al primer admin activo.
+  try {
+    await execFn(`UPDATE users
+                  SET created_by = (SELECT id FROM users WHERE role='admin' AND is_active=1 ORDER BY created_at ASC LIMIT 1)
+                  WHERE role='owner' AND created_by IS NULL`);
+  } catch (e) {}
 }
 
 // ---------------------------------------------------------------------------

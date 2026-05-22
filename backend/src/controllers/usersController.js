@@ -79,8 +79,11 @@ const create = async (req, res) => {
   try {
     const hash   = await bcrypt.hash(password, 10);
     const userId = uuidv4();
-    // Marcamos quien lo creo para multi-tenant scoping.
-    const createdBy = req.user.role === 'owner' ? req.user.id : null;
+    // Multi-tenant scoping: el creador queda como "padre" del usuario.
+    // Admin → owner.created_by = admin.id (asi admin solo ve SUS owners).
+    // Owner → staff.created_by = owner.id (asi owner solo ve SU staff).
+    // Excepcion: admin creando otro admin queda con created_by=NULL (root).
+    const createdBy = role === 'admin' ? null : req.user.id;
 
     await db.query(
       'INSERT INTO users (id, name, apellido, celular, localidad, email, password_hash, role, created_by) VALUES (?,?,?,?,?,?,?,?,?)',
@@ -125,6 +128,8 @@ const createTeamMember = async (req, res) => {
     const userId     = uuidv4();
     const promoCode  = genPromoCode();
     const magicToken = uuidv4();
+    // Magic link vive 48h. Si el vendedor no lo usa, el jefe genera uno nuevo.
+    const magicExpires = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
 
     // Hereda created_by del jefe (que lo heredo de su owner). Asi el vendedor
     // queda en el "tenant" del owner correcto.
@@ -132,8 +137,8 @@ const createTeamMember = async (req, res) => {
     const inheritedCreatedBy = jefeUser.rows[0]?.created_by || null;
 
     await db.query(
-      'INSERT INTO users (id, name, apellido, celular, localidad, email, password_hash, role, magic_token, created_by) VALUES (?,?,?,?,?,?,?,?,?,?)',
-      [userId, name, apellido || null, celular || null, localidad || null, email.toLowerCase(), hash, 'vendedor', magicToken, inheritedCreatedBy]
+      'INSERT INTO users (id, name, apellido, celular, localidad, email, password_hash, role, magic_token, magic_token_expires, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+      [userId, name, apellido || null, celular || null, localidad || null, email.toLowerCase(), hash, 'vendedor', magicToken, magicExpires, inheritedCreatedBy]
     );
 
     // El vendedor hereda automaticamente la zona del jefe que lo creo

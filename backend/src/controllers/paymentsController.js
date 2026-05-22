@@ -10,6 +10,21 @@ const report = async (req, res) => {
   if (from)     { where.push('t.created_at >= ?'); params.push(from); }
   if (to)       { where.push('t.created_at <= ?'); params.push(to + ' 23:59:59'); }
 
+  // Scope multi-admin: admin solo ve tickets de eventos creados por el o
+  // asignados a sus owners. Sin esto, en un SaaS multi-admin un admin veria
+  // los reportes financieros de otros admins.
+  if (req.user?.role === 'admin') {
+    where.push(`(
+      t.event_id IN (SELECT id FROM events WHERE created_by = ?)
+      OR t.event_id IN (
+        SELECT eo.event_id FROM event_owners eo
+        JOIN users u ON u.id = eo.user_id
+        WHERE u.created_by = ?
+      )
+    )`);
+    params.push(req.user.id, req.user.id);
+  }
+
   const whereClause = 'WHERE ' + where.join(' AND ');
 
   try {
