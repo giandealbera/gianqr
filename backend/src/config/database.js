@@ -431,15 +431,17 @@ async function runMigrations(queryFn, execFn) {
   // los tratamos como aun validos para no romper links emitidos ya).
   try { await execFn('ALTER TABLE users ADD COLUMN magic_token_expires DATETIME'); } catch (e) {}
 
-  // Cleanup orphan owners: por el bug en create() que no seteaba created_by,
-  // los owners cargados antes del fix quedaron huerfanos (created_by=NULL) e
-  // invisibles para el admin (filtro WHERE created_by=admin.id no matchea).
-  // Como no se ven, no se pueden borrar desde la UI. Los eliminamos directo
-  // de la base. CASCADE en event_owners limpia asignaciones; eventos creados
-  // por ellos quedan con created_by=NULL (FK SET NULL) y no se pierden.
-  // Idempotente: una vez corrido, las siguientes ejecuciones borran 0 filas
-  // porque el nuevo create() ya setea created_by correctamente.
-  try { await execFn(`DELETE FROM users WHERE role='owner' AND created_by IS NULL`); } catch (e) {}
+  // Backfill multi-tenant: owners cargados antes del fix de create() quedaron
+  // con created_by=NULL e invisibles para el admin (el filtro WHERE
+  // created_by=admin.id no matchea NULL). Los asignamos al primer admin activo
+  // para que aparezcan en la lista. Si hay owners de prueba que no querés,
+  // los desactivas desde la UI una vez que se ven. Idempotente: el nuevo
+  // create() ya setea created_by, asi que en runs siguientes afecta 0 filas.
+  try {
+    await execFn(`UPDATE users
+                  SET created_by = (SELECT id FROM users WHERE role='admin' AND is_active=1 ORDER BY created_at ASC LIMIT 1)
+                  WHERE role='owner' AND created_by IS NULL`);
+  } catch (e) {}
 }
 
 // ---------------------------------------------------------------------------
