@@ -72,13 +72,26 @@ const BottomNav = () => {
     if (fn) fn().catch(() => {/* fallo silencioso, el lazy normal lo reintenta */});
   };
 
+  // Match por "mejor prefijo": un item se prende si su path es el mas largo
+  // de los items que prefijean el pathname actual. Asi `/promotor/vender`
+  // prende "Vender" y NO "Mi Panel" (`/promotor`); `/admin/usuarios` prende
+  // "Dueños" y NO "Dashboard" (`/admin`).
+  const activeTo = (() => {
+    const exact = items.find(i => i.to === location.pathname);
+    if (exact) return exact.to;
+    const prefixed = items.filter(i =>
+      i.to !== '/' && location.pathname.startsWith(i.to + '/')
+    );
+    if (prefixed.length === 0) return null;
+    return prefixed.reduce((a, b) => a.to.length >= b.to.length ? a : b).to;
+  })();
+
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 safe-area-bottom"
          style={{ background: 'rgba(13,17,23,0.97)', borderTop: '1px solid #1E2530', backdropFilter: 'blur(12px)' }}>
       <div className="flex items-center justify-around px-1 py-1">
         {items.map(item => {
-          const isActive = location.pathname === item.to ||
-            (item.to !== '/eventos' && location.pathname.startsWith(item.to));
+          const isActive = activeTo === item.to;
           return (
             <NavLink
               key={item.to}

@@ -67,11 +67,11 @@ const Scanner = () => {
           if (typeSel) body.ticket_type_id = typeSel;
           const res = await api.post('/tickets/scan', body);
           setResult({ ok: true, data: res.data });
-          toast.success('Entrada valida');
+          toast.success('Entrada válida');
         } catch (err) {
           const errData = err.response?.data;
           setResult({ ok: false, data: errData });
-          toast.error(errData?.error || 'QR invalido');
+          toast.error(errData?.error || 'QR inválido');
         } finally {
           setScanning(false);
         }
@@ -252,7 +252,7 @@ const Scanner = () => {
                   {result.ok ? 'OK' : 'NO'}
                 </div>
                 <h2 className={`text-lg font-bold text-center mb-4 ${result.ok ? 'text-green-400' : 'text-red-400'}`}>
-                  {result.ok ? 'ENTRADA VALIDA' : 'ENTRADA INVALIDA'}
+                  {result.ok ? 'ENTRADA VÁLIDA' : 'ENTRADA INVÁLIDA'}
                 </h2>
 
                 {result.data?.error && (

@@ -57,17 +57,38 @@ const getAll = async (req, res) => {
       return res.json(result.rows);
     }
 
-    // Otros roles (jefe/vendedor): catálogo global.
-    const result = await db.query(
-      `SELECT e.*, v.name AS venue_name, v.capacity AS venue_capacity,
-              COUNT(DISTINCT CASE WHEN t.status IN ('pagado','usado') THEN t.id END) AS tickets_sold
-       FROM events e
-       LEFT JOIN venues v ON v.id = e.venue_id
-       LEFT JOIN tickets t ON t.event_id = e.id
-       GROUP BY e.id, v.id
-       ORDER BY e.date DESC, e.start_time DESC`
-    );
-    res.json(result.rows);
+    // Jefe/vendedor: SOLO ven eventos del owner al que pertenecen (anti
+    // cross-tenant). Antes era "catálogo global" y un vendedor del owner A
+    // podia listar eventos del owner B. Resolvemos el tenant subiendo por
+    // created_by: jefe.created_by = owner.id; vendedor.created_by = jefe.id
+    // (y jefe.created_by = owner.id).
+    if (['jefe_publicas', 'vendedor'].includes(req.user?.role)) {
+      let ownerScopeId = null;
+      const me = await db.query('SELECT role, created_by FROM users WHERE id = ?', [req.user.id]);
+      const u = me.rows[0];
+      if (u?.role === 'jefe_publicas') {
+        ownerScopeId = u.created_by;
+      } else if (u?.role === 'vendedor' && u.created_by) {
+        const jefe = await db.query('SELECT created_by FROM users WHERE id = ?', [u.created_by]);
+        ownerScopeId = jefe.rows[0]?.created_by || null;
+      }
+      if (!ownerScopeId) return res.json([]);
+      const result = await db.query(
+        `SELECT e.*, v.name AS venue_name, v.capacity AS venue_capacity,
+                COUNT(DISTINCT CASE WHEN t.status IN ('pagado','usado') THEN t.id END) AS tickets_sold
+         FROM events e
+         JOIN event_owners eo ON eo.event_id = e.id AND eo.user_id = ?
+         LEFT JOIN venues v ON v.id = e.venue_id
+         LEFT JOIN tickets t ON t.event_id = e.id
+         GROUP BY e.id, v.id
+         ORDER BY e.date DESC, e.start_time DESC`,
+        [ownerScopeId]
+      );
+      return res.json(result.rows);
+    }
+
+    // Sin rol o rol inesperado: vacio.
+    res.json([]);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error al obtener eventos' });
@@ -81,6 +102,21 @@ const getOne = async (req, res) => {
     // Owner: verificar que le pertenece
     if (req.user?.role === 'owner') {
       const ok = await ownerHasEvent(req.user.id, id);
+      if (!ok) return res.status(403).json({ error: 'Sin acceso a este evento' });
+    }
+
+    // Jefe/vendedor: solo eventos del owner al que pertenecen.
+    if (['jefe_publicas', 'vendedor'].includes(req.user?.role)) {
+      const me = await db.query('SELECT role, created_by FROM users WHERE id = ?', [req.user.id]);
+      const u = me.rows[0];
+      let ownerScopeId = null;
+      if (u?.role === 'jefe_publicas') ownerScopeId = u.created_by;
+      else if (u?.role === 'vendedor' && u.created_by) {
+        const jefe = await db.query('SELECT created_by FROM users WHERE id = ?', [u.created_by]);
+        ownerScopeId = jefe.rows[0]?.created_by || null;
+      }
+      if (!ownerScopeId) return res.status(403).json({ error: 'Sin acceso a este evento' });
+      const ok = await ownerHasEvent(ownerScopeId, id);
       if (!ok) return res.status(403).json({ error: 'Sin acceso a este evento' });
     }
 
