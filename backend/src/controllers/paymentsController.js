@@ -59,16 +59,34 @@ const monthlyOverview = async (req, res) => {
     const monthExpr = (col) => PG_MODE ? `TO_CHAR(${col}, 'YYYY-MM')` : `strftime('%Y-%m', ${col})`;
     const last12 = PG_MODE ? `(NOW() - INTERVAL '12 months')` : `date('now', '-12 months')`;
 
-    // Si es owner, filtramos solo sus eventos (los que tiene en event_owners).
-    // Admin ve todo.
+    // Scope:
+    //   - owner: solo sus eventos (event_owners.user_id = owner.id).
+    //   - admin: solo eventos de SU arbol (events.created_by o owners
+    //     creados por el). Antes admin veia agregados cross-tenant.
     const isOwner = req.user?.role === 'owner';
-    const ownerFilterTickets = isOwner
-      ? `AND t.event_id IN (SELECT event_id FROM event_owners WHERE user_id = ?)`
-      : '';
-    const ownerFilterEvents = isOwner
-      ? `AND e.id IN (SELECT event_id FROM event_owners WHERE user_id = ?)`
-      : '';
-    const ownerParams = isOwner ? [req.user.id] : [];
+    const isAdmin = req.user?.role === 'admin';
+    let ownerFilterTickets = '';
+    let ownerFilterEvents  = '';
+    let ownerParamsTickets = [];
+    let ownerParamsEvents  = [];
+    if (isOwner) {
+      ownerFilterTickets = `AND t.event_id IN (SELECT event_id FROM event_owners WHERE user_id = ?)`;
+      ownerFilterEvents  = `AND e.id IN (SELECT event_id FROM event_owners WHERE user_id = ?)`;
+      ownerParamsTickets = [req.user.id];
+      ownerParamsEvents  = [req.user.id];
+    } else if (isAdmin) {
+      const adminScope = `(
+        SELECT e2.id FROM events e2
+        WHERE e2.created_by = ?
+           OR e2.id IN (SELECT eo.event_id FROM event_owners eo
+                        JOIN users u ON u.id = eo.user_id
+                        WHERE u.created_by = ?)
+      )`;
+      ownerFilterTickets = `AND t.event_id IN ${adminScope}`;
+      ownerFilterEvents  = `AND e.id IN ${adminScope}`;
+      ownerParamsTickets = [req.user.id, req.user.id];
+      ownerParamsEvents  = [req.user.id, req.user.id];
+    }
 
     // Entradas vendidas + cortesías por mes (últimos 12 meses)
     const ticketsPerMonth = await db.query(
@@ -80,7 +98,7 @@ const monthlyOverview = async (req, res) => {
        WHERE t.created_at >= ${last12} ${ownerFilterTickets}
        GROUP BY mes
        ORDER BY mes ASC`,
-      ownerParams
+      ownerParamsTickets
     );
 
     // Eventos realizados por mes (fecha del evento, no fecha de creación)
@@ -93,7 +111,7 @@ const monthlyOverview = async (req, res) => {
        WHERE e.date >= ${PG_MODE ? `TO_CHAR(NOW() - INTERVAL '12 months', 'YYYY-MM-DD')` : `date('now', '-12 months')`} ${ownerFilterEvents}
        GROUP BY mes
        ORDER BY mes ASC`,
-      ownerParams
+      ownerParamsEvents
     );
 
     // Merge por mes

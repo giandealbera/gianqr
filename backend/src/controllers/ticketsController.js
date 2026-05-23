@@ -327,6 +327,19 @@ const getAll = async (req, res) => {
     }
   }
 
+  // Admin: solo puede ver tickets de eventos de SU arbol (anti cross-tenant
+  // entre admins). Sin esto, admin_A leia listado de tickets de admin_B.
+  if (req.user?.role === 'admin') {
+    where.push(`t.event_id IN (
+      SELECT e.id FROM events e
+      WHERE e.created_by = ?
+         OR e.id IN (SELECT eo.event_id FROM event_owners eo
+                     JOIN users u ON u.id = eo.user_id
+                     WHERE u.created_by = ?)
+    )`);
+    params.push(req.user.id, req.user.id);
+  }
+
   if (event_id) { where.push('t.event_id = ?'); params.push(event_id); }
   if (status)   { where.push('t.status = ?');   params.push(status); }
   if (search)   {

@@ -1,6 +1,6 @@
 const express = require('express');
 const router  = express.Router();
-const { publicBuyLimiter, publicRecoverLimiter } = require('../middleware/rateLimiters');
+const { publicBuyLimiter, publicRecoverLimiter, publicTicketsInfoLimiter } = require('../middleware/rateLimiters');
 const {
   getPublicEvents, getPromoterInfo, createPublicTicket, recoverTickets,
   getReservedTickets, completeReservedTickets,
@@ -12,7 +12,7 @@ router.post('/tickets/:code', publicBuyLimiter,     createPublicTicket);
 router.post('/recover/:code', publicRecoverLimiter, recoverTickets);
 
 // Reservas (link generado desde /caja). El comprador completa nombre/apellido.
-router.get('/tickets-info',            getReservedTickets);
-router.post('/tickets-complete/:code', publicBuyLimiter, completeReservedTickets);
+router.get('/tickets-info',            publicTicketsInfoLimiter, getReservedTickets);
+router.post('/tickets-complete/:code', publicBuyLimiter,         completeReservedTickets);
 
 module.exports = router;

@@ -50,7 +50,7 @@ const PublicBuy = () => {
 
   // Recuperar QRs perdidos
   const [recoverOpen,    setRecoverOpen]    = useState(false);
-  const [recoverForm,    setRecoverForm]    = useState({ nombre: '', apellido: '' });
+  const [recoverForm,    setRecoverForm]    = useState({ nombre: '', apellido: '', email: '' });
   const [recovering,     setRecovering]     = useState(false);
   const [recoveredList,  setRecoveredList]  = useState(null);
   const [recoverError,   setRecoverError]   = useState(null);
@@ -209,7 +209,7 @@ const PublicBuy = () => {
 
   const closeRecover = () => {
     setRecoverOpen(false);
-    setRecoverForm({ nombre: '', apellido: '' });
+    setRecoverForm({ nombre: '', apellido: '', email: '' });
     setRecoveredList(null);
     setRecoverError(null);
   };
@@ -489,16 +489,21 @@ const PublicBuy = () => {
             {!recoveredList ? (
               <form onSubmit={doRecover} className="space-y-3">
                 <p className="text-xs" style={{ color: '#6B7280' }}>
-                  Cargá los mismos nombre y apellido que usaste al comprar
+                  Cargá los mismos datos que usaste al comprar. Si pusiste email, ingresalo también.
                 </p>
                 <input className="input" required placeholder="Nombre"
                        autoComplete="given-name" autoCapitalize="words" enterKeyHint="next"
                        value={recoverForm.nombre}
                        onChange={e => setRecoverForm(f => ({ ...f, nombre: e.target.value }))} />
                 <input className="input" required placeholder="Apellido"
-                       autoComplete="family-name" autoCapitalize="words" enterKeyHint="search"
+                       autoComplete="family-name" autoCapitalize="words" enterKeyHint="next"
                        value={recoverForm.apellido}
                        onChange={e => setRecoverForm(f => ({ ...f, apellido: e.target.value }))} />
+                <input type="email" className="input" placeholder="Email (si lo cargaste al comprar)"
+                       autoComplete="email" inputMode="email" autoCapitalize="off" spellCheck="false"
+                       enterKeyHint="search"
+                       value={recoverForm.email}
+                       onChange={e => setRecoverForm(f => ({ ...f, email: e.target.value }))} />
                 {recoverError && <p className="text-sm text-red-400">{recoverError}</p>}
                 <button type="submit" disabled={recovering} className="btn-primary w-full">
                   {recovering ? 'Buscando...' : 'Buscar mis QRs'}

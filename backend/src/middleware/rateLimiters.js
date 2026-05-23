@@ -58,6 +58,16 @@ const publicRecoverLimiter = rateLimit({
   message: { error: 'Demasiadas búsquedas, esperá unos minutos' },
 });
 
+// Public tickets-info: 30/min por IP. Devuelve info de reservas por id (uuid).
+// Sin techo, un atacante podia ir enumerando ids para mapear reservas en
+// curso. Con 30/min y uuids de 122 bits de entropia es inviable.
+const publicTicketsInfoLimiter = rateLimit({
+  ...baseConfig,
+  windowMs: 60 * 1000,
+  max: 30,
+  message: { error: 'Demasiadas consultas, esperá un momento' },
+});
+
 // Public scan: 60/min por IP. Un portero escanea rapido pero un bot mucho mas.
 const publicScanLimiter = rateLimit({
   ...baseConfig,
@@ -88,6 +98,7 @@ module.exports = {
   magicLimiter,
   publicBuyLimiter,
   publicRecoverLimiter,
+  publicTicketsInfoLimiter,
   forgotPasswordLimiter,
   resetPasswordLimiter,
   publicScanLimiter,

@@ -319,15 +319,26 @@ const completeReservedTickets = async (req, res) => {
   }
 };
 
-// POST /api/public/recover/:code — comprador busca sus tickets por nombre+apellido
+// POST /api/public/recover/:code — comprador busca sus tickets por nombre+apellido+(email)
 const recoverTickets = async (req, res) => {
   const { code } = req.params;
-  const { nombre, apellido } = req.body;
+  const { nombre, apellido, email } = req.body;
 
   if (!nombre || !apellido)
     return res.status(400).json({ error: 'Cargá nombre y apellido para recuperar tus entradas' });
 
   try {
+    // Filtro de email: si el comprador puso email al comprar, lo exigimos
+    // aca tambien. Esto endurece el endpoint contra enumeracion por
+    // nombre+apellido: cualquier ticket con email guardado pide email
+    // para revelar el QR. Tickets sin email (campo opcional) caen al
+    // matcheo solo por nombre/apellido.
+    const emailNorm = (email || '').trim().toLowerCase();
+    const emailWhere = emailNorm
+      ? `AND (COALESCE(t.buyer_email,'') = '' OR LOWER(TRIM(t.buyer_email)) = ?)`
+      : `AND COALESCE(t.buyer_email,'') = ''`;
+    const emailParam = emailNorm ? [emailNorm] : [];
+
     // CASA es el "promotor virtual" de la caja interna. Antes los tickets
     // de caja tenian promotor_id NULL pero ahora apuntan al promotor CASA
     // (porque admin SI tiene fila en promotors). Hay que aceptar ambos:
@@ -340,12 +351,12 @@ const recoverTickets = async (req, res) => {
       promotorWhere = casaId
         ? '(t.promotor_id IS NULL OR t.promotor_id = ?)'
         : 't.promotor_id IS NULL';
-      params = casaId ? [casaId, nombre, apellido] : [nombre, apellido];
+      params = casaId ? [casaId, nombre, apellido, ...emailParam] : [nombre, apellido, ...emailParam];
     } else {
       const promo = await db.query('SELECT id FROM promotors WHERE promo_code = ?', [code]);
       if (!promo.rows[0]) return res.status(404).json({ error: 'Link invalido' });
       promotorWhere = 't.promotor_id = ?';
-      params = [promo.rows[0].id, nombre, apellido];
+      params = [promo.rows[0].id, nombre, apellido, ...emailParam];
     }
 
     const result = await db.query(
@@ -357,6 +368,7 @@ const recoverTickets = async (req, res) => {
        WHERE ${promotorWhere}
          AND LOWER(TRIM(t.buyer_name))     = LOWER(TRIM(?))
          AND LOWER(TRIM(t.buyer_apellido)) = LOWER(TRIM(?))
+         ${emailWhere}
          AND t.status IN ('pagado','usado')
        ORDER BY t.created_at DESC
        LIMIT 20`,
