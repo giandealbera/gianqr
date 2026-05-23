@@ -1,5 +1,6 @@
 const { v4: uuidv4 } = require('uuid');
 const db = require('../config/database');
+const { adminCanAccessEvent, resolveOwnerScopeForUser } = require('../utils/scope');
 
 // Helper: verifica si un owner tiene acceso a un evento
 async function ownerHasEvent(userId, eventId) {
@@ -8,6 +9,32 @@ async function ownerHasEvent(userId, eventId) {
     [userId, eventId]
   );
   return r.rows.length > 0;
+}
+
+// Guard canónica de acceso a un evento por id. Si el user no tiene acceso,
+// responde 403 y devuelve false; el caller debe `return` si false.
+// Cubre TODOS los roles: admin (solo eventos de su árbol), owner (solo los
+// asignados), jefe/vendedor (solo los del owner al que pertenecen).
+async function guardEventAccess(req, res, eventId) {
+  const role = req.user?.role;
+  if (!role || !eventId) {
+    res.status(403).json({ error: 'Sin acceso a este evento' });
+    return false;
+  }
+  let ok = false;
+  if (role === 'admin') {
+    ok = await adminCanAccessEvent(req.user.id, eventId);
+  } else if (role === 'owner') {
+    ok = await ownerHasEvent(req.user.id, eventId);
+  } else if (role === 'jefe_publicas' || role === 'vendedor') {
+    const ownerId = await resolveOwnerScopeForUser(req.user.id);
+    ok = !!ownerId && await ownerHasEvent(ownerId, eventId);
+  }
+  if (!ok) {
+    res.status(403).json({ error: 'Sin acceso a este evento' });
+    return false;
+  }
+  return true;
 }
 
 const getAll = async (req, res) => {
@@ -99,26 +126,7 @@ const getOne = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Owner: verificar que le pertenece
-    if (req.user?.role === 'owner') {
-      const ok = await ownerHasEvent(req.user.id, id);
-      if (!ok) return res.status(403).json({ error: 'Sin acceso a este evento' });
-    }
-
-    // Jefe/vendedor: solo eventos del owner al que pertenecen.
-    if (['jefe_publicas', 'vendedor'].includes(req.user?.role)) {
-      const me = await db.query('SELECT role, created_by FROM users WHERE id = ?', [req.user.id]);
-      const u = me.rows[0];
-      let ownerScopeId = null;
-      if (u?.role === 'jefe_publicas') ownerScopeId = u.created_by;
-      else if (u?.role === 'vendedor' && u.created_by) {
-        const jefe = await db.query('SELECT created_by FROM users WHERE id = ?', [u.created_by]);
-        ownerScopeId = jefe.rows[0]?.created_by || null;
-      }
-      if (!ownerScopeId) return res.status(403).json({ error: 'Sin acceso a este evento' });
-      const ok = await ownerHasEvent(ownerScopeId, id);
-      if (!ok) return res.status(403).json({ error: 'Sin acceso a este evento' });
-    }
+    if (!await guardEventAccess(req, res, id)) return;
 
     const eventResult = await db.query(
       `SELECT e.*, v.name AS venue_name, v.capacity AS venue_capacity
@@ -194,11 +202,7 @@ const cloneEvent = async (req, res) => {
   const { id } = req.params;
   const { name, date, start_time, end_time, sale_start_at, sale_end_at } = req.body;
 
-  // Owner: scope check.
-  if (req.user?.role === 'owner') {
-    const ok = await ownerHasEvent(req.user.id, id);
-    if (!ok) return res.status(403).json({ error: 'No sos dueño de este evento' });
-  }
+  if (!await guardEventAccess(req, res, id)) return;
   if (!name || !date || !start_time || !sale_start_at || !sale_end_at)
     return res.status(400).json({ error: 'Faltan datos del nuevo evento (name, date, start_time, sale_start_at, sale_end_at)' });
   if (new Date(sale_end_at) <= new Date(sale_start_at))
@@ -253,11 +257,7 @@ const cloneEvent = async (req, res) => {
 const update = async (req, res) => {
   const { id } = req.params;
 
-  // Owner: verificar que le pertenece antes de modificar
-  if (req.user?.role === 'owner') {
-    const ok = await ownerHasEvent(req.user.id, id);
-    if (!ok) return res.status(403).json({ error: 'Sin acceso a este evento' });
-  }
+  if (!await guardEventAccess(req, res, id)) return;
 
   const { name, description, date, start_time, end_time, flyer_url, is_active, venue_id,
           sale_start_at, sale_end_at } = req.body;
@@ -282,11 +282,7 @@ const update = async (req, res) => {
 const stats = async (req, res) => {
   const { id } = req.params;
 
-  // Owner: verificar que le pertenece
-  if (req.user?.role === 'owner') {
-    const ok = await ownerHasEvent(req.user.id, id);
-    if (!ok) return res.status(403).json({ error: 'Sin acceso a este evento' });
-  }
+  if (!await guardEventAccess(req, res, id)) return;
 
   try {
     const result = await db.query(
@@ -321,11 +317,7 @@ const getVenues = async (req, res) => {
 
 // GET /api/events/:id/ticket-types
 const getTicketTypes = async (req, res) => {
-  // Owner: verificar acceso
-  if (req.user?.role === 'owner') {
-    const ok = await ownerHasEvent(req.user.id, req.params.id);
-    if (!ok) return res.status(403).json({ error: 'Sin acceso a este evento' });
-  }
+  if (!await guardEventAccess(req, res, req.params.id)) return;
   try {
     const result = await db.query(
       `SELECT *, (total_quota - sold_count) AS available
@@ -340,11 +332,7 @@ const getTicketTypes = async (req, res) => {
 
 // POST /api/events/:id/ticket-types
 const addTicketType = async (req, res) => {
-  // Owner: verificar acceso
-  if (req.user?.role === 'owner') {
-    const ok = await ownerHasEvent(req.user.id, req.params.id);
-    if (!ok) return res.status(403).json({ error: 'Sin acceso a este evento' });
-  }
+  if (!await guardEventAccess(req, res, req.params.id)) return;
   const { name, price, total_quota } = req.body;
   if (!name || price == null || !total_quota)
     return res.status(400).json({ error: 'name, price y total_quota son requeridos' });
@@ -365,11 +353,7 @@ const addTicketType = async (req, res) => {
 
 // PUT /api/events/:id/ticket-types/:ttId
 const updateTicketType = async (req, res) => {
-  // Owner: verificar acceso
-  if (req.user?.role === 'owner') {
-    const ok = await ownerHasEvent(req.user.id, req.params.id);
-    if (!ok) return res.status(403).json({ error: 'Sin acceso a este evento' });
-  }
+  if (!await guardEventAccess(req, res, req.params.id)) return;
   const { add_quota, name, price } = req.body;
   try {
     const cur = (await db.query(
@@ -420,11 +404,7 @@ const updateTicketType = async (req, res) => {
 
 // PATCH /api/events/:id/ticket-types/:ttId/toggle
 const toggleTicketType = async (req, res) => {
-  // Owner: verificar acceso
-  if (req.user?.role === 'owner') {
-    const ok = await ownerHasEvent(req.user.id, req.params.id);
-    if (!ok) return res.status(403).json({ error: 'Sin acceso a este evento' });
-  }
+  if (!await guardEventAccess(req, res, req.params.id)) return;
   try {
     await db.query(
       'UPDATE ticket_types SET is_active = CASE WHEN is_active=1 THEN 0 ELSE 1 END WHERE id=? AND event_id=?',
@@ -553,6 +533,7 @@ const history = async (req, res) => {
 // GET /api/events/:id/owners — lista los dueños asignados a un evento
 const getOwners = async (req, res) => {
   try {
+    if (!await guardEventAccess(req, res, req.params.id)) return;
     const result = await db.query(
       `SELECT u.id, u.name, u.apellido, u.email, u.is_active, eo.created_at AS asignado_at
        FROM event_owners eo
@@ -611,6 +592,7 @@ const addOwner = async (req, res) => {
 // DELETE /api/events/:id/owners/:uid — quita un dueño del evento
 const removeOwner = async (req, res) => {
   try {
+    if (!await guardEventAccess(req, res, req.params.id)) return;
     await db.query(
       'DELETE FROM event_owners WHERE event_id = ? AND user_id = ?',
       [req.params.id, req.params.uid]
@@ -629,10 +611,7 @@ const removeOwner = async (req, res) => {
 const buyerStats = async (req, res) => {
   const { id } = req.params;
   try {
-    if (req.user?.role === 'owner') {
-      const ok = await ownerHasEvent(req.user.id, id);
-      if (!ok) return res.status(403).json({ error: 'Sin acceso a este evento' });
-    }
+    if (!await guardEventAccess(req, res, id)) return;
 
     // Base: tickets pagados o usados, con datos cargados (no "Pendiente").
     const baseWhere = `event_id = ? AND status IN ('pagado','usado') AND buyer_name IS NOT NULL AND buyer_name != '' AND buyer_name != 'Pendiente'`;
@@ -719,10 +698,7 @@ const buyerStats = async (req, res) => {
 const stopSales = async (req, res) => {
   const { id } = req.params;
   try {
-    if (req.user?.role === 'owner') {
-      const ok = await ownerHasEvent(req.user.id, id);
-      if (!ok) return res.status(403).json({ error: 'No sos dueño de este evento' });
-    }
+    if (!await guardEventAccess(req, res, id)) return;
     const ev = (await db.query('SELECT id, sales_stopped_at FROM events WHERE id = ?', [id])).rows[0];
     if (!ev) return res.status(404).json({ error: 'Evento no encontrado' });
     if (ev.sales_stopped_at) return res.status(200).json({ message: 'La venta ya estaba cortada', sales_stopped_at: ev.sales_stopped_at });
@@ -739,10 +715,7 @@ const stopSales = async (req, res) => {
 const resumeSales = async (req, res) => {
   const { id } = req.params;
   try {
-    if (req.user?.role === 'owner') {
-      const ok = await ownerHasEvent(req.user.id, id);
-      if (!ok) return res.status(403).json({ error: 'No sos dueño de este evento' });
-    }
+    if (!await guardEventAccess(req, res, id)) return;
     await db.query('UPDATE events SET sales_stopped_at = NULL WHERE id = ?', [id]);
     res.json({ message: 'Venta reanudada' });
   } catch (err) {

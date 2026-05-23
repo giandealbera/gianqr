@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../config/database');
+const { adminCanAccessUser } = require('../utils/scope');
 
 const PUBLICAS_ROLES = ['jefe_publicas', 'vendedor'];
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -220,6 +221,21 @@ const update = async (req, res) => {
     const currentUser = currentResult.rows[0];
     if (!currentUser) return res.status(404).json({ error: 'Usuario no encontrado' });
 
+    // Admin: solo puede modificar usuarios DE SU PROPIO ARBOL. Sin esto,
+    // admin_A podia PUT /api/users/<owner-de-admin_B> y robarle la cuenta
+    // (reset de password, cambio de email, deactivate).
+    if (req.user.role === 'admin') {
+      if (!await adminCanAccessUser(req.user.id, id)) {
+        return res.status(403).json({ error: 'No tenés acceso a este usuario' });
+      }
+      // Prohibido promover a admin via UPDATE: los admins solo nacen por
+      // inserción directa/seed, nunca por escalada via API. Esto cierra
+      // mass-assignment del campo `role`.
+      if (role === 'admin' && currentUser.role !== 'admin') {
+        return res.status(403).json({ error: 'No se puede promover a admin via API' });
+      }
+    }
+
     // Owner solo puede modificar a SU propio staff (no admin/owner ajenos).
     if (req.user.role === 'owner') {
       const isMyStaff = currentUser.created_by === req.user.id;
@@ -323,6 +339,13 @@ const deactivate = async (req, res) => {
     const currentResult = await db.query('SELECT role, is_active, created_by FROM users WHERE id = ?', [id]);
     const currentUser = currentResult.rows[0];
     if (!currentUser) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    // Admin: solo puede desactivar usuarios de SU propio árbol.
+    if (req.user.role === 'admin') {
+      if (!await adminCanAccessUser(req.user.id, id)) {
+        return res.status(403).json({ error: 'No tenés acceso a este usuario' });
+      }
+    }
 
     // Owner solo puede desactivar a SU staff (mismo check que update).
     if (req.user.role === 'owner') {
@@ -492,6 +515,12 @@ const getMyPromoterSales = async (req, res) => {
 const updateCommission = async (req, res) => {
   const { commission, leader_commission } = req.body;
   try {
+    // Admin: solo puede modificar comisión de usuarios de SU árbol.
+    if (req.user.role === 'admin') {
+      if (!await adminCanAccessUser(req.user.id, req.params.id)) {
+        return res.status(403).json({ error: 'Sin acceso a este usuario' });
+      }
+    }
     // Owner solo puede modificar comisión de SU staff.
     if (req.user.role === 'owner') {
       const u = await db.query('SELECT created_by FROM users WHERE id = ?', [req.params.id]);
