@@ -36,6 +36,10 @@ const getAll = async (req, res) => {
       params = [req.user.id, req.user.id];
     }
 
+    // Paginacion conservadora: 500 por pagina. Cero clientes hoy lo van a
+    // notar; con 50k usuarios la query sin LIMIT es DoS.
+    const limit  = Math.min(parseInt(req.query.limit, 10) || 500, 500);
+    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
     const result = await db.query(
       `SELECT u.id, u.name, u.apellido, u.celular, u.localidad,
               u.email, u.role, u.is_active, u.created_at,
@@ -47,8 +51,9 @@ const getAll = async (req, res) => {
        LEFT JOIN zonas z ON z.id = p.zona_id
        LEFT JOIN users lu ON lu.id = p.leader_id
        ${where}
-       ORDER BY u.created_at DESC`,
-      params
+       ORDER BY u.created_at DESC
+       LIMIT ? OFFSET ?`,
+      [...params, limit, offset]
     );
     res.json(result.rows);
   } catch (err) {

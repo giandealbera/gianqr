@@ -147,6 +147,19 @@ const getOne = async (req, res) => {
   }
 };
 
+// Valida que un flyer_url sea http(s) — antes era string libre y un owner
+// podia inyectar `javascript:`, `data:` o protocolos raros que el front
+// terminaba renderizando en <img src>. React escapa atributos pero un
+// `javascript:` dentro de un href si se escapa en un PDF/email externo.
+function sanitizeFlyerUrl(url) {
+  if (!url) return null;
+  const s = String(url).trim();
+  if (!s) return null;
+  if (!/^https?:\/\//i.test(s)) return null;
+  if (s.length > 2000) return null; // antiabuso
+  return s;
+}
+
 const create = async (req, res) => {
   const { venue_id, name, description, date, start_time, end_time, flyer_url, ticket_types,
           sale_start_at, sale_end_at } = req.body;
@@ -156,6 +169,8 @@ const create = async (req, res) => {
     return res.status(400).json({ error: 'Fecha y hora de apertura y cierre de venta son requeridas' });
   if (new Date(sale_end_at) <= new Date(sale_start_at))
     return res.status(400).json({ error: 'El cierre de venta debe ser posterior a la apertura' });
+  if (flyer_url && !sanitizeFlyerUrl(flyer_url))
+    return res.status(400).json({ error: 'flyer_url debe ser una URL http(s) válida' });
 
   try {
     const eventId = uuidv4();
@@ -165,7 +180,7 @@ const create = async (req, res) => {
                              sale_start_at, sale_end_at, created_by)
          VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
         [eventId, venue_id || null, name, description || null, date, start_time,
-         end_time || null, flyer_url || null, sale_start_at, sale_end_at, req.user.id]
+         end_time || null, sanitizeFlyerUrl(flyer_url), sale_start_at, sale_end_at, req.user.id]
       );
 
       if (ticket_types && ticket_types.length > 0) {
@@ -263,12 +278,14 @@ const update = async (req, res) => {
           sale_start_at, sale_end_at } = req.body;
   if (sale_start_at && sale_end_at && new Date(sale_end_at) <= new Date(sale_start_at))
     return res.status(400).json({ error: 'El cierre de venta debe ser posterior a la apertura' });
+  if (flyer_url && !sanitizeFlyerUrl(flyer_url))
+    return res.status(400).json({ error: 'flyer_url debe ser una URL http(s) válida' });
   try {
     await db.query(
       `UPDATE events SET name=?, description=?, date=?, start_time=?,
        end_time=?, flyer_url=?, is_active=?, venue_id=?,
        sale_start_at=?, sale_end_at=? WHERE id=?`,
-      [name, description, date, start_time, end_time, flyer_url, is_active ? 1 : 0, venue_id || null,
+      [name, description, date, start_time, end_time, sanitizeFlyerUrl(flyer_url), is_active ? 1 : 0, venue_id || null,
        sale_start_at || null, sale_end_at || null, id]
     );
     const result = await db.query('SELECT * FROM events WHERE id = ?', [id]);

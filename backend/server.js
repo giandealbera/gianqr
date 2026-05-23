@@ -36,7 +36,10 @@ app.use(cors({
     if (allowedOrigins.includes(origin)) return cb(null, true);
     return cb(new Error(`CORS blocked: ${origin}`));
   },
-  credentials: true,
+  // credentials:false porque el frontend usa Authorization Bearer (localStorage),
+  // no cookies. Setearlo en true abre la puerta a accidentes futuros con
+  // cookies cross-origin sin necesidad real hoy. CSRF no aplica (sin cookies).
+  credentials: false,
 }));
 
 // Body parsers — bajamos de 10mb a 1mb. Si en algun momento hace falta subir
