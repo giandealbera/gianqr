@@ -15,7 +15,6 @@ const Scanner = () => {
   const [typeSel,      setTypeSel]      = useState(searchParams.get('ticket_type') || '');
   const [result,       setResult]       = useState(null);
   const [scanning,     setScanning]     = useState(false);
-  const scannerRef = useRef(null);
   const lastScan   = useRef(0);
 
   // cargar eventos
@@ -79,7 +78,6 @@ const Scanner = () => {
       () => {}
     );
 
-    scannerRef.current = scanner;
     return () => scanner.clear().catch(() => {});
   }, [typeSel]);
 

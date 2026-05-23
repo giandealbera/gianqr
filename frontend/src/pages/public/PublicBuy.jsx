@@ -492,9 +492,11 @@ const PublicBuy = () => {
                   Cargá los mismos nombre y apellido que usaste al comprar
                 </p>
                 <input className="input" required placeholder="Nombre"
+                       autoComplete="given-name" autoCapitalize="words" enterKeyHint="next"
                        value={recoverForm.nombre}
                        onChange={e => setRecoverForm(f => ({ ...f, nombre: e.target.value }))} />
                 <input className="input" required placeholder="Apellido"
+                       autoComplete="family-name" autoCapitalize="words" enterKeyHint="search"
                        value={recoverForm.apellido}
                        onChange={e => setRecoverForm(f => ({ ...f, apellido: e.target.value }))} />
                 {recoverError && <p className="text-sm text-red-400">{recoverError}</p>}

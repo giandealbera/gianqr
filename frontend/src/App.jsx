@@ -71,11 +71,12 @@ const AnimatedRoutes = ({ children }) => {
   );
 };
 
-// Redirige al panel según el rol del usuario logueado
+// Redirige al panel según el rol del usuario logueado.
+// Hoy todos los roles arrancan en /eventos; si en el futuro algun rol
+// debe ir a otra landing, agregar el branching aca.
 const RoleRedirect = () => {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
-  if (user.role === 'owner') return <Navigate to="/eventos" replace />;
   return <Navigate to="/eventos" replace />;
 };
 

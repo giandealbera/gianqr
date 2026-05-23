@@ -11,7 +11,6 @@ const PublicScanner = () => {
   const [error,    setError]    = useState(null);
   const [result,   setResult]   = useState(null);
   const [scanning, setScanning] = useState(false);
-  const scannerRef = useRef(null);
   const lastScan   = useRef(0);
 
   // Cargar info del escáner (evento y tipo de entrada)
@@ -68,7 +67,6 @@ const PublicScanner = () => {
       () => {}
     );
 
-    scannerRef.current = scanner;
     return () => scanner.clear().catch(() => {});
   }, [info, token]);
 
