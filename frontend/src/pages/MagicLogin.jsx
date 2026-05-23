@@ -3,6 +3,15 @@ import { useParams } from 'react-router-dom';
 
 const BACKEND = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
 
+// Espejo del roleRedirect de Login.jsx para que un admin/owner que abre un
+// magic link no termine en /promotor (que no tiene acceso) sin acceso.
+const ROLE_REDIRECT = {
+  admin:         '/admin',
+  owner:         '/eventos',
+  jefe_publicas: '/promotor',
+  vendedor:      '/promotor',
+};
+
 const MagicLogin = () => {
   const { token } = useParams();
   const [error, setError] = useState(null);
@@ -13,7 +22,8 @@ const MagicLogin = () => {
       .then(data => {
         if (data.error) { setError(data.error); return; }
         localStorage.setItem('gianqr_token', data.token);
-        window.location.href = '/promotor';
+        const dest = ROLE_REDIRECT[data.user?.role] || '/eventos';
+        window.location.href = dest;
       })
       .catch(() => setError('No se pudo conectar al servidor'));
   }, [token]);

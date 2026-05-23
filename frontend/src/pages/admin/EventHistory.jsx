@@ -162,10 +162,6 @@ const EventHistory = () => {
                                   <p className="text-green-400 font-medium">{fmt(r.recaudado_transferencia)}</p>
                                 </div>
                                 <div>
-                                  <p className="text-gray-500">MercadoPago</p>
-                                  <p className="text-green-400 font-medium">{fmt(r.recaudado_mercadopago)}</p>
-                                </div>
-                                <div>
                                   <p className="text-gray-500">Comisiones públicas</p>
                                   <p className="text-amber-400 font-medium">{fmt(r.comisiones_total)}</p>
                                 </div>

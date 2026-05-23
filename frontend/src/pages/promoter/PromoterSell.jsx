@@ -40,8 +40,31 @@ const PromoterSell = () => {
   const selectedEvent = events.find(e => e.id === eventSel);
   const totalPrice    = selectedType ? parseFloat(selectedType.price) * qty : 0;
 
+  // Ventana de venta del evento. Si esta cerrada (no abrio aun, ya cerro,
+  // sold out manual o evento inactivo) bloqueamos el boton para que el
+  // vendedor no genere un link que despues va a fallar.
+  const saleWindowStatus = (() => {
+    if (!selectedEvent) return { open: true };
+    const now = new Date();
+    if (selectedEvent.sale_start_at) {
+      const start = new Date(selectedEvent.sale_start_at);
+      if (now < start) return { open: false, reason: `Las ventas abren el ${start.toLocaleString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })}` };
+    }
+    if (selectedEvent.sale_end_at) {
+      const end = new Date(selectedEvent.sale_end_at);
+      if (now > end) return { open: false, reason: `Ventas cerradas el ${end.toLocaleString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })}` };
+    }
+    if (selectedEvent.sales_stopped_at) return { open: false, reason: 'Venta cortada manualmente (SOLD OUT)' };
+    if (selectedEvent.is_active === 0) return { open: false, reason: 'El evento está inactivo' };
+    return { open: true };
+  })();
+
   const generateLink = () => {
     if (!promoCode || !eventSel || !typeSel) return;
+    if (!saleWindowStatus.open) {
+      toast.error(saleWindowStatus.reason || 'Ventas cerradas');
+      return;
+    }
     const link = `${window.location.origin}/comprar/${promoCode}?event=${eventSel}&type=${typeSel}&qty=${qty}&pay=${payMethod}`;
     setGeneratedLink(link);
     toast.success('Link generado');
@@ -143,12 +166,21 @@ const PromoterSell = () => {
                   No tenes codigo de publica asignado
                 </p>
               ) : eventSel && typeSel ? (
-                <button
-                  onClick={generateLink}
-                  className="btn-primary w-full py-3 text-base font-semibold"
-                >
-                  Generar QR
-                </button>
+                <>
+                  {!saleWindowStatus.open && (
+                    <div className="rounded-lg p-3 text-sm"
+                         style={{ background: 'rgba(185,28,28,0.10)', border: '1px solid rgba(185,28,28,0.35)', color: '#FCA5A5' }}>
+                      {saleWindowStatus.reason}
+                    </div>
+                  )}
+                  <button
+                    onClick={generateLink}
+                    disabled={!saleWindowStatus.open}
+                    className="btn-primary w-full py-3 text-base font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Generar QR
+                  </button>
+                </>
               ) : (
                 <p className="text-sm text-center py-4" style={{ color: '#4B5563' }}>
                   Elegi evento y tipo para generar el QR

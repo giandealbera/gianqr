@@ -5,7 +5,7 @@ import { exportCsv } from '../../utils/exportCsv';
 
 /* ─── helpers ─────────────────────────────────────────────────────────── */
 const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n || 0);
-const METHOD_LABEL = { efectivo: 'Efectivo', transferencia: 'Transferencia', mercadopago: 'MercadoPago', cortesia: 'Cortesía' };
+const METHOD_LABEL = { efectivo: 'Efectivo', transferencia: 'Transferencia', cortesia: 'Cortesía' };
 const MONTHS_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
 const formatMonth = (mesStr) => {
@@ -362,7 +362,6 @@ const Reports = () => {
                     <option value="">Todos</option>
                     <option value="efectivo">Efectivo</option>
                     <option value="transferencia">Transferencia</option>
-                    <option value="mercadopago">MercadoPago</option>
                     <option value="cortesia">Cortesía</option>
                   </select>
                 </div>

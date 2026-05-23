@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import toast from 'react-hot-toast';
@@ -15,6 +15,7 @@ const initialForm = {
 const MyEvents = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [events, setEvents]     = useState([]);
   const [venues, setVenues]     = useState([]);
   const [loading, setLoading]   = useState(true);
@@ -38,6 +39,20 @@ const MyEvents = () => {
     }).finally(() => setLoading(false));
 
   useEffect(() => { load(); }, []);
+
+  // Si llegan desde EventDashboard con ?edit=ID, abrimos directo el modal
+  // de edicion del evento. Limpiamos el query string para que no quede pegajoso.
+  useEffect(() => {
+    const editIdQuery = searchParams.get('edit');
+    if (!editIdQuery || events.length === 0) return;
+    const ev = events.find(e => String(e.id) === String(editIdQuery));
+    if (ev) {
+      openEdit(ev);
+      searchParams.delete('edit');
+      setSearchParams(searchParams, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [events]);
 
   const today = new Date().toISOString().split('T')[0];
   const filtered = events.filter(e =>

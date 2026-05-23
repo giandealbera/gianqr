@@ -104,7 +104,7 @@ const EventDashboard = () => {
   };
 
   const TOOLS = [
-    { iconKey: 'gear',   label: 'Configurar evento',    sub: 'Editar datos y ajustes',      to: `/evento/${id}/config`,    disabled: false },
+    { iconKey: 'gear',   label: 'Configurar evento',    sub: 'Editar datos y ajustes',      to: `/eventos?edit=${id}`,     disabled: false },
     { iconKey: 'tag',    label: 'Tipos de entrada',     sub: 'Precios y cupos disponibles', to: `/evento/${id}/tipos`,     disabled: false },
     { iconKey: 'qr',     label: 'Gestión del ingreso',  sub: 'Escáner y control de acceso', to: '/escaner',                disabled: false },
     { iconKey: 'list',   label: 'Entradas vendidas',    sub: 'Historial de tickets',        to: `/evento/${id}/vendidas`,  disabled: false },

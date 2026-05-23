@@ -47,13 +47,21 @@ const Login = () => {
         </div>
 
         {/* Card */}
-        <div className="rounded-2xl p-6 space-y-5" style={{ background: '#0D1117', border: '1px solid #1E2530' }}>
+        <form
+          onSubmit={handleSubmit}
+          className="rounded-2xl p-6 space-y-5"
+          style={{ background: '#0D1117', border: '1px solid #1E2530' }}
+        >
           <div>
             <label className="block text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: '#6B7280' }}>Email</label>
             <input
               type="email"
               required
               autoComplete="email"
+              inputMode="email"
+              autoCapitalize="off"
+              spellCheck="false"
+              enterKeyHint="next"
               className="input"
               placeholder="tuemail@ejemplo.com"
               value={form.email}
@@ -67,6 +75,7 @@ const Login = () => {
               type="password"
               required
               autoComplete="current-password"
+              enterKeyHint="go"
               className="input"
               placeholder="••••••••"
               value={form.password}
@@ -75,9 +84,8 @@ const Login = () => {
           </div>
 
           <button
-            type="button"
+            type="submit"
             disabled={loading}
-            onClick={handleSubmit}
             className="w-full py-3 rounded-xl font-bold tracking-wider text-sm transition-all duration-150 disabled:opacity-40"
             style={{ background: 'linear-gradient(135deg, #C9974D, #A87B35)', color: '#fff', boxShadow: '0 4px 24px rgba(201,151,77,0.25)' }}
           >
@@ -95,7 +103,7 @@ const Login = () => {
               Olvidé mi contraseña
             </Link>
           </div>
-        </div>
+        </form>
 
         <p className="text-center text-xs mt-6" style={{ color: '#2D3748' }}>GianQR v1.0</p>
       </div>
