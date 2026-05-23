@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import toast from 'react-hot-toast';
@@ -18,6 +17,10 @@ const PromoterSell = () => {
   const [qty,          setQty]          = useState(1);
   const [payMethod,    setPayMethod]    = useState('efectivo');
 
+  // Link generado tras apretar "Generar QR". El vendedor no ve el QR
+  // (eso lo ve el comprador al cargar sus datos). Solo copia y comparte el link.
+  const [generatedLink, setGeneratedLink] = useState('');
+
   useEffect(() => {
     api.get('/events').then(r => setEvents(r.data.filter(e => e.is_active)));
     api.get('/users/my-sales').then(r => setPromoCode(r.data.promo_code)).catch(() => {});
@@ -28,17 +31,25 @@ const PromoterSell = () => {
     api.get(`/events/${eventSel}`).then(r => setTicketTypes(r.data.ticket_types || []));
   }, [eventSel]);
 
+  // Cualquier cambio en el form invalida el link previo: hay que apretar de nuevo.
+  useEffect(() => {
+    setGeneratedLink('');
+  }, [eventSel, typeSel, qty, payMethod]);
+
   const selectedType  = ticketTypes.find(t => t.id === typeSel);
   const selectedEvent = events.find(e => e.id === eventSel);
   const totalPrice    = selectedType ? parseFloat(selectedType.price) * qty : 0;
 
-  const buyLink = promoCode && eventSel && typeSel
-    ? `${window.location.origin}/comprar/${promoCode}?event=${eventSel}&type=${typeSel}&qty=${qty}&pay=${payMethod}`
-    : '';
+  const generateLink = () => {
+    if (!promoCode || !eventSel || !typeSel) return;
+    const link = `${window.location.origin}/comprar/${promoCode}?event=${eventSel}&type=${typeSel}&qty=${qty}&pay=${payMethod}`;
+    setGeneratedLink(link);
+    toast.success('Link generado');
+  };
 
   const copyLink = () => {
-    if (!buyLink) return;
-    navigator.clipboard.writeText(buyLink).then(() => toast.success('Link copiado'));
+    if (!generatedLink) return;
+    navigator.clipboard.writeText(generatedLink).then(() => toast.success('Link copiado'));
   };
 
   return (
@@ -46,7 +57,7 @@ const PromoterSell = () => {
       <div className="px-4 lg:px-8 py-6 max-w-2xl mx-auto">
         <h1 className="text-2xl font-bold mb-1">Vender entrada</h1>
         <p className="text-sm mb-6" style={{ color: '#6B7280' }}>
-          Definí evento, tipo, cantidad y forma de pago. Compartile el link al comprador y completa sus datos.
+          Definí evento, tipo, cantidad y forma de pago. Generá el link y compartilo con el comprador para que cargue sus datos y reciba su QR.
         </p>
 
         <div className="card space-y-5">
@@ -105,21 +116,18 @@ const PromoterSell = () => {
             </div>
           )}
 
-          {buyLink ? (
+          {generatedLink ? (
             <div className="space-y-4 pt-2 border-t border-gray-800">
               <p className="text-xs uppercase tracking-widest font-semibold text-center" style={{ color: '#6B7280' }}>
-                Link de compra — compartilo con el comprador
+                Link para el comprador — compartilo para que cargue sus datos
               </p>
               <p className="text-[10px] text-center -mt-2" style={{ color: '#4B5563' }}>
-                (El comprador carga sus datos y genera su propia entrada)
+                (El comprador carga sus datos y recibe su propio QR)
               </p>
-              <div className="flex justify-center p-4 bg-white rounded-xl">
-                <QRCodeSVG value={buyLink} size={220} bgColor="#ffffff" fgColor="#000000" />
-              </div>
 
               <div className="rounded-lg p-3 break-all font-mono text-xs"
                    style={{ background: '#161B24', border: '1px solid #1E2530', color: '#C9974D' }}>
-                {buyLink}
+                {generatedLink}
               </div>
 
               <button onClick={copyLink} className="btn-primary w-full py-3">Copiar link</button>
@@ -129,9 +137,24 @@ const PromoterSell = () => {
               </p>
             </div>
           ) : (
-            <p className="text-sm text-center py-4" style={{ color: '#4B5563' }}>
-              {!promoCode ? 'No tenes codigo de publica asignado' : 'Elegi evento y tipo para mostrar el QR'}
-            </p>
+            <div className="space-y-3 pt-2 border-t border-gray-800">
+              {!promoCode ? (
+                <p className="text-sm text-center py-4" style={{ color: '#4B5563' }}>
+                  No tenes codigo de publica asignado
+                </p>
+              ) : eventSel && typeSel ? (
+                <button
+                  onClick={generateLink}
+                  className="btn-primary w-full py-3 text-base font-semibold"
+                >
+                  Generar QR
+                </button>
+              ) : (
+                <p className="text-sm text-center py-4" style={{ color: '#4B5563' }}>
+                  Elegi evento y tipo para generar el QR
+                </p>
+              )}
+            </div>
           )}
         </div>
       </div>
