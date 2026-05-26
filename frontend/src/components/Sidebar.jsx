@@ -12,6 +12,7 @@ const navItems = {
     { to: '/admin/usuarios',  label: 'Dueños'      },
     { to: '/admin/reportes',  label: 'Reportes'    },
     { to: '/admin/historial', label: 'Historial'   },
+    { to: '/admin/bitacora',  label: 'Bitácora'    },
     { to: '/configuracion',   label: 'Configuracion' },
   ],
   jefe_publicas: [
@@ -37,6 +38,7 @@ const navItems = {
     { to: '/admin/historial',   label: 'Historial'     },
     { to: '/admin/zonas',       label: 'Mis Zonas'     },
     { to: '/admin/proveedores', label: 'Proveedores'   },
+    { to: '/admin/bitacora',    label: 'Bitácora'      },
     { to: '/configuracion',     label: 'Configuración' },
   ],
 };

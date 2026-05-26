@@ -38,6 +38,7 @@ const Zonas             = lazy(() => import('./pages/admin/Zonas'));
 const MoreMenu          = lazy(() => import('./pages/MoreMenu'));
 const Configuracion     = lazy(() => import('./pages/Configuracion'));
 const ForceChangePassword = lazy(() => import('./pages/ForceChangePassword'));
+const AuditLog         = lazy(() => import('./pages/admin/AuditLog'));
 
 // Barra de progreso superior mientras carga un chunk lazy. Sustituye al
 // spinner full-screen anterior — la pantalla anterior queda visible y el
@@ -162,6 +163,9 @@ const App = () => (
         } />
         <Route path="/admin/zonas" element={
           <ProtectedRoute allowedRoles={['admin', 'owner']}><Zonas /></ProtectedRoute>
+        } />
+        <Route path="/admin/bitacora" element={
+          <ProtectedRoute allowedRoles={['admin', 'owner']}><AuditLog /></ProtectedRoute>
         } />
 
         {/* Escáner (solo admin) */}

@@ -67,6 +67,7 @@ const MoreMenu = () => {
               <MenuItem iconKey="money"     label="Reportes globales"     desc="Métricas del sistema" onClick={() => navigate('/admin/reportes')} />
               <MenuItem iconKey="chart"     label="Historial de eventos"  desc="Todos los eventos del sistema" onClick={() => navigate('/admin/historial')} />
               <MenuItem iconKey="ticket"    label="Reiniciar eventos"     desc="Borrar tickets y rendiciones por evento (acción peligrosa)" onClick={() => navigate('/admin/reset-eventos')} />
+              <MenuItem iconKey="receipt"   label="Bitácora"              desc="Registro de acciones sensibles del sistema" onClick={() => navigate('/admin/bitacora')} />
             </>
           )}
           {user?.role === 'owner' && (
@@ -79,6 +80,7 @@ const MoreMenu = () => {
               <MenuItem iconKey="chart"     label="Mi Historial"          desc="Tus eventos pasados" onClick={() => navigate('/admin/historial')} />
               <MenuItem iconKey="users"     label="Mis Zonas"             desc="Agrupar vendedores por zona" onClick={() => navigate('/admin/zonas')} />
               <MenuItem iconKey="users"     label="Mis Proveedores"       desc="Contactos y datos de pago" onClick={() => navigate('/admin/proveedores')} />
+              <MenuItem iconKey="receipt"   label="Bitácora"              desc="Quién hizo qué cuándo en tu cuenta" onClick={() => navigate('/admin/bitacora')} />
             </>
           )}
 
