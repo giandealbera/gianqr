@@ -23,6 +23,13 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     return <Navigate to="/cambiar-password" replace />;
   }
 
+  // Si el rol exige 2FA (env var en backend) y el user no lo tiene
+  // habilitado, lo forzamos a /configuracion/2fa. La pantalla acepta el
+  // modo "obligatorio": solo se sale activando 2FA o haciendo logout.
+  if (user.tfa_required && location.pathname !== '/configuracion/2fa') {
+    return <Navigate to="/configuracion/2fa?required=1" replace />;
+  }
+
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     return <Navigate to="/sin-acceso" replace />;
   }

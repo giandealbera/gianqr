@@ -487,6 +487,27 @@ async function runMigrations(queryFn, execFn) {
   )`);
   try { await execFn('CREATE INDEX IF NOT EXISTS idx_recovery_user ON totp_recovery_codes(user_id)'); } catch (e) {}
 
+  // Sessions: tracking de JWTs emitidos. Cada login crea una fila con un
+  // jti random; el middleware auth chequea que la fila exista y no este
+  // revoked_at. Asi podemos:
+  //   - listar sesiones activas por usuario (UA, IP, last_seen),
+  //   - revocar una sesion concreta sin tocar la password,
+  //   - "cerrar sesion en todos los demas dispositivos".
+  // password_changed_at sigue siendo el "kill switch" global (sigue
+  // invalidando TODOS los jti previos).
+  await execFn(`CREATE TABLE IF NOT EXISTS sessions (
+    id            TEXT PRIMARY KEY,
+    user_id       TEXT NOT NULL,
+    user_agent    TEXT,
+    ip            TEXT,
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_seen_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    revoked_at    DATETIME,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  )`);
+  try { await execFn('CREATE INDEX IF NOT EXISTS idx_sessions_user    ON sessions(user_id)');    } catch (e) {}
+  try { await execFn('CREATE INDEX IF NOT EXISTS idx_sessions_revoked ON sessions(revoked_at)'); } catch (e) {}
+
   // Backfill multi-tenant: owners cargados antes del fix de create() quedaron
   // con created_by=NULL e invisibles para el admin (el filtro WHERE
   // created_by=admin.id no matchea NULL). Los asignamos al primer admin activo

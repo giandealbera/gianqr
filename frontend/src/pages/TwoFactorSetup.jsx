@@ -8,13 +8,20 @@
 //     y "Regenerar códigos de recuperación", cada uno pide password + token.
 
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
 import Layout from '../components/Layout';
 import toast from 'react-hot-toast';
+import { useAuth } from '../context/AuthContext';
 
 const TwoFactorSetup = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { logout, refreshUser } = useAuth();
+  // Modo "obligatorio": llegamos aca porque el rol exige 2FA y todavia
+  // no lo activamos. En este modo no hay "Volver" — solo se sale activando
+  // 2FA (lo cual apaga tfa_required) o haciendo logout.
+  const required = searchParams.get('required') === '1';
   const [loading, setLoading] = useState(true);
   const [enabled, setEnabled] = useState(false);
 
@@ -54,6 +61,9 @@ const TwoFactorSetup = () => {
       const r = await api.post('/auth/2fa/enable', { token: confirmToken });
       setRecoveryCodes(r.data.recovery_codes);
       setEnabled(true);
+      // Refresh user para limpiar tfa_required del context, asi
+      // ProtectedRoute deja de redirigir.
+      if (refreshUser) await refreshUser();
       toast.success('2FA habilitado');
     } catch (err) {
       toast.error(err.response?.data?.error || 'Código incorrecto');
@@ -108,6 +118,19 @@ const TwoFactorSetup = () => {
         <p className="text-sm mb-6" style={{ color: '#6B7280' }}>
           Sumá una segunda capa al login. Cada vez que entres, además de la contraseña vamos a pedirte un código de 6 dígitos que genera tu app de autenticación (Google Authenticator, 1Password, Authy, etc.).
         </p>
+
+        {/* Banner cuando el 2FA es obligatorio por rol y aun no esta activado */}
+        {required && !enabled && (
+          <div className="card mb-4"
+               style={{ background: 'rgba(239,68,68,0.08)', borderColor: 'rgba(239,68,68,0.4)' }}>
+            <p className="text-sm font-semibold" style={{ color: '#FCA5A5' }}>
+              🔒 Tu rol requiere 2FA
+            </p>
+            <p className="text-xs mt-1" style={{ color: '#9CA3AF' }}>
+              Por tener acceso administrativo, tenés que activar la verificación en dos pasos antes de seguir usando el sistema. Si no podés ahora, podés cerrar sesión.
+            </p>
+          </div>
+        )}
 
         {/* Codigos de recuperacion recien generados */}
         {recoveryCodes && (
@@ -236,9 +259,16 @@ const TwoFactorSetup = () => {
           </div>
         )}
 
-        <button onClick={() => navigate(-1)} className="mt-6 text-xs underline w-full text-center" style={{ color: '#6B7280' }}>
-          Volver
-        </button>
+        {required && !enabled ? (
+          <button onClick={() => { logout(); navigate('/login'); }}
+                  className="mt-6 text-xs underline w-full text-center" style={{ color: '#6B7280' }}>
+            Cerrar sesión
+          </button>
+        ) : (
+          <button onClick={() => navigate(-1)} className="mt-6 text-xs underline w-full text-center" style={{ color: '#6B7280' }}>
+            Volver
+          </button>
+        )}
       </div>
     </Layout>
   );

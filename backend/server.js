@@ -64,6 +64,7 @@ app.use('/api/cortesias',       require('./src/routes/cortesias'));
 app.use('/api/proveedores',     require('./src/routes/proveedores'));
 app.use('/api/zonas',           require('./src/routes/zonas'));
 app.use('/api/audit-log',       require('./src/routes/auditLog'));
+app.use('/api/sessions',        require('./src/routes/sessions'));
 
 // Health check sin fingerprinting (no exponemos version ni nombre)
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));

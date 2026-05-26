@@ -6,6 +6,18 @@ const { sendMail } = require('../utils/mailer');
 const { logAudit } = require('../utils/auditLog');
 const { verifyToken: verifyTotp } = require('../utils/tfa');
 const { consumeRecoveryCode } = require('./tfaController');
+const { createSession } = require('../utils/sessions');
+
+// Roles para los que el 2FA es OBLIGATORIO. Se setea por env var.
+// Si el rol del usuario aparece aca y NO tiene totp_enabled=1, el cliente
+// va a recibir tfa_required:true y debe llevarlo a /configuracion/2fa.
+function tfaRequiredRoles() {
+  return (process.env.TFA_REQUIRED_ROLES || '')
+    .split(',').map(s => s.trim()).filter(Boolean);
+}
+function isTfaRequiredForRole(role) {
+  return tfaRequiredRoles().includes(role);
+}
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -54,15 +66,21 @@ const login = async (req, res) => {
       return res.json({ needs_2fa: true, partial_token: partialToken });
     }
 
+    const jti = await createSession(req, user.id);
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role, name: user.name },
+      { id: user.id, email: user.email, role: user.role, name: user.name, jti },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '8h', algorithm: 'HS256' }
     );
 
     res.json({
       token,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role, must_change_password: !!user.must_change_password },
+      user: {
+        id: user.id, name: user.name, email: user.email, role: user.role,
+        must_change_password: !!user.must_change_password,
+        totp_enabled: !!user.totp_enabled,
+        tfa_required: isTfaRequiredForRole(user.role) && !user.totp_enabled,
+      },
     });
   } catch (err) {
     console.error('Login error:', err);
@@ -107,15 +125,21 @@ const verifyTwoFactor = async (req, res) => {
       return res.status(401).json({ error: 'Código incorrecto' });
     }
 
+    const jti = await createSession(req, user.id);
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role, name: user.name },
+      { id: user.id, email: user.email, role: user.role, name: user.name, jti },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '8h', algorithm: 'HS256' }
     );
 
     res.json({
       token,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role, must_change_password: !!user.must_change_password },
+      user: {
+        id: user.id, name: user.name, email: user.email, role: user.role,
+        must_change_password: !!user.must_change_password,
+        totp_enabled: !!user.totp_enabled,
+        tfa_required: isTfaRequiredForRole(user.role) && !user.totp_enabled,
+      },
     });
   } catch (err) {
     console.error('verifyTwoFactor error:', err);
@@ -127,12 +151,21 @@ const verifyTwoFactor = async (req, res) => {
 const me = async (req, res) => {
   try {
     const result = await db.query(
-      'SELECT id, name, email, role, created_at, must_change_password FROM users WHERE id = ?',
+      'SELECT id, name, email, role, created_at, must_change_password, totp_enabled FROM users WHERE id = ?',
       [req.user.id]
     );
     if (!result.rows[0]) return res.status(404).json({ error: 'Usuario no encontrado' });
     const u = result.rows[0];
-    res.json({ ...u, must_change_password: !!u.must_change_password });
+    // tfa_required = el rol exige 2FA y el user NO lo tiene habilitado.
+    // El frontend usa esto para redirigir a /configuracion/2fa y bloquear
+    // el resto de la app.
+    const tfa_required = isTfaRequiredForRole(u.role) && !u.totp_enabled;
+    res.json({
+      ...u,
+      must_change_password: !!u.must_change_password,
+      totp_enabled: !!u.totp_enabled,
+      tfa_required,
+    });
   } catch (err) {
     res.status(500).json({ error: 'Error interno del servidor' });
   }
@@ -164,8 +197,9 @@ const magicLogin = async (req, res) => {
     // acceso, el jefe puede generarle uno nuevo desde su panel.
     await db.query('UPDATE users SET magic_token = NULL, magic_token_expires = NULL WHERE id = ?', [user.id]);
 
+    const jti = await createSession(req, user.id);
     const jwt_token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role, name: user.name },
+      { id: user.id, email: user.email, role: user.role, name: user.name, jti },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '8h', algorithm: 'HS256' }
     );
