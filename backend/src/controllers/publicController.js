@@ -115,7 +115,7 @@ const createPublicTicket = async (req, res) => {
     // requests concurrentes.
     await db.transaction(async (conn) => {
       const [ttRows] = await conn.execute(
-        'SELECT * FROM ticket_types WHERE id = ? AND event_id = ? AND is_active = 1',
+        'SELECT * FROM ticket_types WHERE id = ? AND event_id = ? AND is_active = 1 FOR UPDATE',
         [ticket_type_id, event_id]
       );
       const tt = ttRows[0];

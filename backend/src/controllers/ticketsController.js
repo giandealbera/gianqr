@@ -47,9 +47,14 @@ const create = async (req, res) => {
     let ticketResult;
 
     await db.transaction(async (conn) => {
-      // Verificar cupo disponible (sin FOR UPDATE — SQLite serializa por defecto en transacciones)
+      // Verificar cupo con SELECT ... FOR UPDATE: en PG bloquea la fila de
+      // ticket_types hasta que la TX commitea. Asi dos compras simultaneas
+      // se serializan y no pueden ambas leer sold_count=98 y bypasear el
+      // chequeo de cupo (oversell). En SQLite el translator strippea FOR
+      // UPDATE; el WAL mode + transacciones IMMEDIATE ya nos dan el mismo
+      // efecto serializado.
       const [ttRows] = await conn.execute(
-        'SELECT * FROM ticket_types WHERE id = ? AND is_active = 1',
+        'SELECT * FROM ticket_types WHERE id = ? AND is_active = 1 FOR UPDATE',
         [ticket_type_id]
       );
       const tt = ttRows[0];
@@ -165,8 +170,10 @@ const preSell = async (req, res) => {
     const createdIds = [];
 
     await db.transaction(async (conn) => {
+      // FOR UPDATE: bloqueo de fila en PG para evitar oversell concurrente.
+      // SQLite ignora la clausula (translator la strippea).
       const [ttRows] = await conn.execute(
-        'SELECT * FROM ticket_types WHERE id = ? AND event_id = ? AND is_active = 1',
+        'SELECT * FROM ticket_types WHERE id = ? AND event_id = ? AND is_active = 1 FOR UPDATE',
         [ticket_type_id, event_id]
       );
       const tt = ttRows[0];

@@ -41,7 +41,7 @@ const createCortesias = async (req, res) => {
     // ver cupo libre y oversold el evento.
     await db.transaction(async (conn) => {
       const [ttRows] = await conn.execute(
-        'SELECT * FROM ticket_types WHERE id = ? AND event_id = ?',
+        'SELECT * FROM ticket_types WHERE id = ? AND event_id = ? FOR UPDATE',
         [ticket_type_id, event_id]
       );
       const tt = ttRows[0];
