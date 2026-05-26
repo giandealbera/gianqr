@@ -4,6 +4,8 @@ const jwt    = require('jsonwebtoken');
 const db     = require('../config/database');
 const { sendMail } = require('../utils/mailer');
 const { logAudit } = require('../utils/auditLog');
+const { verifyToken: verifyTotp } = require('../utils/tfa');
+const { consumeRecoveryCode } = require('./tfaController');
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -38,6 +40,20 @@ const login = async (req, res) => {
       return res.status(401).json({ error: 'Credenciales inválidas' });
     }
 
+    // Si tiene 2FA habilitado, NO emitimos el JWT completo todavia. En su
+    // lugar devolvemos un "partial token" firmado con el mismo JWT_SECRET
+    // pero con un scope distinto (purpose:'2fa'). El cliente debe llamar
+    // /auth/2fa/verify con ese partial + el codigo TOTP para conseguir el
+    // JWT final. El partial dura 5 minutos.
+    if (user.totp_enabled) {
+      const partialToken = jwt.sign(
+        { id: user.id, email: user.email, purpose: '2fa' },
+        process.env.JWT_SECRET,
+        { expiresIn: '5m', algorithm: 'HS256' }
+      );
+      return res.json({ needs_2fa: true, partial_token: partialToken });
+    }
+
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role, name: user.name },
       process.env.JWT_SECRET,
@@ -51,6 +67,59 @@ const login = async (req, res) => {
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ error: 'Error interno del servidor' });
+  }
+};
+
+// POST /api/auth/2fa/verify { partial_token, code }
+// Segundo paso del login cuando hay 2FA. Acepta codigo TOTP o codigo de
+// recuperacion (one-time). Si valida, emite el JWT completo.
+const verifyTwoFactor = async (req, res) => {
+  const { partial_token, code } = req.body;
+  if (!partial_token || !code)
+    return res.status(400).json({ error: 'partial_token y code son requeridos' });
+  try {
+    let decoded;
+    try {
+      decoded = jwt.verify(partial_token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
+    } catch {
+      return res.status(401).json({ error: 'Sesión de verificación expirada. Volvé a loguearte.' });
+    }
+    if (decoded.purpose !== '2fa') {
+      return res.status(401).json({ error: 'Token inválido' });
+    }
+    const r = await db.query('SELECT id, name, email, role, totp_secret, totp_enabled, must_change_password FROM users WHERE id = ? AND is_active = 1', [decoded.id]);
+    const user = r.rows[0];
+    if (!user || !user.totp_enabled) return res.status(401).json({ error: 'Cuenta inválida' });
+
+    // Aceptamos codigo TOTP de 6 digitos O codigo de recuperacion XXXX-XXXX.
+    const isTotp = /^\d{6}$/.test(String(code).replace(/\s+/g, ''));
+    let ok = false;
+    if (isTotp) {
+      ok = verifyTotp(code, user.totp_secret);
+    } else {
+      ok = await consumeRecoveryCode(user.id, code);
+    }
+
+    if (!ok) {
+      logAudit(req, 'AUTH_2FA_FAILED', {
+        actorOverride: { id: user.id, email: user.email, role: user.role },
+      });
+      return res.status(401).json({ error: 'Código incorrecto' });
+    }
+
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: user.role, name: user.name },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '8h', algorithm: 'HS256' }
+    );
+
+    res.json({
+      token,
+      user: { id: user.id, name: user.name, email: user.email, role: user.role, must_change_password: !!user.must_change_password },
+    });
+  } catch (err) {
+    console.error('verifyTwoFactor error:', err);
+    res.status(500).json({ error: 'Error interno' });
   }
 };
 
@@ -238,4 +307,4 @@ const changePassword = async (req, res) => {
   }
 };
 
-module.exports = { login, me, magicLogin, forgotPassword, resetPassword, changePassword };
+module.exports = { login, me, magicLogin, forgotPassword, resetPassword, changePassword, verifyTwoFactor };

@@ -466,6 +466,27 @@ async function runMigrations(queryFn, execFn) {
   // poder de loguearse como el. Reset por /auth/change-password lo apaga.
   try { await execFn('ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0'); } catch (e) {}
 
+  // 2FA / TOTP. totp_secret guarda el secreto base32 (lo usa otplib para
+  // verificar el codigo de 6 digitos). totp_enabled=1 significa que el
+  // usuario completo el flujo de setup (escaneo de QR + confirmacion con
+  // un primer codigo) y a partir de ahi el login pide 2FA.
+  try { await execFn('ALTER TABLE users ADD COLUMN totp_secret TEXT'); } catch (e) {}
+  try { await execFn('ALTER TABLE users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0'); } catch (e) {}
+
+  // Codigos de recuperacion del 2FA. Si el usuario pierde el dispositivo
+  // (Authenticator borrado, telefono perdido), puede usar uno de estos 10
+  // codigos de un solo uso para entrar y desactivar el 2FA. Guardamos el
+  // hash, no el codigo en claro.
+  await execFn(`CREATE TABLE IF NOT EXISTS totp_recovery_codes (
+    id          TEXT PRIMARY KEY,
+    user_id     TEXT NOT NULL,
+    code_hash   TEXT NOT NULL,
+    used_at     DATETIME,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  )`);
+  try { await execFn('CREATE INDEX IF NOT EXISTS idx_recovery_user ON totp_recovery_codes(user_id)'); } catch (e) {}
+
   // Backfill multi-tenant: owners cargados antes del fix de create() quedaron
   // con created_by=NULL e invisibles para el admin (el filtro WHERE
   // created_by=admin.id no matchea NULL). Los asignamos al primer admin activo

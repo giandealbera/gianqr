@@ -39,6 +39,7 @@ const MoreMenu          = lazy(() => import('./pages/MoreMenu'));
 const Configuracion     = lazy(() => import('./pages/Configuracion'));
 const ForceChangePassword = lazy(() => import('./pages/ForceChangePassword'));
 const AuditLog         = lazy(() => import('./pages/admin/AuditLog'));
+const TwoFactorSetup   = lazy(() => import('./pages/TwoFactorSetup'));
 
 // Barra de progreso superior mientras carga un chunk lazy. Sustituye al
 // spinner full-screen anterior — la pantalla anterior queda visible y el
@@ -196,6 +197,11 @@ const App = () => (
             ProtectedRoute permite verla justamente cuando must_change_password=1. */}
         <Route path="/cambiar-password" element={
           <ProtectedRoute><ForceChangePassword /></ProtectedRoute>
+        } />
+
+        {/* 2FA setup (cualquier rol logueado). */}
+        <Route path="/configuracion/2fa" element={
+          <ProtectedRoute allowedRoles={['admin', 'jefe_publicas', 'vendedor', 'owner']}><TwoFactorSetup /></ProtectedRoute>
         } />
 
         {/* Más opciones */}
