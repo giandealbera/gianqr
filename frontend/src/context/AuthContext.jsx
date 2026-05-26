@@ -31,8 +31,20 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  // Re-fetch del user actual desde /auth/me. Util tras cambiar la password
+  // (must_change_password pasa de 1 a 0) sin tener que recargar la pagina.
+  const refreshUser = async () => {
+    try {
+      const r = await api.get('/auth/me');
+      setUser(r.data);
+      return r.data;
+    } catch {
+      return null;
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,6 +1,7 @@
 const { v4: uuidv4 } = require('uuid');
 const db = require('../config/database');
 const { adminCanAccessEvent, resolveOwnerScopeForUser } = require('../utils/scope');
+const { logAudit } = require('../utils/auditLog');
 
 // Helper: verifica si un owner tiene acceso a un evento
 async function ownerHasEvent(userId, eventId) {
@@ -468,6 +469,17 @@ const resetEvent = async (req, res) => {
       await conn.execute('UPDATE ticket_types SET sold_count = 0 WHERE event_id = ?', [id]);
     });
 
+    logAudit(req, 'EVENT_RESET', {
+      resourceType: 'event', resourceId: id,
+      details: {
+        event_name: evResult.rows[0].name,
+        borrados: {
+          tickets:     before.rows[0].tickets,
+          rendiciones: before.rows[0].rendiciones,
+        },
+      },
+    });
+
     res.json({
       message: 'Evento reiniciado',
       event_id: id,
@@ -599,6 +611,10 @@ const addOwner = async (req, res) => {
       'INSERT OR IGNORE INTO event_owners (id, event_id, user_id) VALUES (?,?,?)',
       [uuidv4(), req.params.id, user_id]
     );
+    logAudit(req, 'EVENT_OWNER_ADDED', {
+      resourceType: 'event', resourceId: req.params.id,
+      details: { owner_user_id: user_id, owner_name: userRow.rows[0].name },
+    });
     res.status(201).json({ message: 'Dueño asignado', user: userRow.rows[0] });
   } catch (err) {
     console.error(err);
@@ -614,6 +630,10 @@ const removeOwner = async (req, res) => {
       'DELETE FROM event_owners WHERE event_id = ? AND user_id = ?',
       [req.params.id, req.params.uid]
     );
+    logAudit(req, 'EVENT_OWNER_REMOVED', {
+      resourceType: 'event', resourceId: req.params.id,
+      details: { owner_user_id: req.params.uid },
+    });
     res.json({ message: 'Dueño removido' });
   } catch (err) {
     console.error(err);

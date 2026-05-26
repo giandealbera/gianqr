@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../config/database');
 const { adminCanAccessUser } = require('../utils/scope');
+const { logAudit } = require('../utils/auditLog');
 
 const PUBLICAS_ROLES = ['jefe_publicas', 'vendedor'];
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -90,10 +91,14 @@ const create = async (req, res) => {
     // Owner → staff.created_by = owner.id (asi owner solo ve SU staff).
     // Excepcion: admin creando otro admin queda con created_by=NULL (root).
     const createdBy = role === 'admin' ? null : req.user.id;
+    // must_change_password=1 si NO es admin creando admin (los admins se
+    // crean entre sus pares; el resto del staff tiene que setear su propia
+    // password al primer login y el creador NO debe conservar acceso).
+    const mustChange = role === 'admin' ? 0 : 1;
 
     await db.query(
-      'INSERT INTO users (id, name, apellido, celular, localidad, email, password_hash, role, created_by) VALUES (?,?,?,?,?,?,?,?,?)',
-      [userId, name, apellido || null, celular || null, localidad || null, email.toLowerCase(), hash, role, createdBy]
+      'INSERT INTO users (id, name, apellido, celular, localidad, email, password_hash, role, created_by, must_change_password) VALUES (?,?,?,?,?,?,?,?,?,?)',
+      [userId, name, apellido || null, celular || null, localidad || null, email.toLowerCase(), hash, role, createdBy, mustChange]
     );
 
     let promoCode = null;
@@ -105,6 +110,7 @@ const create = async (req, res) => {
       );
     }
 
+    logAudit(req, 'USER_CREATE', { resourceType: 'user', resourceId: userId, details: { role } });
     res.status(201).json({ id: userId, name, email: email.toLowerCase(), role, promo_code: promoCode, leader_id });
   } catch (err) {
     if (err.message?.includes('UNIQUE constraint')) return res.status(409).json({ error: 'El email ya está registrado' });
@@ -142,8 +148,11 @@ const createTeamMember = async (req, res) => {
     const jefeUser = await db.query('SELECT created_by FROM users WHERE id = ?', [jefeId]);
     const inheritedCreatedBy = jefeUser.rows[0]?.created_by || null;
 
+    // El vendedor se crea con must_change_password=1: al primer login va a
+    // tener que setear su propia password. Asi el jefe que lo creo no
+    // conserva el poder de loguearse como el.
     await db.query(
-      'INSERT INTO users (id, name, apellido, celular, localidad, email, password_hash, role, magic_token, magic_token_expires, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+      'INSERT INTO users (id, name, apellido, celular, localidad, email, password_hash, role, magic_token, magic_token_expires, created_by, must_change_password) VALUES (?,?,?,?,?,?,?,?,?,?,?,1)',
       [userId, name, apellido || null, celular || null, localidad || null, email.toLowerCase(), hash, 'vendedor', magicToken, magicExpires, inheritedCreatedBy]
     );
 
@@ -152,6 +161,9 @@ const createTeamMember = async (req, res) => {
       'INSERT INTO promotors (id, user_id, promo_code, commission, leader_id, leader_commission, zona_id) VALUES (?,?,?,?,?,?,?)',
       [uuidv4(), userId, promoCode, commission ?? 800, jefeId, jefe.leader_commission ?? 400, jefe.zona_id || null]
     );
+
+    logAudit(req, 'USER_CREATE', { resourceType: 'user', resourceId: userId, details: { role: 'vendedor', via: 'team' } });
+    logAudit(req, 'USER_MAGIC_LINK', { resourceType: 'user', resourceId: userId });
 
     res.status(201).json({ id: userId, name, email: email.toLowerCase(), role: 'vendedor', promo_code: promoCode, magic_token: magicToken });
   } catch (err) {
@@ -303,6 +315,21 @@ const update = async (req, res) => {
       await db.query(`UPDATE users SET ${userFields.join(', ')} WHERE id=?`, userValues);
     }
 
+    // Audit log: trazamos por separado cada accion sensible.
+    if (password) {
+      logAudit(req, 'USER_PASSWORD_RESET', { resourceType: 'user', resourceId: id });
+    }
+    if (role !== undefined && role !== currentUser.role) {
+      logAudit(req, 'USER_ROLE_CHANGE', {
+        resourceType: 'user', resourceId: id,
+        details: { from: currentUser.role, to: role },
+      });
+    }
+    if (is_active !== undefined && (is_active ? 1 : 0) !== currentUser.is_active) {
+      logAudit(req, is_active ? 'USER_REACTIVATE' : 'USER_DEACTIVATE',
+        { resourceType: 'user', resourceId: id });
+    }
+
     // Sincronizar fila en promotors si el usuario es (o pasa a ser) publica.
     const finalRole = role ?? currentUser.role;
     if (PUBLICAS_ROLES.includes(finalRole)) {
@@ -377,6 +404,7 @@ const deactivate = async (req, res) => {
     }
 
     await db.query('UPDATE users SET is_active = 0 WHERE id = ?', [id]);
+    logAudit(req, 'USER_DEACTIVATE', { resourceType: 'user', resourceId: id });
     res.json({ message: 'Usuario desactivado' });
   } catch (err) {
     res.status(500).json({ error: 'Error al desactivar usuario' });
@@ -538,10 +566,19 @@ const updateCommission = async (req, res) => {
           return res.status(403).json({ error: 'Sin acceso a este usuario' });
       }
     }
+    // Capturar valores previos para el audit log
+    const prev = await db.query('SELECT commission, leader_commission FROM promotors WHERE user_id = ?', [req.params.id]);
     await db.query(
       'UPDATE promotors SET commission=?, leader_commission=? WHERE user_id=?',
       [commission ?? 800, leader_commission ?? 400, req.params.id]
     );
+    logAudit(req, 'USER_COMMISSION_CHANGE', {
+      resourceType: 'user', resourceId: req.params.id,
+      details: {
+        from: { commission: prev.rows[0]?.commission, leader_commission: prev.rows[0]?.leader_commission },
+        to:   { commission: commission ?? 800,        leader_commission: leader_commission ?? 400 },
+      },
+    });
     res.json({ id: req.params.id, commission, leader_commission });
   } catch (err) {
     console.error(err);

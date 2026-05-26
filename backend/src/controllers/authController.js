@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const jwt    = require('jsonwebtoken');
 const db     = require('../config/database');
 const { sendMail } = require('../utils/mailer');
+const { logAudit } = require('../utils/auditLog');
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -20,10 +21,22 @@ const login = async (req, res) => {
       [email.toLowerCase()]
     );
     const user = result.rows[0];
-    if (!user) return res.status(401).json({ error: 'Credenciales inválidas' });
+    if (!user) {
+      // No revelamos si el email existe o no — para audit log igual nos
+      // sirve trazar el intento (sin user_id), para detectar credential
+      // stuffing.
+      logAudit(req, 'AUTH_LOGIN_FAILED', { details: { reason: 'user_not_found_or_inactive', email: email.toLowerCase() } });
+      return res.status(401).json({ error: 'Credenciales inválidas' });
+    }
 
     const valid = await bcrypt.compare(password, user.password_hash);
-    if (!valid) return res.status(401).json({ error: 'Credenciales inválidas' });
+    if (!valid) {
+      logAudit(req, 'AUTH_LOGIN_FAILED', {
+        details: { reason: 'bad_password', email: email.toLowerCase() },
+        actorOverride: { id: user.id, email: user.email, role: user.role },
+      });
+      return res.status(401).json({ error: 'Credenciales inválidas' });
+    }
 
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role, name: user.name },
@@ -33,7 +46,7 @@ const login = async (req, res) => {
 
     res.json({
       token,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role },
+      user: { id: user.id, name: user.name, email: user.email, role: user.role, must_change_password: !!user.must_change_password },
     });
   } catch (err) {
     console.error('Login error:', err);
@@ -45,11 +58,12 @@ const login = async (req, res) => {
 const me = async (req, res) => {
   try {
     const result = await db.query(
-      'SELECT id, name, email, role, created_at FROM users WHERE id = ?',
+      'SELECT id, name, email, role, created_at, must_change_password FROM users WHERE id = ?',
       [req.user.id]
     );
     if (!result.rows[0]) return res.status(404).json({ error: 'Usuario no encontrado' });
-    res.json(result.rows[0]);
+    const u = result.rows[0];
+    res.json({ ...u, must_change_password: !!u.must_change_password });
   } catch (err) {
     res.status(500).json({ error: 'Error interno del servidor' });
   }
@@ -169,8 +183,10 @@ const resetPassword = async (req, res) => {
     }
 
     const hash = await bcrypt.hash(password, 10);
+    // Reset por mail tambien limpia must_change_password (la password nueva
+    // es responsabilidad del usuario, no del creador).
     await db.query(
-      'UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL, password_changed_at = CURRENT_TIMESTAMP WHERE id = ?',
+      'UPDATE users SET password_hash = ?, reset_token = NULL, reset_token_expires = NULL, password_changed_at = CURRENT_TIMESTAMP, must_change_password = 0 WHERE id = ?',
       [hash, user.id]
     );
 
@@ -181,26 +197,39 @@ const resetPassword = async (req, res) => {
   }
 };
 
-// POST /api/auth/change-password — usuario logueado cambia su propia contraseña
+// POST /api/auth/change-password — usuario logueado cambia su propia contraseña.
+// Si must_change_password=1 (primer login con clave del creador o vino via
+// magic link), NO exigimos currentPassword: el JWT actual ya prueba que el
+// usuario tiene acceso, y la idea es justamente que el creador deje de
+// poder loguearse como él.
 const changePassword = async (req, res) => {
   const { currentPassword, newPassword } = req.body;
-  if (!currentPassword || !newPassword)
-    return res.status(400).json({ error: 'Contraseña actual y nueva son requeridas' });
+  if (!newPassword)
+    return res.status(400).json({ error: 'Nueva contraseña requerida' });
   if (newPassword.length < 8)
     return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 8 caracteres' });
-  if (currentPassword === newPassword)
-    return res.status(400).json({ error: 'La nueva contraseña debe ser distinta de la actual' });
 
   try {
-    const result = await db.query('SELECT id, password_hash FROM users WHERE id = ? AND is_active = 1', [req.user.id]);
+    const result = await db.query('SELECT id, password_hash, must_change_password FROM users WHERE id = ? AND is_active = 1', [req.user.id]);
     const user = result.rows[0];
     if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
 
-    const valid = await bcrypt.compare(currentPassword, user.password_hash);
-    if (!valid) return res.status(401).json({ error: 'La contraseña actual es incorrecta' });
+    if (!user.must_change_password) {
+      // Cambio normal: pide la actual y valida.
+      if (!currentPassword)
+        return res.status(400).json({ error: 'Contraseña actual requerida' });
+      if (currentPassword === newPassword)
+        return res.status(400).json({ error: 'La nueva contraseña debe ser distinta de la actual' });
+      const valid = await bcrypt.compare(currentPassword, user.password_hash);
+      if (!valid) return res.status(401).json({ error: 'La contraseña actual es incorrecta' });
+    }
+    // En modo must_change_password, saltamos la verificacion: el JWT es la
+    // prueba de identidad (le llego via magic link o le dieron una clave
+    // que ya esta cambiando).
 
     const hash = await bcrypt.hash(newPassword, 10);
-    await db.query('UPDATE users SET password_hash = ?, password_changed_at = CURRENT_TIMESTAMP WHERE id = ?', [hash, user.id]);
+    // Apaga must_change_password: el usuario ya seteo la suya propia.
+    await db.query('UPDATE users SET password_hash = ?, password_changed_at = CURRENT_TIMESTAMP, must_change_password = 0 WHERE id = ?', [hash, user.id]);
 
     res.json({ message: 'Contraseña actualizada correctamente' });
   } catch (err) {

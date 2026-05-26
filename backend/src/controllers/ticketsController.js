@@ -2,6 +2,7 @@ const { v4: uuidv4 } = require('uuid');
 const QRCode = require('qrcode');
 const db = require('../config/database');
 const { checkSaleWindow } = require('../utils/saleWindow');
+const { logAudit } = require('../utils/auditLog');
 
 async function generateQR(ticketId) {
   const code    = `GIANQR-${ticketId.split('-')[0].toUpperCase()}`;
@@ -405,6 +406,7 @@ const remove = async (req, res) => {
       }
     });
 
+    logAudit(req, 'TICKET_DELETE', { resourceType: 'ticket', resourceId: req.params.id });
     res.json({ message: 'Ticket eliminado' });
   } catch (err) {
     console.error(err);

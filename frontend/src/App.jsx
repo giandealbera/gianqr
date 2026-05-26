@@ -37,6 +37,7 @@ const ResetEventos      = lazy(() => import('./pages/admin/ResetEventos'));
 const Zonas             = lazy(() => import('./pages/admin/Zonas'));
 const MoreMenu          = lazy(() => import('./pages/MoreMenu'));
 const Configuracion     = lazy(() => import('./pages/Configuracion'));
+const ForceChangePassword = lazy(() => import('./pages/ForceChangePassword'));
 
 // Barra de progreso superior mientras carga un chunk lazy. Sustituye al
 // spinner full-screen anterior — la pantalla anterior queda visible y el
@@ -184,6 +185,13 @@ const App = () => (
         {/* Configuración personal (todos los roles logueados) */}
         <Route path="/configuracion" element={
           <ProtectedRoute allowedRoles={['admin', 'jefe_publicas', 'vendedor', 'owner']}><Configuracion /></ProtectedRoute>
+        } />
+
+        {/* Cambio de password obligatorio (primer login con clave del creador).
+            Sin allowedRoles, debe estar accesible para cualquier rol logueado;
+            ProtectedRoute permite verla justamente cuando must_change_password=1. */}
+        <Route path="/cambiar-password" element={
+          <ProtectedRoute><ForceChangePassword /></ProtectedRoute>
         } />
 
         {/* Más opciones */}

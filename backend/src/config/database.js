@@ -381,6 +381,35 @@ async function runMigrations(queryFn, execFn) {
   )`);
   try { await execFn('CREATE UNIQUE INDEX IF NOT EXISTS idx_event_owners_unique ON event_owners(event_id, user_id)'); } catch(e) {}
 
+  // Audit log: registro append-only de operaciones sensibles. Sirve
+  // para forense post-incidente (quién reseteó la password de tal usuario,
+  // quién borró tal evento, quién cambió tal rol). Append-only: no se
+  // edita ni se borra desde la UI; el cleanup se hace por antiguedad.
+  // - actor_*: quien hizo la accion (user_id puede ser NULL si fue magic
+  //   link o accion publica).
+  // - action: codigo corto en MAYUSCULAS (USER_UPDATE, USER_DEACTIVATE,
+  //   USER_PASSWORD_RESET, EVENT_RESET, EVENT_DELETE_TICKET, ROLE_CHANGE,
+  //   COMMISSION_CHANGE, MAGIC_LINK_GENERATED, OWNER_ADDED, OWNER_REMOVED).
+  // - target_*: sobre quien/que. resource_type='user'|'event'|'ticket'|...
+  // - details: JSON con before/after o info adicional. Texto plano para
+  //   simplificar (parseamos en el viewer).
+  await execFn(`CREATE TABLE IF NOT EXISTS audit_log (
+    id              TEXT PRIMARY KEY,
+    actor_user_id   TEXT,
+    actor_email     TEXT,
+    actor_role      TEXT,
+    action          TEXT NOT NULL,
+    resource_type   TEXT,
+    resource_id     TEXT,
+    details         TEXT,
+    ip              TEXT,
+    user_agent      TEXT,
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+  try { await execFn('CREATE INDEX IF NOT EXISTS idx_audit_log_actor   ON audit_log(actor_user_id)'); } catch(e) {}
+  try { await execFn('CREATE INDEX IF NOT EXISTS idx_audit_log_action  ON audit_log(action)');        } catch(e) {}
+  try { await execFn('CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at)');    } catch(e) {}
+
   await execFn(`CREATE TABLE IF NOT EXISTS proveedores (
     id          TEXT PRIMARY KEY,
     nombre      TEXT NOT NULL,
@@ -430,6 +459,12 @@ async function runMigrations(queryFn, execFn) {
   // NULL = legacy (los tokens viejos vienen sin expiracion, en el controller
   // los tratamos como aun validos para no romper links emitidos ya).
   try { await execFn('ALTER TABLE users ADD COLUMN magic_token_expires DATETIME'); } catch (e) {}
+
+  // must_change_password: cuando un admin/owner/jefe crea un usuario con una
+  // password manual, marcamos must_change_password=1 para que el usuario
+  // tenga que setear la suya al primer login. Asi el creador no conserva el
+  // poder de loguearse como el. Reset por /auth/change-password lo apaga.
+  try { await execFn('ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0'); } catch (e) {}
 
   // Backfill multi-tenant: owners cargados antes del fix de create() quedaron
   // con created_by=NULL e invisibles para el admin (el filtro WHERE
