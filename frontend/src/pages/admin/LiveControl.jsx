@@ -49,12 +49,44 @@ const LiveControl = () => {
     }
   };
 
-  // Auto-refresh
+  // Auto-refresh. Pausa cuando la pestaña esta oculta para no quemar
+  // bandwidth/bateria en mobile + bajar carga de DB. Al volver al foreground
+  // hace un refresh inmediato para que el usuario no vea data vieja.
   useEffect(() => {
     if (!eventSel) return;
+    let cancelled = false;
+
+    const startPolling = () => {
+      if (intervalRef.current) return;
+      intervalRef.current = setInterval(() => {
+        if (document.visibilityState === 'visible' && !cancelled) refresh(eventSel);
+      }, REFRESH_MS);
+    };
+    const stopPolling = () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+
     refresh(eventSel);
-    intervalRef.current = setInterval(() => refresh(eventSel), REFRESH_MS);
-    return () => clearInterval(intervalRef.current);
+    startPolling();
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        refresh(eventSel);
+        startPolling();
+      } else {
+        stopPolling();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', onVisibility);
+      stopPolling();
+    };
   }, [eventSel]);
 
   const handleDelete = async (t) => {

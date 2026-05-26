@@ -15,7 +15,13 @@ const Scanner = () => {
   const [typeSel,      setTypeSel]      = useState(searchParams.get('ticket_type') || '');
   const [result,       setResult]       = useState(null);
   const [scanning,     setScanning]     = useState(false);
-  const lastScan   = useRef(0);
+  const lastScan = useRef(0);
+  // Espejo de typeSel en ref para leer el valor mas reciente dentro del
+  // callback del scanner SIN remontar el componente cuando typeSel cambia.
+  // Antes el useEffect dependia de [typeSel] y eso destruia/recreaba el
+  // Html5QrcodeScanner cada vez que cambiabas de filtro: flicker + el
+  // browser re-pedia permiso de camara en algunos casos.
+  const typeSelRef = useRef(typeSel);
 
   // cargar eventos
   useEffect(() => {
@@ -32,8 +38,9 @@ const Scanner = () => {
     });
   }, [eventSel]);
 
-  // sincronizar URL params
+  // sincronizar URL params + sincronizar el ref de typeSel
   useEffect(() => {
+    typeSelRef.current = typeSel;
     const p = {};
     if (eventSel)  p.event       = eventSel;
     if (typeSel)   p.ticket_type = typeSel;
@@ -63,7 +70,10 @@ const Scanner = () => {
         setScanning(true);
         try {
           const body = { qr_code };
-          if (typeSel) body.ticket_type_id = typeSel;
+          // Leemos del ref para tener el valor mas reciente sin tener
+          // typeSel en las deps del efecto.
+          const currentType = typeSelRef.current;
+          if (currentType) body.ticket_type_id = currentType;
           const res = await api.post('/tickets/scan', body);
           setResult({ ok: true, data: res.data });
           toast.success('Entrada válida');
@@ -79,7 +89,7 @@ const Scanner = () => {
     );
 
     return () => scanner.clear().catch(() => {});
-  }, [typeSel]);
+  }, []); // <- sin deps: el escaner se monta UNA vez por vida del componente
 
   const [tokens, setTokens] = useState([]);
   const [creatingLink, setCreatingLink] = useState(false);

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import api from '../api/axios';
 
 const AuthContext = createContext(null);
@@ -19,36 +19,33 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  const login = async (email, password) => {
+  // Memoizamos los handlers con useCallback. Sino, cada render del provider
+  // genera funciones nuevas que cambian la identidad del value y
+  // re-renderizan todo arbol que use useAuth() (Layout, Sidebar, BottomNav,
+  // ProtectedRoute, MoreMenu, Login, etc).
+  const login = useCallback(async (email, password) => {
     const res = await api.post('/auth/login', { email, password });
-    // Si el server pide 2FA, NO seteamos el user todavia: devolvemos el
-    // partial_token al caller para que muestre la pantalla del codigo.
     if (res.data.needs_2fa) {
       return { needs_2fa: true, partial_token: res.data.partial_token };
     }
     localStorage.setItem('gianqr_token', res.data.token);
     setUser(res.data.user);
     return res.data.user;
-  };
+  }, []);
 
-  // Segundo paso del login si el user tiene 2FA. Recibe el partial_token
-  // emitido por /auth/login + el codigo TOTP (o recovery). Devuelve el
-  // user final si valida.
-  const verifyTwoFactor = async (partial_token, code) => {
+  const verifyTwoFactor = useCallback(async (partial_token, code) => {
     const res = await api.post('/auth/2fa/verify', { partial_token, code });
     localStorage.setItem('gianqr_token', res.data.token);
     setUser(res.data.user);
     return res.data.user;
-  };
+  }, []);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     localStorage.removeItem('gianqr_token');
     setUser(null);
-  };
+  }, []);
 
-  // Re-fetch del user actual desde /auth/me. Util tras cambiar la password
-  // (must_change_password pasa de 1 a 0) sin tener que recargar la pagina.
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
     try {
       const r = await api.get('/auth/me');
       setUser(r.data);
@@ -56,13 +53,17 @@ export const AuthProvider = ({ children }) => {
     } catch {
       return null;
     }
-  };
+  }, []);
 
-  return (
-    <AuthContext.Provider value={{ user, loading, login, logout, refreshUser, verifyTwoFactor }}>
-      {children}
-    </AuthContext.Provider>
+  // useMemo del value: nueva identidad SOLO si cambian user/loading. Las
+  // funciones son estables por useCallback. Esto corta el re-render
+  // cascada cuando algun hijo cambia sin que cambie la sesion.
+  const value = useMemo(
+    () => ({ user, loading, login, logout, refreshUser, verifyTwoFactor }),
+    [user, loading, login, logout, refreshUser, verifyTwoFactor]
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => useContext(AuthContext);
