@@ -5,6 +5,21 @@
 const db = require('../config/database');
 const { adminCanAccessUser } = require('../utils/scope');
 
+// Acepta "YYYY-MM-DD" o ISO completo. Devuelve string normalizado en formato
+// que entienden tanto SQLite (TEXT comparable) como PG (timestamp).
+// Rechaza inputs invalidos sin tirar 500 — el cliente ve 400 limpio.
+function parseDateBoundary(str, endOfDay = false) {
+  if (!str) return null;
+  // Si viene solo YYYY-MM-DD, completamos hora.
+  const onlyDate = /^\d{4}-\d{2}-\d{2}$/.test(str);
+  const candidate = onlyDate
+    ? (endOfDay ? `${str} 23:59:59` : `${str} 00:00:00`)
+    : str;
+  const d = new Date(candidate);
+  if (isNaN(d.getTime())) return null;
+  return candidate;
+}
+
 // GET /api/audit-log?action=USER_PASSWORD_RESET&actor_user_id=...&limit=100&offset=0
 const list = async (req, res) => {
   try {
@@ -19,8 +34,19 @@ const list = async (req, res) => {
     if (actor_user_id)  { where.push('actor_user_id = ?'); params.push(actor_user_id); }
     if (resource_id)    { where.push('resource_id = ?');   params.push(resource_id); }
     if (resource_type)  { where.push('resource_type = ?'); params.push(resource_type); }
-    if (from)           { where.push('created_at >= ?');   params.push(from); }
-    if (to)             { where.push('created_at <= ?');   params.push(to); }
+
+    // Validar fechas antes de pasarlas a la query. Antes un string "tomorrow"
+    // o "2025-13-99" tiraba 500 en PG o filtraba mal en SQLite. Ahora 400 limpio.
+    if (from) {
+      const f = parseDateBoundary(from, false);
+      if (!f) return res.status(400).json({ error: 'from inválida (esperado YYYY-MM-DD)' });
+      where.push('created_at >= ?'); params.push(f);
+    }
+    if (to) {
+      const t = parseDateBoundary(to, true);
+      if (!t) return res.status(400).json({ error: 'to inválida (esperado YYYY-MM-DD)' });
+      where.push('created_at <= ?'); params.push(t);
+    }
 
     // Scope multi-tenant:
     //   - admin: solo entries cuyo actor esta en su arbol.

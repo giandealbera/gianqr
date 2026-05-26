@@ -28,6 +28,14 @@ async function sendViaResend({ to, subject, text, html }) {
 }
 
 function logToConsole({ to, subject, text }) {
+  // En produccion solo logueamos metadata. El body de un reset-password
+  // contiene el link con token — no debe quedar en logs. Si RESEND_API_KEY
+  // no esta configurada en prod, los users no van a recibir el mail
+  // pero al menos no filtramos el reset link al stdout.
+  if (process.env.NODE_ENV === 'production') {
+    console.log(`[mail-stub] would send: to=${to} subject="${subject}" (RESEND_API_KEY no configurada)`);
+    return;
+  }
   console.log('\n📧 MAIL STUB (Resend no configurado):');
   console.log(`   To:      ${to}`);
   console.log(`   Subject: ${subject}`);

@@ -314,9 +314,34 @@ async function runMigrations(queryFn, execFn) {
     CREATE INDEX IF NOT EXISTS idx_payments_ticket     ON payments(ticket_id);
   `);
 
+  // Filtro de errores esperados al correr migraciones idempotentes. Si el
+  // mensaje contiene uno de estos, asumimos que la columna/indice/etc. ya
+  // existia y no logueamos. Cualquier otra cosa (disk full, FK constraint,
+  // sintaxis mala despues de un refactor) sale a stderr para que se vea.
+  const EXPECTED_MIGRATE_ERRORS = [
+    'already exists',          // SQLite: "duplicate column name", "index ... already exists"
+    'duplicate column',        // SQLite alternativo
+    'duplicate_column',        // PG SQLSTATE
+    'duplicate_object',        // PG (indices, constraints)
+    'duplicate key value',     // PG
+    'relation', 'already',     // PG combina "relation X already exists"
+  ];
+  function isExpectedMigrateError(err) {
+    const msg = String(err?.message || err || '').toLowerCase();
+    return EXPECTED_MIGRATE_ERRORS.some(hint => msg.includes(hint));
+  }
+  async function tryMigrate(label, sql) {
+    try { await execFn(sql); }
+    catch (e) {
+      if (isExpectedMigrateError(e)) return;
+      console.error(`[migration] ${label} failed:`, e.message);
+    }
+  }
+
   // Migraciones incrementales (cada ALTER en su propio try/catch — fallan si la
   // columna ya existe, eso es esperado y aceptable). Postgres lanza distintos
-  // mensajes pero el comportamiento es el mismo.
+  // mensajes pero el comportamiento es el mismo. Errores no-esperados se
+  // loguean (antes quedaban silenciados).
   const incrementals = [
     'ALTER TABLE promotors ADD COLUMN leader_id TEXT REFERENCES users(id) ON DELETE SET NULL',
     'ALTER TABLE promotors ADD COLUMN leader_commission REAL DEFAULT 400.00',
@@ -336,7 +361,7 @@ async function runMigrations(queryFn, execFn) {
     'ALTER TABLE users ADD COLUMN reset_token_expires DATETIME',
   ];
   for (const sql of incrementals) {
-    try { await execFn(sql); } catch (e) { /* columna ya existe */ }
+    await tryMigrate(sql.slice(0, 60), sql);
   }
 
   await execFn(`CREATE TABLE IF NOT EXISTS rendiciones (
@@ -352,7 +377,7 @@ async function runMigrations(queryFn, execFn) {
     FOREIGN KEY (created_by)  REFERENCES users(id) ON DELETE SET NULL
   )`);
 
-  try { await execFn('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_magic_token ON users(magic_token)'); } catch (e) {}
+  await tryMigrate('migration', 'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_magic_token ON users(magic_token)');
 
   await execFn(`CREATE TABLE IF NOT EXISTS scanner_tokens (
     id             TEXT PRIMARY KEY,
@@ -379,7 +404,7 @@ async function runMigrations(queryFn, execFn) {
     FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id)  REFERENCES users(id)  ON DELETE CASCADE
   )`);
-  try { await execFn('CREATE UNIQUE INDEX IF NOT EXISTS idx_event_owners_unique ON event_owners(event_id, user_id)'); } catch(e) {}
+  await tryMigrate('migration', 'CREATE UNIQUE INDEX IF NOT EXISTS idx_event_owners_unique ON event_owners(event_id, user_id)');
 
   // Audit log: registro append-only de operaciones sensibles. Sirve
   // para forense post-incidente (quién reseteó la password de tal usuario,
@@ -406,9 +431,9 @@ async function runMigrations(queryFn, execFn) {
     user_agent      TEXT,
     created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
-  try { await execFn('CREATE INDEX IF NOT EXISTS idx_audit_log_actor   ON audit_log(actor_user_id)'); } catch(e) {}
-  try { await execFn('CREATE INDEX IF NOT EXISTS idx_audit_log_action  ON audit_log(action)');        } catch(e) {}
-  try { await execFn('CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at)');    } catch(e) {}
+  await tryMigrate('migration', 'CREATE INDEX IF NOT EXISTS idx_audit_log_actor   ON audit_log(actor_user_id)');
+  await tryMigrate('migration', 'CREATE INDEX IF NOT EXISTS idx_audit_log_action  ON audit_log(action)');
+  await tryMigrate('migration', 'CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log(created_at)');
 
   await execFn(`CREATE TABLE IF NOT EXISTS proveedores (
     id          TEXT PRIMARY KEY,
@@ -423,55 +448,55 @@ async function runMigrations(queryFn, execFn) {
   // El zona_id en promotors quedo en el array de incrementales arriba pero
   // intentamos una vez mas DESPUES de crear zonas para que el FK resuelva
   // en SQLite (que comprueba referencias en runtime aunque sea soft).
-  try { await execFn('ALTER TABLE promotors ADD COLUMN zona_id TEXT REFERENCES zonas(id) ON DELETE SET NULL'); } catch (e) {}
+  await tryMigrate('migration', 'ALTER TABLE promotors ADD COLUMN zona_id TEXT REFERENCES zonas(id) ON DELETE SET NULL');
 
   // Migracion: eliminar el rol "cajero" (erradicado). Cualquier usuario
   // que quedo con ese rol se promueve a admin. Es idempotente: si no
   // hay cajeros, no hace nada.
-  try { await execFn(`UPDATE users SET role = 'admin' WHERE role = 'cajero'`); } catch (e) {}
+  await tryMigrate('migration', `UPDATE users SET role = 'admin' WHERE role = 'cajero'`);
 
   // Migracion: eliminar el rol "promotor" (erradicado). Cualquier usuario
   // con ese rol se migra a "vendedor". Es idempotente.
-  try { await execFn(`UPDATE users SET role = 'vendedor' WHERE role = 'promotor'`); } catch (e) {}
+  await tryMigrate('migration', `UPDATE users SET role = 'vendedor' WHERE role = 'promotor'`);
 
   // Multi-tenant lite (Fase 1): users tienen un "created_by" para que cada
   // owner solo vea SU propio staff. Admin pasa a través de todo. Las filas
   // existentes quedan con created_by=NULL = compartidas (visibles para admin
   // solo, no leak entre owners).
-  try { await execFn('ALTER TABLE users ADD COLUMN created_by TEXT REFERENCES users(id) ON DELETE SET NULL'); } catch (e) {}
+  await tryMigrate('migration', 'ALTER TABLE users ADD COLUMN created_by TEXT REFERENCES users(id) ON DELETE SET NULL');
   // Mismo patron para zonas y proveedores: owners solo pueden ver/modificar
   // las suyas. Admin las ve todas. created_by=NULL = legacy/global (admin only).
-  try { await execFn('ALTER TABLE zonas ADD COLUMN created_by TEXT REFERENCES users(id) ON DELETE SET NULL'); } catch (e) {}
-  try { await execFn('ALTER TABLE proveedores ADD COLUMN created_by TEXT REFERENCES users(id) ON DELETE SET NULL'); } catch (e) {}
+  await tryMigrate('migration', 'ALTER TABLE zonas ADD COLUMN created_by TEXT REFERENCES users(id) ON DELETE SET NULL');
+  await tryMigrate('migration', 'ALTER TABLE proveedores ADD COLUMN created_by TEXT REFERENCES users(id) ON DELETE SET NULL');
 
   // Cortar venta manual (sold out, decision del dueño). Independiente de
   // sale_end_at (la ventana planeada). Si sales_stopped_at != NULL, la
   // venta esta cerrada. El owner puede reanudarla seteandolo a NULL.
   // El evento sigue accesible para rendiciones, escaneo, reportes.
-  try { await execFn('ALTER TABLE events ADD COLUMN sales_stopped_at DATETIME'); } catch (e) {}
+  await tryMigrate('migration', 'ALTER TABLE events ADD COLUMN sales_stopped_at DATETIME');
 
   // Invalidacion de JWT al cambiar/resetear contraseña: el middleware auth
   // rechaza tokens emitidos antes de esta fecha. Filas legacy quedan NULL =
   // sin restriccion (los tokens viejos siguen valiendo hasta su exp natural).
-  try { await execFn('ALTER TABLE users ADD COLUMN password_changed_at DATETIME'); } catch (e) {}
+  await tryMigrate('migration', 'ALTER TABLE users ADD COLUMN password_changed_at DATETIME');
 
   // Expiracion del magic_token: si el link no se usa en 48h, deja de servir.
   // NULL = legacy (los tokens viejos vienen sin expiracion, en el controller
   // los tratamos como aun validos para no romper links emitidos ya).
-  try { await execFn('ALTER TABLE users ADD COLUMN magic_token_expires DATETIME'); } catch (e) {}
+  await tryMigrate('migration', 'ALTER TABLE users ADD COLUMN magic_token_expires DATETIME');
 
   // must_change_password: cuando un admin/owner/jefe crea un usuario con una
   // password manual, marcamos must_change_password=1 para que el usuario
   // tenga que setear la suya al primer login. Asi el creador no conserva el
   // poder de loguearse como el. Reset por /auth/change-password lo apaga.
-  try { await execFn('ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0'); } catch (e) {}
+  await tryMigrate('migration', 'ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0');
 
   // 2FA / TOTP. totp_secret guarda el secreto base32 (lo usa otplib para
   // verificar el codigo de 6 digitos). totp_enabled=1 significa que el
   // usuario completo el flujo de setup (escaneo de QR + confirmacion con
   // un primer codigo) y a partir de ahi el login pide 2FA.
-  try { await execFn('ALTER TABLE users ADD COLUMN totp_secret TEXT'); } catch (e) {}
-  try { await execFn('ALTER TABLE users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0'); } catch (e) {}
+  await tryMigrate('migration', 'ALTER TABLE users ADD COLUMN totp_secret TEXT');
+  await tryMigrate('migration', 'ALTER TABLE users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0');
 
   // Codigos de recuperacion del 2FA. Si el usuario pierde el dispositivo
   // (Authenticator borrado, telefono perdido), puede usar uno de estos 10
@@ -485,7 +510,7 @@ async function runMigrations(queryFn, execFn) {
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   )`);
-  try { await execFn('CREATE INDEX IF NOT EXISTS idx_recovery_user ON totp_recovery_codes(user_id)'); } catch (e) {}
+  await tryMigrate('migration', 'CREATE INDEX IF NOT EXISTS idx_recovery_user ON totp_recovery_codes(user_id)');
 
   // Sessions: tracking de JWTs emitidos. Cada login crea una fila con un
   // jti random; el middleware auth chequea que la fila exista y no este
@@ -505,20 +530,20 @@ async function runMigrations(queryFn, execFn) {
     revoked_at    DATETIME,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   )`);
-  try { await execFn('CREATE INDEX IF NOT EXISTS idx_sessions_user    ON sessions(user_id)');    } catch (e) {}
-  try { await execFn('CREATE INDEX IF NOT EXISTS idx_sessions_revoked ON sessions(revoked_at)'); } catch (e) {}
+  await tryMigrate('migration', 'CREATE INDEX IF NOT EXISTS idx_sessions_user    ON sessions(user_id)');
+  await tryMigrate('migration', 'CREATE INDEX IF NOT EXISTS idx_sessions_revoked ON sessions(revoked_at)');
 
   // Indices que faltaban en hot paths. Sin estos, cada scan del portero,
   // cada listado de rendiciones, cada audit-log filter eran full table scans.
-  try { await execFn('CREATE INDEX IF NOT EXISTS idx_tickets_qr_code     ON tickets(qr_code)');     } catch (e) {}
-  try { await execFn('CREATE INDEX IF NOT EXISTS idx_tickets_promotor    ON tickets(promotor_id)'); } catch (e) {}
-  try { await execFn('CREATE INDEX IF NOT EXISTS idx_tickets_event_status ON tickets(event_id, status)'); } catch (e) {}
-  try { await execFn('CREATE INDEX IF NOT EXISTS idx_tickets_created     ON tickets(created_at)');  } catch (e) {}
-  try { await execFn('CREATE INDEX IF NOT EXISTS idx_tickets_buyer_email ON tickets(buyer_email)'); } catch (e) {}
-  try { await execFn('CREATE INDEX IF NOT EXISTS idx_events_date         ON events(date)');         } catch (e) {}
-  try { await execFn('CREATE INDEX IF NOT EXISTS idx_events_active       ON events(is_active)');    } catch (e) {}
-  try { await execFn('CREATE INDEX IF NOT EXISTS idx_users_created_by    ON users(created_by)');    } catch (e) {}
-  try { await execFn('CREATE INDEX IF NOT EXISTS idx_event_owners_user   ON event_owners(user_id)'); } catch (e) {}
+  await tryMigrate('migration', 'CREATE INDEX IF NOT EXISTS idx_tickets_qr_code     ON tickets(qr_code)');
+  await tryMigrate('migration', 'CREATE INDEX IF NOT EXISTS idx_tickets_promotor    ON tickets(promotor_id)');
+  await tryMigrate('migration', 'CREATE INDEX IF NOT EXISTS idx_tickets_event_status ON tickets(event_id, status)');
+  await tryMigrate('migration', 'CREATE INDEX IF NOT EXISTS idx_tickets_created     ON tickets(created_at)');
+  await tryMigrate('migration', 'CREATE INDEX IF NOT EXISTS idx_tickets_buyer_email ON tickets(buyer_email)');
+  await tryMigrate('migration', 'CREATE INDEX IF NOT EXISTS idx_events_date         ON events(date)');
+  await tryMigrate('migration', 'CREATE INDEX IF NOT EXISTS idx_events_active       ON events(is_active)');
+  await tryMigrate('migration', 'CREATE INDEX IF NOT EXISTS idx_users_created_by    ON users(created_by)');
+  await tryMigrate('migration', 'CREATE INDEX IF NOT EXISTS idx_event_owners_user   ON event_owners(user_id)');
 
   // Backfill multi-tenant: owners cargados antes del fix de create() quedaron
   // con created_by=NULL e invisibles para el admin (el filtro WHERE

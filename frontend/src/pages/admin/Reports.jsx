@@ -163,10 +163,12 @@ const Reports = () => {
     return filteredDetalle.reduce((acc, t) => acc + parseFloat(t.amount_paid || 0), 0);
   }, [report, filters.method, filteredDetalle]);
 
-  // Totals from monthly
-  const totalVendidas  = monthly.reduce((a, m) => a + m.vendidas, 0);
-  const totalCortesias = monthly.reduce((a, m) => a + m.cortesias, 0);
-  const totalFiestas   = monthly.reduce((a, m) => a + m.fiestas, 0);
+  // Totals from monthly. Memoizados para no recalcular en cada render del
+  // componente (filtros, modales, hover en tooltip de chart, etc. lo
+  // re-renderizan sino).
+  const totalVendidas  = useMemo(() => monthly.reduce((a, m) => a + m.vendidas, 0),  [monthly]);
+  const totalCortesias = useMemo(() => monthly.reduce((a, m) => a + m.cortesias, 0), [monthly]);
+  const totalFiestas   = useMemo(() => monthly.reduce((a, m) => a + m.fiestas, 0),   [monthly]);
 
   const handleExportCsv = () => {
     if (!filteredDetalle.length) return;
