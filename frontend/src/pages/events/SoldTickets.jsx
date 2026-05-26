@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { FixedSizeList as VirtualList } from 'react-window';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 
@@ -11,6 +12,39 @@ const STATUS_BADGE = {
 };
 
 const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n || 0);
+
+// Altura fija por fila (px). Permite que react-window pre-calcule el scroll
+// y solo monte ~15 filas visibles en lugar de las 5000 que podia haber antes.
+const ROW_HEIGHT = 72;
+const LIST_HEIGHT = 600; // viewport del scroller interno
+
+// Row aislada y memoizada: react-window le pasa `index` y `style`. El
+// `data` viene desde itemData (filteredTickets). Si solo cambia el scroll,
+// las filas no re-renderizan.
+const TicketRow = ({ index, style, data }) => {
+  const t = data[index];
+  return (
+    <div style={style} className="px-1">
+      <div className="card flex items-center justify-between gap-3 py-3 mb-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-sm truncate">{t.buyer_name}</span>
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${STATUS_BADGE[t.status]}`}>
+              {t.status}
+            </span>
+          </div>
+          <p className="text-xs text-gray-500 truncate mt-0.5">
+            {t.buyer_email} · {t.tipo_entrada}
+          </p>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="text-sm font-semibold text-green-400">{fmt(t.amount_paid)}</p>
+          <p className="text-[10px] text-gray-600 font-mono">{t.qr_code}</p>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const SoldTickets = () => {
   const { id } = useParams();
@@ -31,23 +65,38 @@ const SoldTickets = () => {
     }).finally(() => setLoading(false));
   }, [id]);
 
-  const filtered = tickets.filter(t => {
-    if (statusFilter && t.status !== statusFilter) return false;
-    if (search) {
-      const q = search.toLowerCase();
+  // Filtros memoizados — sino se re-corren en cada keystroke incluso si
+  // tickets no cambio (cuando el componente re-renderiza por otra razon).
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase().trim();
+    return tickets.filter(t => {
+      if (statusFilter && t.status !== statusFilter) return false;
+      if (!q) return true;
       return t.buyer_name?.toLowerCase().includes(q) ||
              t.buyer_email?.toLowerCase().includes(q) ||
              t.qr_code?.toLowerCase().includes(q);
-    }
-    return true;
-  });
+    });
+  }, [tickets, statusFilter, search]);
 
-  // Recaudado = todas las entradas que ingresaron dinero (pagado + usado).
-  // Antes excluia "usado" y daba inconsistencia con Reportes/Historial.
-  const totalRevenue = filtered.reduce((acc, t) => {
-    if (t.status === 'pagado' || t.status === 'usado') return acc + parseFloat(t.amount_paid || 0);
-    return acc;
-  }, 0);
+  // Totales sobre `filtered` memoizados. Una sola pasada para todos.
+  const summary = useMemo(() => {
+    let pagadas = 0, usadas = 0, revenue = 0;
+    for (const t of tickets) {
+      if (t.status === 'pagado') pagadas++;
+      else if (t.status === 'usado') usadas++;
+    }
+    for (const t of filtered) {
+      if (t.status === 'pagado' || t.status === 'usado') {
+        revenue += parseFloat(t.amount_paid || 0);
+      }
+    }
+    return { pagadas, usadas, revenue };
+  }, [tickets, filtered]);
+
+  // Threshold para activar el virtual list. Bajo eso, el render normal es
+  // mas barato y permite usar el flow nativo del browser (zoom, find-in-page).
+  const VIRT_THRESHOLD = 80;
+  const useVirtual = filtered.length > VIRT_THRESHOLD;
 
   return (
     <Layout>
@@ -66,15 +115,15 @@ const SoldTickets = () => {
             <p className="text-[10px] text-gray-500 uppercase">Total</p>
           </div>
           <div className="card text-center py-3">
-            <p className="text-xl font-bold text-green-400">{tickets.filter(t => t.status === 'pagado').length}</p>
+            <p className="text-xl font-bold text-green-400">{summary.pagadas}</p>
             <p className="text-[10px] text-gray-500 uppercase">Pagadas</p>
           </div>
           <div className="card text-center py-3">
-            <p className="text-xl font-bold text-blue-400">{tickets.filter(t => t.status === 'usado').length}</p>
+            <p className="text-xl font-bold text-blue-400">{summary.usadas}</p>
             <p className="text-[10px] text-gray-500 uppercase">Usadas</p>
           </div>
           <div className="card text-center py-3">
-            <p className="text-xl font-bold text-brand">{fmt(totalRevenue)}</p>
+            <p className="text-xl font-bold text-brand">{fmt(summary.revenue)}</p>
             <p className="text-[10px] text-gray-500 uppercase">Recaudado</p>
           </div>
         </div>
@@ -110,26 +159,27 @@ const SoldTickets = () => {
           <div className="text-center py-12 text-gray-500">
             {search || statusFilter ? 'No se encontraron entradas' : 'No hay entradas vendidas'}
           </div>
+        ) : useVirtual ? (
+          // Virtualizado: solo monta ~15 filas visibles en el DOM.
+          // Cambia de O(n) a O(visible) en costo de render por scroll.
+          <>
+            <p className="text-[10px] mb-2" style={{ color: '#4B5563' }}>
+              Mostrando {filtered.length.toLocaleString('es-AR')} entradas (lista virtualizada para rendimiento)
+            </p>
+            <VirtualList
+              height={LIST_HEIGHT}
+              itemCount={filtered.length}
+              itemSize={ROW_HEIGHT}
+              itemData={filtered}
+              width="100%"
+            >
+              {TicketRow}
+            </VirtualList>
+          </>
         ) : (
           <div className="space-y-2">
-            {filtered.map(t => (
-              <div key={t.id} className="card flex items-center justify-between gap-3 py-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-sm truncate">{t.buyer_name}</span>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${STATUS_BADGE[t.status]}`}>
-                      {t.status}
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-500 truncate mt-0.5">
-                    {t.buyer_email} · {t.tipo_entrada}
-                  </p>
-                </div>
-                <div className="text-right shrink-0">
-                  <p className="text-sm font-semibold text-green-400">{fmt(t.amount_paid)}</p>
-                  <p className="text-[10px] text-gray-600 font-mono">{t.qr_code}</p>
-                </div>
-              </div>
+            {filtered.map((t, i) => (
+              <TicketRow key={t.id} index={i} style={{}} data={filtered} />
             ))}
           </div>
         )}
