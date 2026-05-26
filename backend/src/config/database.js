@@ -508,6 +508,18 @@ async function runMigrations(queryFn, execFn) {
   try { await execFn('CREATE INDEX IF NOT EXISTS idx_sessions_user    ON sessions(user_id)');    } catch (e) {}
   try { await execFn('CREATE INDEX IF NOT EXISTS idx_sessions_revoked ON sessions(revoked_at)'); } catch (e) {}
 
+  // Indices que faltaban en hot paths. Sin estos, cada scan del portero,
+  // cada listado de rendiciones, cada audit-log filter eran full table scans.
+  try { await execFn('CREATE INDEX IF NOT EXISTS idx_tickets_qr_code     ON tickets(qr_code)');     } catch (e) {}
+  try { await execFn('CREATE INDEX IF NOT EXISTS idx_tickets_promotor    ON tickets(promotor_id)'); } catch (e) {}
+  try { await execFn('CREATE INDEX IF NOT EXISTS idx_tickets_event_status ON tickets(event_id, status)'); } catch (e) {}
+  try { await execFn('CREATE INDEX IF NOT EXISTS idx_tickets_created     ON tickets(created_at)');  } catch (e) {}
+  try { await execFn('CREATE INDEX IF NOT EXISTS idx_tickets_buyer_email ON tickets(buyer_email)'); } catch (e) {}
+  try { await execFn('CREATE INDEX IF NOT EXISTS idx_events_date         ON events(date)');         } catch (e) {}
+  try { await execFn('CREATE INDEX IF NOT EXISTS idx_events_active       ON events(is_active)');    } catch (e) {}
+  try { await execFn('CREATE INDEX IF NOT EXISTS idx_users_created_by    ON users(created_by)');    } catch (e) {}
+  try { await execFn('CREATE INDEX IF NOT EXISTS idx_event_owners_user   ON event_owners(user_id)'); } catch (e) {}
+
   // Backfill multi-tenant: owners cargados antes del fix de create() quedaron
   // con created_by=NULL e invisibles para el admin (el filtro WHERE
   // created_by=admin.id no matchea NULL). Los asignamos al primer admin activo

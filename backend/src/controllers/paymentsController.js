@@ -32,6 +32,10 @@ const report = async (req, res) => {
       `SELECT t.payment_method, COUNT(*) AS cantidad, SUM(t.amount_paid) AS total
        FROM tickets t ${whereClause} GROUP BY t.payment_method`, params
     );
+    // Detalle paginado para evitar traer 100k tickets en una sola respuesta.
+    // El resumen agregado (sumas por metodo) sigue siendo del total, no del page.
+    const limit  = Math.min(parseInt(req.query.limit, 10) || 1000, 5000);
+    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
     const detalle = await db.query(
       `SELECT t.id, t.buyer_name, t.buyer_email, t.amount_paid,
               t.payment_method, t.payment_ref, t.created_at,
@@ -40,10 +44,21 @@ const report = async (req, res) => {
        JOIN ticket_types tt ON tt.id = t.ticket_type_id
        JOIN events e ON e.id = t.event_id
        ${whereClause}
-       ORDER BY t.created_at DESC`, params
+       ORDER BY t.created_at DESC
+       LIMIT ? OFFSET ?`, [...params, limit, offset]
     );
     const total = resumen.rows.reduce((acc, r) => acc + parseFloat(r.total || 0), 0);
-    res.json({ resumen: resumen.rows, detalle: detalle.rows, total_general: total });
+    // Tambien devolvemos el total de filas que matchean el filtro, para que
+    // el cliente pueda mostrar "1000 de 5234" y paginar.
+    const countRow = await db.query(`SELECT COUNT(*) AS c FROM tickets t ${whereClause}`, params);
+    res.json({
+      resumen: resumen.rows,
+      detalle: detalle.rows,
+      total_general: total,
+      detalle_total_rows: parseInt(countRow.rows[0]?.c || 0, 10),
+      detalle_limit: limit,
+      detalle_offset: offset,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error al generar reporte' });

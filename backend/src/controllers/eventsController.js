@@ -528,6 +528,11 @@ const history = async (req, res) => {
   }
 
   try {
+    // Antes habia un subselect correlacionado para comisiones que se
+    // ejecutaba una vez por cada evento (N+1 disfrazado de JOIN). Lo
+    // reemplazamos por un LEFT JOIN agregado sobre una subquery que se
+    // calcula UNA vez. Mismo cambio para rendiciones para que el optimizador
+    // pueda usar los indices nuevos en tickets/event_id y rendiciones/event_id.
     const result = await db.query(
       `SELECT e.id AS event_id, e.name, e.date, e.is_active,
               COUNT(CASE WHEN t.status IN ('pagado','usado') AND t.payment_method != 'cortesia' THEN t.id END) AS vendidas,
@@ -538,17 +543,24 @@ const history = async (req, res) => {
               COALESCE(SUM(CASE WHEN t.status IN ('pagado','usado') THEN t.amount_paid ELSE 0 END), 0) AS recaudado_total,
               COALESCE(SUM(CASE WHEN t.status IN ('pagado','usado') AND t.payment_method = 'efectivo'      THEN t.amount_paid ELSE 0 END), 0) AS recaudado_efectivo,
               COALESCE(SUM(CASE WHEN t.status IN ('pagado','usado') AND t.payment_method = 'transferencia' THEN t.amount_paid ELSE 0 END), 0) AS recaudado_transferencia,
-              COALESCE(SUM(CASE WHEN t.status IN ('pagado','usado') AND t.payment_method = 'mercadopago'   THEN t.amount_paid ELSE 0 END), 0) AS recaudado_mercadopago,
-              COALESCE((
-                SELECT SUM(p.commission) FROM tickets t2
-                JOIN promotors p ON p.id = t2.promotor_id
-                WHERE t2.event_id = e.id AND t2.status IN ('pagado','usado')
-              ), 0) AS comisiones_total,
-              COALESCE((SELECT SUM(amount) FROM rendiciones WHERE event_id = e.id), 0) AS ya_rindio
+              COALESCE(comm.total, 0) AS comisiones_total,
+              COALESCE(rend.total, 0) AS ya_rindio
        FROM events e
        LEFT JOIN tickets t ON t.event_id = e.id
+       LEFT JOIN (
+         SELECT t2.event_id, SUM(p.commission) AS total
+         FROM tickets t2
+         JOIN promotors p ON p.id = t2.promotor_id
+         WHERE t2.status IN ('pagado','usado')
+         GROUP BY t2.event_id
+       ) comm ON comm.event_id = e.id
+       LEFT JOIN (
+         SELECT event_id, SUM(amount) AS total
+         FROM rendiciones
+         GROUP BY event_id
+       ) rend ON rend.event_id = e.id
        WHERE ${where.join(' AND ')}
-       GROUP BY e.id
+       GROUP BY e.id, comm.total, rend.total
        ORDER BY e.date DESC`,
       params
     );
