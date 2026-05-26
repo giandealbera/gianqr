@@ -354,11 +354,19 @@ const addTicketType = async (req, res) => {
   const { name, price, total_quota } = req.body;
   if (!name || price == null || !total_quota)
     return res.status(400).json({ error: 'name, price y total_quota son requeridos' });
+  // Validar que price y total_quota sean numericos; sino devuelve 400 limpio
+  // en vez de NaN -> NULL en SQLite o error cryptico en PG.
+  const priceNum = parseFloat(price);
+  const quotaNum = parseInt(total_quota, 10);
+  if (isNaN(priceNum) || priceNum < 0)
+    return res.status(400).json({ error: 'El precio debe ser un numero mayor o igual a 0' });
+  if (isNaN(quotaNum) || quotaNum < 1)
+    return res.status(400).json({ error: 'El cupo debe ser un entero mayor que 0' });
   try {
     const id = uuidv4();
     await db.query(
       'INSERT INTO ticket_types (id, event_id, name, price, total_quota) VALUES (?,?,?,?,?)',
-      [id, req.params.id, name, parseFloat(price), parseInt(total_quota)]
+      [id, req.params.id, name, priceNum, quotaNum]
     );
     const result = await db.query(
       'SELECT *, (total_quota - sold_count) AS available FROM ticket_types WHERE id = ?', [id]
@@ -531,7 +539,11 @@ const history = async (req, res) => {
               COALESCE(SUM(CASE WHEN t.status IN ('pagado','usado') AND t.payment_method = 'efectivo'      THEN t.amount_paid ELSE 0 END), 0) AS recaudado_efectivo,
               COALESCE(SUM(CASE WHEN t.status IN ('pagado','usado') AND t.payment_method = 'transferencia' THEN t.amount_paid ELSE 0 END), 0) AS recaudado_transferencia,
               COALESCE(SUM(CASE WHEN t.status IN ('pagado','usado') AND t.payment_method = 'mercadopago'   THEN t.amount_paid ELSE 0 END), 0) AS recaudado_mercadopago,
-              COALESCE((\n                SELECT SUM(p.commission) FROM tickets t2\n                JOIN promotors p ON p.id = t2.promotor_id\n                WHERE t2.event_id = e.id AND t2.status IN ('pagado','usado')\n              ), 0) AS comisiones_total,
+              COALESCE((
+                SELECT SUM(p.commission) FROM tickets t2
+                JOIN promotors p ON p.id = t2.promotor_id
+                WHERE t2.event_id = e.id AND t2.status IN ('pagado','usado')
+              ), 0) AS comisiones_total,
               COALESCE((SELECT SUM(amount) FROM rendiciones WHERE event_id = e.id), 0) AS ya_rindio
        FROM events e
        LEFT JOIN tickets t ON t.event_id = e.id
@@ -663,22 +675,25 @@ const buyerStats = async (req, res) => {
        WHERE ${baseWhere} AND buyer_edad IS NOT NULL AND buyer_edad != ''`,
       [id]
     );
-    const ages = ageR.rows
-      .map(r => parseInt(r.buyer_edad, 10))
-      .filter(n => !isNaN(n) && n > 0 && n < 120);
-
-    const avgAge = ages.length > 0 ? ages.reduce((a, b) => a + b, 0) / ages.length : 0;
-    const minAge = ages.length > 0 ? Math.min(...ages) : 0;
-    const maxAge = ages.length > 0 ? Math.max(...ages) : 0;
-
+    // Una sola pasada para sum/min/max/buckets — evita Math.min/max con
+    // spread que tiraba RangeError de stack overflow con arrays grandes
+    // (limite ~10k args en algunos motores).
+    let sum = 0, minAge = 0, maxAge = 0, count = 0;
     const buckets = { '<18': 0, '18-24': 0, '25-34': 0, '35-44': 0, '45+': 0 };
-    ages.forEach(a => {
-      if (a < 18) buckets['<18']++;
-      else if (a < 25) buckets['18-24']++;
-      else if (a < 35) buckets['25-34']++;
-      else if (a < 45) buckets['35-44']++;
+    for (const r of ageR.rows) {
+      const n = parseInt(r.buyer_edad, 10);
+      if (isNaN(n) || n <= 0 || n >= 120) continue;
+      if (count === 0 || n < minAge) minAge = n;
+      if (count === 0 || n > maxAge) maxAge = n;
+      sum += n;
+      count++;
+      if (n < 18) buckets['<18']++;
+      else if (n < 25) buckets['18-24']++;
+      else if (n < 35) buckets['25-34']++;
+      else if (n < 45) buckets['35-44']++;
       else buckets['45+']++;
-    });
+    }
+    const avgAge = count > 0 ? sum / count : 0;
 
     // Localidad: top 5.
     const locR = await db.query(
@@ -705,12 +720,12 @@ const buyerStats = async (req, res) => {
         promedio: Math.round(avgAge * 10) / 10,
         min: minAge,
         max: maxAge,
-        muestra: ages.length, // cuantos cargaron edad
-        cobertura_pct: total > 0 ? Math.round((ages.length / total) * 100) : 0,
+        muestra: count, // cuantos cargaron edad
+        cobertura_pct: total > 0 ? Math.round((count / total) * 100) : 0,
         buckets: Object.entries(buckets).map(([rango, n]) => ({
           rango,
           count: n,
-          pct: ages.length > 0 ? Math.round((n / ages.length) * 100) : 0,
+          pct: count > 0 ? Math.round((n / count) * 100) : 0,
         })),
       },
       localidades: {

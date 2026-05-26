@@ -28,7 +28,9 @@ const PromoterSell = () => {
 
   useEffect(() => {
     if (!eventSel) { setTicketTypes([]); setTypeSel(''); return; }
-    api.get(`/events/${eventSel}`).then(r => setTicketTypes(r.data.ticket_types || []));
+    api.get(`/events/${eventSel}`)
+      .then(r => setTicketTypes(r.data.ticket_types || []))
+      .catch(err => toast.error(err.response?.data?.error || 'No se pudo cargar el evento'));
   }, [eventSel]);
 
   // Cualquier cambio en el form invalida el link previo: hay que apretar de nuevo.
