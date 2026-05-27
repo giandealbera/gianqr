@@ -105,7 +105,9 @@ const PromoterSell = () => {
                 <option value="">Seleccionar tipo</option>
                 {ticketTypes.map(tt => (
                   <option key={tt.id} value={tt.id} disabled={tt.available <= 0}>
-                    {tt.name} — ${parseFloat(tt.price).toLocaleString('es-AR')} ({tt.available} disp.)
+                    {/* No exponemos el numero exacto de cupo disponible al vendedor,
+                        solo "agotado". El dueño es el unico que ve los counters. */}
+                    {tt.name} — ${parseFloat(tt.price).toLocaleString('es-AR')}{tt.available <= 0 ? ' (agotado)' : ''}
                   </option>
                 ))}
               </select>

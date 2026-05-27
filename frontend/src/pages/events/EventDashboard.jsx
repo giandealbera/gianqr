@@ -86,6 +86,11 @@ const EventDashboard = () => {
   const checkinPct = totalSold > 0 ? Math.round((totalUsed / totalSold) * 100) : 0;
   const salesStopped = !!event.sales_stopped_at;
   const canManageSales = ['admin','owner'].includes(user?.role);
+  // Jefes y vendedores NO ven stats agregadas del evento (cuanta gente
+  // hay, cuantas escaneadas, cupos por tipo). El dueño es el unico que
+  // ve el panorama completo. Estos roles igual ven los tipos de entrada
+  // para vender, pero sin counters.
+  const canSeeStats = ['admin','owner'].includes(user?.role);
 
   const stopSales = async () => {
     if (!confirm('¿Cortar la venta de entradas? Nadie va a poder comprar más (vos podés reanudarla cuando quieras). Tu evento sigue accesible para rendir y escanear.')) return;
@@ -103,15 +108,24 @@ const EventDashboard = () => {
     } catch (e) { toast.error(e.response?.data?.error || 'No se pudo reanudar'); }
   };
 
+  // Tools: admin/owner ven todo; jefe/vendedor solo lo operativo (configurar
+  // ya esta restringido por permisos backend, pero igual lo dejamos visible
+  // — al apretarlo recibirian 403). Lo que NO deben ver: Entradas vendidas
+  // (lista de quien compro) ni Analíticas (graficos de venta), porque eso
+  // revela cuanta gente hay y cuantos escanearon.
   const TOOLS = [
     { iconKey: 'gear',   label: 'Configurar evento',    sub: 'Editar datos y ajustes',      to: `/eventos?edit=${id}`,     disabled: false },
     { iconKey: 'tag',    label: 'Tipos de entrada',     sub: 'Precios y cupos disponibles', to: `/evento/${id}/tipos`,     disabled: false },
     { iconKey: 'qr',     label: 'Gestión del ingreso',  sub: 'Escáner y control de acceso', to: '/escaner',                disabled: false },
-    { iconKey: 'list',   label: 'Entradas vendidas',    sub: 'Historial de tickets',        to: `/evento/${id}/vendidas`,  disabled: false },
-    { iconKey: 'chart',  label: 'Analíticas',           sub: 'Gráficos y métricas',         to: `/evento/${id}/stats`,     disabled: false },
+    // Entradas vendidas y Analíticas: solo admin/owner. Revelan stats.
+    ...(canSeeStats ? [
+      { iconKey: 'list',  label: 'Entradas vendidas',   sub: 'Historial de tickets',        to: `/evento/${id}/vendidas`,  disabled: false },
+      { iconKey: 'chart', label: 'Analíticas',          sub: 'Gráficos y métricas',         to: `/evento/${id}/stats`,     disabled: false },
+    ] : []),
     { iconKey: 'ticket', label: 'Descuentos',           sub: 'Códigos y promociones',       to: null,                      disabled: true  },
     // Personal: solo admin
-    ...(user?.role !== 'owner' ? [{ iconKey: 'users', label: 'Personal', sub: 'Usuarios y permisos', to: '/admin/usuarios', disabled: false }] : []),
+    ...(user?.role !== 'owner' && user?.role !== 'jefe_publicas' && user?.role !== 'vendedor'
+        ? [{ iconKey: 'users', label: 'Personal', sub: 'Usuarios y permisos', to: '/admin/usuarios', disabled: false }] : []),
     // Dueños del evento: solo admin
     ...(user?.role === 'admin' ? [{ iconKey: 'key', label: 'Dueños del evento', sub: 'Asignar acceso de dueño', to: null, onClick: () => setShowOwnersModal(true), disabled: false }] : []),
   ];
@@ -217,7 +231,8 @@ const EventDashboard = () => {
               </div>
             </div>
 
-            {/* Stats Row */}
+            {/* Stats Row — solo admin/owner ven los counters agregados */}
+            {canSeeStats && (
             <div className="grid grid-cols-3 gap-3">
               {[
                 { label: 'Vendidas',   value: totalSold, color: '#C9974D', bg: 'rgba(201,151,77,0.08)',  border: 'rgba(201,151,77,0.2)'  },
@@ -236,8 +251,10 @@ const EventDashboard = () => {
                 </div>
               ))}
             </div>
+            )}
 
-            {/* Check-in Progress */}
+            {/* Check-in Progress — solo admin/owner */}
+            {canSeeStats && (
             <div style={{
               background: '#0D1117',
               border: '1px solid #1E2530',
@@ -267,9 +284,10 @@ const EventDashboard = () => {
                 />
               </div>
             </div>
+            )}
 
-            {/* Ticket type breakdown */}
-            {stats?.by_type?.length > 0 && (
+            {/* Ticket type breakdown — solo admin/owner (los counters revelan venta) */}
+            {canSeeStats && stats?.by_type?.length > 0 && (
               <div style={{
                 background: '#0D1117',
                 border: '1px solid #1E2530',

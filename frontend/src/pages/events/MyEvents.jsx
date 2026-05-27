@@ -471,10 +471,14 @@ const MyEvents = () => {
                         )}
                       </div>
                     </div>
-                    <div className="text-right shrink-0 ml-4 mt-6">
-                      <span className="text-lg font-bold text-green-400">{ev.tickets_sold || 0}</span>
-                      <p className="text-[10px] text-gray-500 uppercase tracking-wide">vendidas</p>
-                    </div>
+                    {/* Contador de vendidas: solo admin/owner. Jefe/vendedor
+                        ven la lista de eventos sin saber cuanto se vendio. */}
+                    {['admin','owner'].includes(user?.role) && (
+                      <div className="text-right shrink-0 ml-4 mt-6">
+                        <span className="text-lg font-bold text-green-400">{ev.tickets_sold || 0}</span>
+                        <p className="text-[10px] text-gray-500 uppercase tracking-wide">vendidas</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
