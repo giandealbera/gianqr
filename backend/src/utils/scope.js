@@ -58,6 +58,18 @@ async function adminCanAccessUser(adminId, targetUserId) {
 // resolveOwnerScopeForUser(user)
 // Para jefe/vendedor: devuelve el owner.id al que pertenecen, subiendo
 // por created_by. Devuelve null si no se puede resolver.
+//
+// Casuistica que debe soportar:
+//   - jefe_publicas:  creado por owner -> jefe.created_by = owner.id
+//   - vendedor (jefe):  vendedor.created_by = jefe.id, jefe.created_by = owner.id
+//   - vendedor (directo):  vendedor.created_by = owner.id (owner los crea
+//     directo desde /admin/usuarios sin pasar por un jefe).
+//
+// Antes este helper asumia que un vendedor SIEMPRE colgaba de un jefe, asi
+// que para un vendedor creado directo por owner subia 2 niveles y devolvia
+// admin.id (mal). Bug: el vendedor no veia ningun evento del owner.
+//
+// Ahora miramos el ROL del padre para decidir si paramos o seguimos subiendo.
 async function resolveOwnerScopeForUser(userId) {
   const r = await db.query('SELECT role, created_by FROM users WHERE id = ?', [userId]);
   const u = r.rows[0];
@@ -65,8 +77,14 @@ async function resolveOwnerScopeForUser(userId) {
   if (u.role === 'owner') return userId;
   if (u.role === 'jefe_publicas') return u.created_by || null;
   if (u.role === 'vendedor' && u.created_by) {
-    const j = await db.query('SELECT created_by FROM users WHERE id = ?', [u.created_by]);
-    return j.rows[0]?.created_by || null;
+    // Mirar el rol del padre directo
+    const parent = await db.query('SELECT role, created_by FROM users WHERE id = ?', [u.created_by]);
+    const p = parent.rows[0];
+    if (!p) return null;
+    if (p.role === 'owner') return u.created_by;          // padre es owner: ya estamos
+    if (p.role === 'jefe_publicas') return p.created_by || null;  // padre es jefe: subir uno mas
+    // Padre con rol inesperado (admin, vendedor): no resoluble.
+    return null;
   }
   return null;
 }

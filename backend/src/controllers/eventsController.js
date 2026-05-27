@@ -91,15 +91,11 @@ const getAll = async (req, res) => {
     // created_by: jefe.created_by = owner.id; vendedor.created_by = jefe.id
     // (y jefe.created_by = owner.id).
     if (['jefe_publicas', 'vendedor'].includes(req.user?.role)) {
-      let ownerScopeId = null;
-      const me = await db.query('SELECT role, created_by FROM users WHERE id = ?', [req.user.id]);
-      const u = me.rows[0];
-      if (u?.role === 'jefe_publicas') {
-        ownerScopeId = u.created_by;
-      } else if (u?.role === 'vendedor' && u.created_by) {
-        const jefe = await db.query('SELECT created_by FROM users WHERE id = ?', [u.created_by]);
-        ownerScopeId = jefe.rows[0]?.created_by || null;
-      }
+      // Usamos resolveOwnerScopeForUser para que funcione tanto el caso
+      // estandar (vendedor -> jefe -> owner) como el de vendedor creado
+      // directamente por owner (vendedor -> owner). El helper mira el rol
+      // del padre antes de seguir subiendo.
+      const ownerScopeId = await resolveOwnerScopeForUser(req.user.id);
       if (!ownerScopeId) return res.json([]);
       const result = await db.query(
         `SELECT e.*, v.name AS venue_name, v.capacity AS venue_capacity,
