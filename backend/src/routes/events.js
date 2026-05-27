@@ -6,6 +6,7 @@ const {
   getAll, getOne, create, update, stats, history, resetEvent, cloneEvent,
   stopSales, resumeSales, buyerStats, exportData,
   getVenues, getTicketTypes, addTicketType, updateTicketType, toggleTicketType,
+  getTicketTypeSellers, setTicketTypeSellers,
   getOwners, addOwner, removeOwner,
 } = require('../controllers/eventsController');
 
@@ -36,6 +37,12 @@ router.get('/:id/ticket-types',                auth, roles('admin', 'owner'), ge
 router.post('/:id/ticket-types',               auth, roles('admin', 'owner'), addTicketType);
 router.put('/:id/ticket-types/:ttId',          auth, roles('admin', 'owner'), updateTicketType);
 router.patch('/:id/ticket-types/:ttId/toggle', auth, roles('admin', 'owner'), toggleTicketType);
+
+// Permisos por tipo: quien puede vender este ticket_type. GET para listar,
+// PUT para reemplazar. Solo admin/owner gestionan; jefe/vendedor solo ven
+// indirectamente via el filtrado de getTicketTypes.
+router.get('/:id/ticket-types/:ttId/sellers', auth, roles('admin', 'owner'), getTicketTypeSellers);
+router.put('/:id/ticket-types/:ttId/sellers', auth, roles('admin', 'owner'), setTicketTypeSellers);
 
 // Gestión de dueños del evento (solo admin)
 router.get('/:id/owners',         auth, roles('admin'), getOwners);

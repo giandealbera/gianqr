@@ -338,9 +338,106 @@ const getTicketTypes = async (req, res) => {
        FROM ticket_types WHERE event_id = ? ORDER BY created_at ASC`,
       [req.params.id]
     );
-    res.json(result.rows);
+    let rows = result.rows;
+
+    // Filtro por permisos: jefe/vendedor solo ven los tipos que pueden
+    // vender. Regla: si un ticket_type tiene CUALQUIER fila en
+    // ticket_type_sellers, solo los user_id listados acceden a el. Si NO
+    // tiene filas, queda abierto a todos (default). El admin/owner ven
+    // todos los tipos sin filtro.
+    if (['jefe_publicas', 'vendedor'].includes(req.user?.role) && rows.length > 0) {
+      const ids = rows.map(r => r.id);
+      const placeholders = ids.map(() => '?').join(',');
+      // Cuales tipos tienen restriccion (algun seller registrado)
+      const restrictedR = await db.query(
+        `SELECT DISTINCT ticket_type_id FROM ticket_type_sellers WHERE ticket_type_id IN (${placeholders})`,
+        ids
+      );
+      const restrictedSet = new Set(restrictedR.rows.map(r => r.ticket_type_id));
+      // De los restringidos, cuales me incluyen
+      const allowedR = await db.query(
+        `SELECT DISTINCT ticket_type_id FROM ticket_type_sellers
+         WHERE user_id = ? AND ticket_type_id IN (${placeholders})`,
+        [req.user.id, ...ids]
+      );
+      const allowedSet = new Set(allowedR.rows.map(r => r.ticket_type_id));
+      rows = rows.filter(r => !restrictedSet.has(r.id) || allowedSet.has(r.id));
+    }
+
+    res.json(rows);
   } catch (err) {
     res.status(500).json({ error: 'Error al obtener tipos de entrada' });
+  }
+};
+
+// GET /api/events/:id/ticket-types/:ttId/sellers
+// Lista los user_ids autorizados a vender este ticket_type. Solo admin/owner
+// (gestion). Si devuelve [], es "abierto a todos".
+const getTicketTypeSellers = async (req, res) => {
+  if (!await guardEventAccess(req, res, req.params.id)) return;
+  try {
+    const r = await db.query(
+      `SELECT s.user_id, u.name, u.apellido, u.email, u.role
+       FROM ticket_type_sellers s
+       JOIN users u ON u.id = s.user_id
+       WHERE s.ticket_type_id = ?
+       ORDER BY u.name ASC`,
+      [req.params.ttId]
+    );
+    res.json(r.rows);
+  } catch (err) {
+    console.error('getTicketTypeSellers error:', err);
+    res.status(500).json({ error: 'Error al obtener vendedores autorizados' });
+  }
+};
+
+// PUT /api/events/:id/ticket-types/:ttId/sellers
+// Body: { user_ids: [...] } — reemplaza la lista completa de autorizados
+// para este ticket_type. Lista vacia = abierto a todos.
+const setTicketTypeSellers = async (req, res) => {
+  if (!await guardEventAccess(req, res, req.params.id)) return;
+  const { user_ids } = req.body;
+  if (!Array.isArray(user_ids)) {
+    return res.status(400).json({ error: 'user_ids debe ser un array' });
+  }
+  try {
+    // Validar que cada user_id existe, tiene rol jefe/vendedor, y pertenece
+    // al arbol del caller. Asi un owner no puede autorizar a staff de otro
+    // owner ni a admins.
+    if (user_ids.length > 0) {
+      const placeholders = user_ids.map(() => '?').join(',');
+      const validR = await db.query(
+        `SELECT id FROM users
+         WHERE id IN (${placeholders})
+           AND role IN ('jefe_publicas','vendedor')
+           AND is_active = 1`,
+        user_ids
+      );
+      if (validR.rows.length !== user_ids.length) {
+        return res.status(400).json({ error: 'Uno o más usuarios no son válidos (deben ser jefe/vendedor activos)' });
+      }
+      // TODO opcional: chequear que esten en el arbol del owner.
+    }
+
+    await db.transaction(async (conn) => {
+      await conn.execute('DELETE FROM ticket_type_sellers WHERE ticket_type_id = ?', [req.params.ttId]);
+      for (const uid of user_ids) {
+        await conn.execute(
+          'INSERT INTO ticket_type_sellers (ticket_type_id, user_id) VALUES (?,?)',
+          [req.params.ttId, uid]
+        );
+      }
+    });
+
+    logAudit(req, 'TICKET_TYPE_SELLERS_SET', {
+      resourceType: 'ticket_type', resourceId: req.params.ttId,
+      details: { count: user_ids.length },
+    });
+
+    res.json({ count: user_ids.length });
+  } catch (err) {
+    console.error('setTicketTypeSellers error:', err);
+    res.status(500).json({ error: 'Error al guardar vendedores autorizados' });
   }
 };
 
@@ -933,5 +1030,6 @@ module.exports = {
   getAll, getOne, create, update, stats, history, resetEvent, cloneEvent,
   stopSales, resumeSales, buyerStats, exportData,
   getVenues, getTicketTypes, addTicketType, updateTicketType, toggleTicketType,
+  getTicketTypeSellers, setTicketTypeSellers,
   getOwners, addOwner, removeOwner,
 };

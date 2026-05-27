@@ -545,6 +545,22 @@ async function runMigrations(queryFn, execFn) {
   await tryMigrate('migration', 'CREATE INDEX IF NOT EXISTS idx_users_created_by    ON users(created_by)');
   await tryMigrate('migration', 'CREATE INDEX IF NOT EXISTS idx_event_owners_user   ON event_owners(user_id)');
 
+  // Permisos por tipo de entrada. Si NO hay filas para un ticket_type_id,
+  // todos los jefes/vendedores del owner pueden venderlo (default abierto).
+  // Si hay filas, SOLO los user_ids listados pueden venderlo. El admin/owner
+  // siempre puede (bypass). Asi el owner decide, por tipo de entrada, quien
+  // puede generarlo.
+  await execFn(`CREATE TABLE IF NOT EXISTS ticket_type_sellers (
+    ticket_type_id TEXT NOT NULL,
+    user_id        TEXT NOT NULL,
+    created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (ticket_type_id, user_id),
+    FOREIGN KEY (ticket_type_id) REFERENCES ticket_types(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id)        REFERENCES users(id)        ON DELETE CASCADE
+  )`);
+  await tryMigrate('migration', 'CREATE INDEX IF NOT EXISTS idx_tt_sellers_tt   ON ticket_type_sellers(ticket_type_id)');
+  await tryMigrate('migration', 'CREATE INDEX IF NOT EXISTS idx_tt_sellers_user ON ticket_type_sellers(user_id)');
+
   // Backfill multi-tenant: owners cargados antes del fix de create() quedaron
   // con created_by=NULL e invisibles para el admin (el filtro WHERE
   // created_by=admin.id no matchea NULL). Los asignamos al primer admin activo

@@ -95,13 +95,34 @@ const createPublicTicket = async (req, res) => {
     // Verificar que el promotor existe Y su usuario asociado está activo.
     // Sin el join a users un promotor desactivado seguía pudiendo vender por su link.
     const promoResult = await db.query(
-      `SELECT p.id FROM promotors p
+      `SELECT p.id, p.user_id FROM promotors p
        JOIN users u ON u.id = p.user_id
        WHERE p.promo_code = ? AND u.is_active = 1`,
       [code]
     );
     const promotor = promoResult.rows[0];
     if (!promotor) return res.status(404).json({ error: 'Link invalido' });
+
+    // Permisos por tipo: si el ticket_type tiene una lista de sellers
+    // autorizados y el promotor.user_id NO esta en ella, rechazamos.
+    // Lista vacia = abierto a todos. CASA bypasea (admin vende cualquier
+    // cosa). Esto cierra que un vendedor copie el promo_code de otro y
+    // venda tipos para los que no estaba autorizado.
+    if (code !== 'CASA') {
+      const restR = await db.query(
+        'SELECT 1 FROM ticket_type_sellers WHERE ticket_type_id = ? LIMIT 1',
+        [ticket_type_id]
+      );
+      if (restR.rows.length > 0) {
+        const allowR = await db.query(
+          'SELECT 1 FROM ticket_type_sellers WHERE ticket_type_id = ? AND user_id = ? LIMIT 1',
+          [ticket_type_id, promotor.user_id]
+        );
+        if (!allowR.rows[0]) {
+          return res.status(403).json({ error: 'Este tipo de entrada no está habilitado para este vendedor.' });
+        }
+      }
+    }
 
     const validMethod = isCortesia
       ? 'cortesia'

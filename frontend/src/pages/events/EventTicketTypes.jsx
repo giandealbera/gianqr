@@ -21,6 +21,73 @@ const EventTicketTypes = () => {
   const [genningFor, setGenningFor] = useState(null); // ticket_type_id generando link
   const [origType, setOrigType] = useState(null); // snapshot del tipo al abrir edit para detectar cambios
 
+  // Modal "Quien vende": permisos por tipo de entrada.
+  // sellersFor: ticket_type seleccionado. allSellers: lista completa de
+  // jefes/vendedores del owner (para los checkboxes). selectedSellers:
+  // Set de user_ids marcados.
+  const [sellersFor,       setSellersFor]       = useState(null);
+  const [allSellers,       setAllSellers]       = useState([]);
+  const [selectedSellers,  setSelectedSellers]  = useState(new Set());
+  const [sellersLoading,   setSellersLoading]   = useState(false);
+  const [sellersSaving,    setSellersSaving]    = useState(false);
+
+  const openSellers = async (tt) => {
+    setSellersFor(tt);
+    setSellersLoading(true);
+    try {
+      const [usersRes, currentRes] = await Promise.all([
+        api.get('/users'),
+        api.get(`/events/${id}/ticket-types/${tt.id}/sellers`),
+      ]);
+      // Solo jefes y vendedores activos. El admin/owner siempre puede vender,
+      // no van en la lista.
+      const eligible = usersRes.data.filter(u =>
+        ['jefe_publicas', 'vendedor'].includes(u.role) && u.is_active
+      );
+      setAllSellers(eligible);
+      setSelectedSellers(new Set(currentRes.data.map(s => s.user_id)));
+    } catch (err) {
+      toast.error('No se pudo cargar la lista de vendedores');
+      setSellersFor(null);
+    } finally {
+      setSellersLoading(false);
+    }
+  };
+
+  const closeSellers = () => {
+    setSellersFor(null);
+    setSelectedSellers(new Set());
+    setAllSellers([]);
+  };
+
+  const toggleSeller = (userId) => {
+    setSelectedSellers(prev => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
+  };
+
+  const saveSellers = async () => {
+    if (!sellersFor) return;
+    setSellersSaving(true);
+    try {
+      const user_ids = Array.from(selectedSellers);
+      await api.put(`/events/${id}/ticket-types/${sellersFor.id}/sellers`, { user_ids });
+      toast.success(
+        user_ids.length === 0
+          ? `${sellersFor.name}: abierto a todos`
+          : `${sellersFor.name}: ${user_ids.length} habilitado${user_ids.length === 1 ? '' : 's'}`
+      );
+      closeSellers();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Error al guardar permisos');
+    } finally {
+      setSellersSaving(false);
+    }
+  };
+
   const load = async () => {
     try {
       const [evRes, ttRes] = await Promise.all([
@@ -223,6 +290,11 @@ const EventTicketTypes = () => {
                       className="text-xs px-3 py-1.5 rounded-lg border border-gray-700 text-gray-300 hover:border-gray-500 transition-colors">
                       ✏️ Editar
                     </button>
+                    <button onClick={() => openSellers(tt)}
+                      className="text-xs px-3 py-1.5 rounded-lg border border-amber-800 text-amber-400 hover:border-amber-600 transition-colors"
+                      title="Elegir quién puede generar este tipo de entrada">
+                      👥 Quién vende
+                    </button>
                     <button onClick={() => generateLink(tt)} disabled={genningFor === tt.id}
                       className="text-xs px-3 py-1.5 rounded-lg border border-blue-800 text-blue-400 hover:border-blue-600 transition-colors disabled:opacity-50">
                       {genningFor === tt.id ? '...' : '🔗 Link'}
@@ -241,6 +313,81 @@ const EventTicketTypes = () => {
             );
           })}
         </div>
+        {/* Modal: quien puede vender este tipo de entrada */}
+        {sellersFor && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+               style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
+               onClick={(e) => { if (e.target === e.currentTarget) closeSellers(); }}>
+            <div className="card w-full max-w-md max-h-[85vh] flex flex-col"
+                 style={{ background: '#0D1117', border: '1px solid #1E2530' }}>
+              <div className="flex items-start justify-between gap-3 mb-2 shrink-0">
+                <div className="min-w-0">
+                  <h2 className="font-semibold text-lg">Quién puede vender</h2>
+                  <p className="text-xs mt-0.5" style={{ color: '#6B7280' }}>
+                    Tanda: <span className="text-brand font-medium">{sellersFor.name}</span>
+                  </p>
+                </div>
+                <button onClick={closeSellers} className="text-gray-500 hover:text-white text-xl leading-none">×</button>
+              </div>
+
+              <p className="text-xs mb-3 shrink-0" style={{ color: '#9CA3AF' }}>
+                Marcá quiénes pueden generar este tipo. <b>Si no marcás a nadie</b>, queda abierto a todos los jefes y vendedores.
+              </p>
+
+              {sellersLoading ? (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-brand" />
+                </div>
+              ) : allSellers.length === 0 ? (
+                <p className="text-sm text-center py-6" style={{ color: '#6B7280' }}>
+                  Todavía no tenés jefes ni vendedores creados. Agregalos en <span className="text-brand">Mi Personal</span>.
+                </p>
+              ) : (
+                <div className="overflow-y-auto flex-1 min-h-0 -mx-1 px-1">
+                  <div className="space-y-1.5">
+                    {allSellers.map(u => {
+                      const checked = selectedSellers.has(u.id);
+                      return (
+                        <label key={u.id}
+                               className="flex items-center gap-3 p-2.5 rounded-lg cursor-pointer transition-colors"
+                               style={{ background: checked ? 'rgba(201,151,77,0.08)' : '#161B24',
+                                        border: `1px solid ${checked ? 'rgba(201,151,77,0.4)' : '#1E2530'}` }}>
+                          <input type="checkbox" className="w-4 h-4 accent-amber-600"
+                                 checked={checked}
+                                 onChange={() => toggleSeller(u.id)} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate" style={{ color: checked ? '#C9974D' : '#E8EAF0' }}>
+                              {u.name} {u.apellido || ''}
+                            </p>
+                            <p className="text-[11px]" style={{ color: '#6B7280' }}>
+                              {u.role === 'jefe_publicas' ? 'Jefe de Públicas' : 'Vendedor'} · {u.email}
+                            </p>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between gap-3 mt-4 pt-3 border-t border-gray-800 shrink-0">
+                <p className="text-xs" style={{ color: '#6B7280' }}>
+                  {selectedSellers.size === 0
+                    ? 'Sin restricción (todos)'
+                    : `${selectedSellers.size} seleccionado${selectedSellers.size === 1 ? '' : 's'}`}
+                </p>
+                <div className="flex gap-2">
+                  <button onClick={closeSellers} className="btn-secondary text-sm py-1.5 px-3">Cancelar</button>
+                  <button onClick={saveSellers} disabled={sellersSaving}
+                          className="btn-primary text-sm py-1.5 px-4 disabled:opacity-40">
+                    {sellersSaving ? 'Guardando...' : 'Guardar'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Links de escáner generados */}
         {tokens.length > 0 && (
           <div className="mt-6">
