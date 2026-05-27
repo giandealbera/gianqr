@@ -28,6 +28,9 @@ const MyEvents = () => {
   const [cloneSrcId, setCloneSrcId]   = useState('');
   const [cloneForm, setCloneForm]     = useState({ name: '', date: '', start_time: '', end_time: '', sale_start_at: '', sale_end_at: '' });
   const [cloning, setCloning]         = useState(false);
+  // Estado del boton "Descargar Excel" dentro del modal de reciclar.
+  // Cargamos exceljs lazy en el util — el chunk no se baja hasta apretar.
+  const [exporting, setExporting]     = useState(false);
 
   const load = () =>
     Promise.all([
@@ -146,6 +149,24 @@ const MyEvents = () => {
       toast.error(err.response?.data?.error || 'Error al reciclar evento');
     } finally {
       setCloning(false);
+    }
+  };
+
+  // Descargar Excel del evento ORIGEN antes de reciclarlo. Asi el owner se
+  // lleva un snapshot de las ventas, comisiones y demograficas como
+  // archivo offline antes de "olvidarse" del evento.
+  const handleExportSrc = async () => {
+    if (!cloneSrcId) return toast.error('Elegí qué evento querés exportar');
+    setExporting(true);
+    try {
+      const { exportEventXlsx } = await import('../../utils/exportEventXlsx');
+      const r = await exportEventXlsx(cloneSrcId);
+      toast.success(`Excel descargado (${r.tickets} entradas)`);
+    } catch (err) {
+      console.error(err);
+      toast.error('No se pudo generar el Excel');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -347,6 +368,18 @@ const MyEvents = () => {
                   </option>
                 ))}
               </select>
+              {/* Antes de reciclar conviene descargar todo el historial del evento
+                  origen, porque despues solo queda en la base. El boton solo se
+                  activa cuando se eligio uno. */}
+              {cloneSrcId && (
+                <button type="button" onClick={handleExportSrc} disabled={exporting}
+                        className="btn-secondary text-xs mt-2 w-full sm:w-auto disabled:opacity-40">
+                  {exporting ? 'Generando...' : '📊 Descargar Excel del evento origen'}
+                </button>
+              )}
+              <p className="text-[10px] mt-1.5" style={{ color: '#4B5563' }}>
+                Te llevás un Excel con resumen, entradas, demografía y ventas por vendedor del evento que estás reciclando.
+              </p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
