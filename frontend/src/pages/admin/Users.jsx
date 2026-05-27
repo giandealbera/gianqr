@@ -68,18 +68,47 @@ const Users = () => {
     navigator.clipboard.writeText(txt).then(() => toast.success('Credenciales copiadas'));
   };
 
-  const toggleActive = async (u) => {
+  const reactivate = async (u) => {
     try {
-      if (u.is_active) {
-        await api.delete(`/users/${u.id}`);
-        toast.success('Usuario desactivado');
-      } else {
-        await api.put(`/users/${u.id}`, { ...u, is_active: true });
-        toast.success('Usuario activado');
-      }
+      await api.put(`/users/${u.id}`, { ...u, is_active: true });
+      toast.success('Usuario activado');
       load();
     } catch {
-      toast.error('Error al actualizar usuario');
+      toast.error('Error al activar usuario');
+    }
+  };
+
+  // Hard delete: borra la fila de la DB. Doble confirm para evitar accidentes,
+  // porque NO se puede deshacer. Solo el admin tiene el boton (el backend
+  // tambien lo restringe en la route /:id/hard).
+  const hardDelete = async (u) => {
+    const nombre = `${u.name} ${u.apellido || ''}`.trim();
+    const tipo   = ROLE_LABELS[u.role] || u.role;
+    if (!window.confirm(`¿Eliminar definitivamente a ${nombre} (${tipo})?\n\nEsto borra al usuario de la base de datos. NO se puede deshacer.\n\n• Sus sesiones y códigos de 2FA se borran.\n• Sus eventos creados quedan sin dueño asignado.\n• Sus tickets vendidos/escaneados quedan en la base pero sin referencia.\n• Su staff (jefes/vendedores) queda huérfano.\n\nSi tenés dudas, usá "Desactivar" mejor.`)) return;
+    // Segundo confirm pidiendo escribir el nombre — ultimo seguro contra
+    // "Enter por inercia" en el confirm anterior.
+    const typed = window.prompt(`Escribí "${nombre}" exactamente para confirmar:`);
+    if (typed !== nombre) {
+      if (typed !== null) toast.error('Nombre no coincide. Cancelado.');
+      return;
+    }
+    try {
+      await api.delete(`/users/${u.id}/hard`);
+      toast.success(`${nombre} eliminado`);
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Error al eliminar usuario');
+    }
+  };
+
+  const softDeactivate = async (u) => {
+    if (!window.confirm(`¿Desactivar a ${u.name}? Va a perder acceso pero queda el historial.`)) return;
+    try {
+      await api.delete(`/users/${u.id}`);
+      toast.success('Usuario desactivado');
+      load();
+    } catch {
+      toast.error('Error al desactivar usuario');
     }
   };
 
@@ -314,10 +343,34 @@ const Users = () => {
                         {editCommId === u.id ? 'Cancelar' : '$ Comisión'}
                       </button>
                     )}
-                    <button onClick={() => toggleActive(u)}
-                      className="text-xs text-gray-400 hover:text-white transition-colors">
-                      {u.is_active ? 'Desactivar' : 'Activar'}
-                    </button>
+                    {/* Activo: admin tiene "Eliminar" (hard delete); owner sigue
+                        con "Desactivar" (soft) porque NO debe poder borrar de la DB.
+                        Inactivo: cualquiera con permisos ve "Activar". */}
+                    {!u.is_active ? (
+                      <button onClick={() => reactivate(u)}
+                        className="text-xs text-gray-400 hover:text-white transition-colors">
+                        Activar
+                      </button>
+                    ) : me?.role === 'admin' ? (
+                      <>
+                        <button onClick={() => softDeactivate(u)}
+                          className="text-xs text-gray-400 hover:text-white transition-colors"
+                          title="Soft delete: mantiene historial, pierde acceso">
+                          Desactivar
+                        </button>
+                        <button onClick={() => hardDelete(u)}
+                          className="text-xs hover:text-red-300 transition-colors"
+                          style={{ color: '#FCA5A5' }}
+                          title="Hard delete: borra de la base de datos">
+                          Eliminar
+                        </button>
+                      </>
+                    ) : (
+                      <button onClick={() => softDeactivate(u)}
+                        className="text-xs text-gray-400 hover:text-white transition-colors">
+                        Desactivar
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

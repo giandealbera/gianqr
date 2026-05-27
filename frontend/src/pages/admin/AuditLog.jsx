@@ -20,6 +20,7 @@ const ACTION_LABEL = {
   USER_CREATE:             { label: 'Usuario creado',           cat: 'user', tone: 'info' },
   USER_UPDATE:             { label: 'Usuario editado',          cat: 'user', tone: 'info' },
   USER_DEACTIVATE:         { label: 'Usuario desactivado',      cat: 'user', tone: 'warn' },
+  USER_DELETE:             { label: 'Usuario eliminado',        cat: 'user', tone: 'danger' },
   USER_REACTIVATE:         { label: 'Usuario reactivado',       cat: 'user', tone: 'info' },
   USER_PASSWORD_RESET:     { label: 'Reset de password',        cat: 'user', tone: 'danger' },
   USER_ROLE_CHANGE:        { label: 'Cambio de rol',            cat: 'user', tone: 'danger' },

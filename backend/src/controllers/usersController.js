@@ -411,6 +411,69 @@ const deactivate = async (req, res) => {
   }
 };
 
+// DELETE /api/users/:id — HARD DELETE. Borra la fila del usuario y todo
+// lo que cuelgue via FK (ON DELETE CASCADE: event_owners, totp_recovery_codes,
+// sessions, promotors). Cosas con ON DELETE SET NULL quedan huerfanas pero
+// las filas se conservan: events.created_by, tickets.sold_by, tickets.scanned_by,
+// zonas.created_by, proveedores.created_by, rendiciones.created_by.
+//
+// El audit_log NO tiene FK (es append-only), asi que actor_user_id queda
+// apuntando a un user que ya no existe — eso es intencional: el log
+// historico no se debe borrar, aunque el actor desaparezca.
+//
+// Safeguards:
+//   - admin no puede borrarse a si mismo (queda lockeado fuera)
+//   - admin no puede borrar al ultimo admin activo del sistema (idem)
+//   - admin solo puede borrar usuarios de SU arbol (adminCanAccessUser)
+//   - logueamos USER_DELETE en audit_log ANTES del DELETE (sino el log no
+//     puede capturar al actor) con un snapshot del user borrado.
+const hardDelete = async (req, res) => {
+  const { id } = req.params;
+  try {
+    if (id === req.user.id) {
+      return res.status(400).json({ error: 'No podés borrarte a vos mismo' });
+    }
+    const r = await db.query('SELECT id, name, email, role, created_by, is_active FROM users WHERE id = ?', [id]);
+    const target = r.rows[0];
+    if (!target) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    // Solo admin puede ejecutar hard delete (route lo restringe; doble check).
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Solo un admin puede eliminar usuarios' });
+    }
+    // Scope: el admin solo puede borrar usuarios de su arbol.
+    if (!await adminCanAccessUser(req.user.id, id)) {
+      return res.status(403).json({ error: 'No tenés acceso a este usuario' });
+    }
+    // Si el target es admin, asegurar que queda al menos uno activo.
+    if (target.role === 'admin') {
+      const otherAdmins = await db.query(
+        "SELECT COUNT(*) AS c FROM users WHERE role = 'admin' AND is_active = 1 AND id != ?",
+        [id]
+      );
+      if (parseInt(otherAdmins.rows[0]?.c || 0, 10) === 0) {
+        return res.status(400).json({ error: 'No se puede eliminar al único administrador activo' });
+      }
+    }
+
+    // Log ANTES del DELETE con snapshot del user borrado. Asi el audit log
+    // queda con el contexto completo aunque la fila ya no exista.
+    logAudit(req, 'USER_DELETE', {
+      resourceType: 'user',
+      resourceId: id,
+      details: {
+        deleted_user: { name: target.name, email: target.email, role: target.role },
+      },
+    });
+
+    await db.query('DELETE FROM users WHERE id = ?', [id]);
+    res.json({ message: 'Usuario eliminado' });
+  } catch (err) {
+    console.error('hardDelete error:', err);
+    res.status(500).json({ error: 'Error al eliminar usuario' });
+  }
+};
+
 // GET /api/users/promoter-sales — admin ve todos; owner solo de sus eventos
 const getPromoterSales = async (req, res) => {
   const { event_id } = req.query;
@@ -586,4 +649,4 @@ const updateCommission = async (req, res) => {
   }
 };
 
-module.exports = { getAll, create, update, deactivate, getPromoterSales, getMyPromoterSales, createTeamMember, getMyTeam, removeTeamMember, updateCommission };
+module.exports = { getAll, create, update, deactivate, hardDelete, getPromoterSales, getMyPromoterSales, createTeamMember, getMyTeam, removeTeamMember, updateCommission };
