@@ -1,16 +1,38 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
+import { useAuth } from '../../context/AuthContext';
+import toast from 'react-hot-toast';
 
 const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n || 0);
 const num = (n) => parseFloat(n || 0);
 
 const EventHistory = () => {
+  const { user } = useAuth();
+  // Solo el dueño del evento (role=owner; el endpoint /events ya filtra a
+  // sus eventos asignados) puede exportar. Admin ve la pantalla pero no
+  // descarga.
+  const canExport = user?.role === 'owner';
   const [events, setEvents] = useState([]);
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({ event_id: '', from: '', to: '' });
   const [expandedId, setExpandedId] = useState(null);
+  const [exportingId, setExportingId] = useState(null);
+
+  const exportEvent = async (eventId) => {
+    setExportingId(eventId);
+    try {
+      const { exportEventXlsx } = await import('../../utils/exportEventXlsx');
+      const r = await exportEventXlsx(eventId);
+      toast.success(`Excel descargado (${r.tickets} entradas)`);
+    } catch (err) {
+      console.error(err);
+      toast.error('No se pudo generar el Excel');
+    } finally {
+      setExportingId(null);
+    }
+  };
 
   useEffect(() => { api.get('/events').then(r => setEvents(r.data)); }, []);
 
@@ -111,6 +133,7 @@ const EventHistory = () => {
                     <th className="text-right pb-2 px-2">Recaudado</th>
                     <th className="text-right pb-2 px-2">Rendido</th>
                     <th className="text-right pb-2 pl-2">Pendiente</th>
+                    {canExport && <th className="text-right pb-2 pl-2 w-16"></th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-800">
@@ -148,10 +171,23 @@ const EventHistory = () => {
                           <td className={`py-3 pl-2 text-right font-semibold ${pend > 0.01 ? 'text-red-400' : 'text-emerald-400'}`}>
                             {pend > 0.01 ? fmt(pend) : 'OK'}
                           </td>
+                          {canExport && (
+                            <td className="py-3 pl-2 text-right">
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); exportEvent(r.event_id); }}
+                                disabled={exportingId === r.event_id}
+                                className="text-xs text-blue-400 hover:text-blue-200 transition-colors disabled:opacity-40"
+                                title="Descargar Excel completo del evento"
+                              >
+                                {exportingId === r.event_id ? '...' : '📊 Excel'}
+                              </button>
+                            </td>
+                          )}
                         </tr>
                         {expanded && (
                           <tr className="bg-gray-900/30">
-                            <td colSpan={8} className="py-3 px-4">
+                            <td colSpan={canExport ? 9 : 8} className="py-3 px-4">
                               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
                                 <div>
                                   <p className="text-gray-500">Efectivo</p>
@@ -177,7 +213,7 @@ const EventHistory = () => {
                     );
                   })}
                   {rows.length === 0 && (
-                    <tr><td colSpan={8} className="py-6 text-center text-gray-500">Sin resultados</td></tr>
+                    <tr><td colSpan={canExport ? 9 : 8} className="py-6 text-center text-gray-500">Sin resultados</td></tr>
                   )}
                 </tbody>
               </table>

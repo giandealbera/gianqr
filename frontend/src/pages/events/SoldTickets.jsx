@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { FixedSizeList as VirtualList } from 'react-window';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
+import { useAuth } from '../../context/AuthContext';
+import toast from 'react-hot-toast';
 
 const STATUS_BADGE = {
   pagado:    'bg-green-900 text-green-300',
@@ -49,11 +51,30 @@ const TicketRow = ({ index, style, data }) => {
 const SoldTickets = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  // Solo el dueño del evento puede exportar. El admin ve la pantalla
+  // (por scope a su arbol) pero no descarga el Excel completo.
+  const canExport = user?.role === 'owner';
   const [tickets, setTickets] = useState([]);
   const [event, setEvent]     = useState(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch]   = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [exporting, setExporting] = useState(false);
+
+  const exportExcel = async () => {
+    setExporting(true);
+    try {
+      const { exportEventXlsx } = await import('../../utils/exportEventXlsx');
+      const r = await exportEventXlsx(id);
+      toast.success(`Excel descargado (${r.tickets} entradas)`);
+    } catch (err) {
+      console.error(err);
+      toast.error('No se pudo generar el Excel');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   useEffect(() => {
     Promise.all([
@@ -105,8 +126,23 @@ const SoldTickets = () => {
           ← {event?.name || 'Volver'}
         </button>
 
-        <h1 className="text-xl font-bold mb-1">📋 Entradas vendidas</h1>
-        <p className="text-sm text-gray-400 mb-5">{event?.name}</p>
+        <div className="flex items-start justify-between gap-3 mb-5">
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold mb-1">📋 Entradas vendidas</h1>
+            <p className="text-sm text-gray-400 truncate">{event?.name}</p>
+          </div>
+          {canExport && (
+            <button
+              type="button"
+              onClick={exportExcel}
+              disabled={exporting || tickets.length === 0}
+              className="btn-secondary text-xs whitespace-nowrap shrink-0 disabled:opacity-40"
+              title="Descargar Excel completo del evento (resumen, entradas, demografía, vendedores)"
+            >
+              {exporting ? 'Generando...' : '📊 Excel'}
+            </button>
+          )}
+        </div>
 
         {/* Summary */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">

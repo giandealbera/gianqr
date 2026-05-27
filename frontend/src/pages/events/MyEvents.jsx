@@ -370,8 +370,9 @@ const MyEvents = () => {
               </select>
               {/* Antes de reciclar conviene descargar todo el historial del evento
                   origen, porque despues solo queda en la base. El boton solo se
-                  activa cuando se eligio uno. */}
-              {cloneSrcId && (
+                  activa cuando se eligio uno. Restringido a role=owner: el admin
+                  ve la pantalla pero el export es solo para el dueño del evento. */}
+              {cloneSrcId && user?.role === 'owner' && (
                 <button type="button" onClick={handleExportSrc} disabled={exporting}
                         className="btn-secondary text-xs mt-2 w-full sm:w-auto disabled:opacity-40">
                   {exporting ? 'Generando...' : '📊 Descargar Excel del evento origen'}
