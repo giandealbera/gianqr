@@ -649,4 +649,74 @@ const updateCommission = async (req, res) => {
   }
 };
 
-module.exports = { getAll, create, update, deactivate, hardDelete, getPromoterSales, getMyPromoterSales, createTeamMember, getMyTeam, removeTeamMember, updateCommission };
+// POST /api/users/:id/magic-link — admin genera un acceso temporal de 48h
+// para un usuario. Devuelve el token; la UI arma el link /acceso/:token.
+// Util cuando un dueño olvido la clave: el admin no puede VER la password
+// (es bcrypt hash, imposible recuperarla), pero si puede generarle un
+// pase de un solo uso para que el dueño entre y la cambie.
+//
+// Se considera reset implicito: el JWT actual queda invalidado porque
+// el magic login tambien hace efecto de "kill todas las sesiones previas"?
+// NO — el magic login solo emite un JWT nuevo; las sesiones viejas siguen
+// hasta su exp natural. Si queres invalidarlas todas, usa /sessions/revoke-others
+// despues. Eso es decision tuya, no del flujo.
+const generateMagicLink = async (req, res) => {
+  const { id } = req.params;
+  try {
+    if (req.user.role !== 'admin' && req.user.role !== 'owner') {
+      return res.status(403).json({ error: 'Solo admin u owner pueden generar magic links' });
+    }
+
+    // Scope: admin solo a usuarios de su arbol; owner solo a su staff.
+    if (req.user.role === 'admin') {
+      if (!await adminCanAccessUser(req.user.id, id)) {
+        return res.status(403).json({ error: 'No tenés acceso a este usuario' });
+      }
+    } else if (req.user.role === 'owner') {
+      const u = await db.query('SELECT created_by FROM users WHERE id = ?', [id]);
+      const cb = u.rows[0]?.created_by;
+      let isMine = cb === req.user.id;
+      if (!isMine && cb) {
+        const jefe = await db.query('SELECT created_by FROM users WHERE id = ?', [cb]);
+        isMine = jefe.rows[0]?.created_by === req.user.id;
+      }
+      if (!isMine) return res.status(403).json({ error: 'No tenés acceso a este usuario' });
+    }
+
+    const target = await db.query('SELECT id, name, email, role, is_active FROM users WHERE id = ?', [id]);
+    if (!target.rows[0]) return res.status(404).json({ error: 'Usuario no encontrado' });
+    if (target.rows[0].is_active !== 1) {
+      return res.status(400).json({ error: 'Activá al usuario antes de generarle un magic link' });
+    }
+    // Para evitar abusos: no permitir generar magic link de un admin
+    // (que un admin se haga magic link a otro admin abriria un agujero).
+    if (target.rows[0].role === 'admin' && target.rows[0].id !== req.user.id) {
+      return res.status(403).json({ error: 'No se puede generar magic link para otro admin' });
+    }
+
+    const magicToken   = uuidv4();
+    // 48h de expiracion (consistente con createTeamMember).
+    const magicExpires = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
+    await db.query(
+      'UPDATE users SET magic_token = ?, magic_token_expires = ? WHERE id = ?',
+      [magicToken, magicExpires, id]
+    );
+
+    logAudit(req, 'USER_MAGIC_LINK', {
+      resourceType: 'user',
+      resourceId: id,
+      details: { target_email: target.rows[0].email, target_role: target.rows[0].role, expires_at: magicExpires },
+    });
+
+    res.json({
+      magic_token: magicToken,
+      expires_at:  magicExpires,
+      target: { id: target.rows[0].id, name: target.rows[0].name, email: target.rows[0].email, role: target.rows[0].role },
+    });
+  } catch (err) {
+    console.error('generateMagicLink error:', err);
+    res.status(500).json({ error: 'Error al generar magic link' });
+  }
+};
+
+module.exports = { getAll, create, update, deactivate, hardDelete, generateMagicLink, getPromoterSales, getMyPromoterSales, createTeamMember, getMyTeam, removeTeamMember, updateCommission };

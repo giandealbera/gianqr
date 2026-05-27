@@ -2,7 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const auth    = require('../middleware/auth');
 const roles   = require('../middleware/roles');
-const { getAll, create, update, deactivate, hardDelete, getPromoterSales, getMyPromoterSales, createTeamMember, getMyTeam, removeTeamMember, updateCommission } = require('../controllers/usersController');
+const { getAll, create, update, deactivate, hardDelete, generateMagicLink, getPromoterSales, getMyPromoterSales, createTeamMember, getMyTeam, removeTeamMember, updateCommission } = require('../controllers/usersController');
 
 // Ventas de publicas (admin: todas / owner: solo de sus eventos)
 router.get('/promoter-sales', auth, roles('admin', 'owner'), getPromoterSales);
@@ -26,5 +26,9 @@ router.delete('/:id',             auth, roles('admin', 'owner'), deactivate);
 // controller (no se puede borrar a si mismo ni al ultimo admin). Ruta
 // explicita /hard para evitar borrado accidental por error de tipeo.
 router.delete('/:id/hard',        auth, roles('admin'), hardDelete);
+
+// Magic link: admin/owner generan un acceso temporal de 48h para un
+// usuario que olvido la clave. La UI arma /acceso/:token y se lo manda.
+router.post('/:id/magic-link',    auth, roles('admin', 'owner'), generateMagicLink);
 
 module.exports = router;

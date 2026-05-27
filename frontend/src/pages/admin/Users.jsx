@@ -32,6 +32,9 @@ const Users = () => {
   const [commForm,    setCommForm]    = useState({ commission: 800, leader_commission: 400 });
   const [editRoleId,  setEditRoleId]  = useState(null); // id del usuario cambiando rol
   const [createdUser, setCreatedUser] = useState(null);
+  // Magic link recien generado para mostrar en modal (link + expiracion).
+  const [magicResult, setMagicResult] = useState(null);
+  const [magicLoading, setMagicLoading] = useState(null);
 
   const jefes = users.filter(u => u.role === 'jefe_publicas' && u.is_active);
 
@@ -99,6 +102,32 @@ const Users = () => {
     } catch (err) {
       toast.error(err.response?.data?.error || 'Error al eliminar usuario');
     }
+  };
+
+  // Genera un magic link de 48h. Util cuando un dueño olvido la clave —
+  // el admin NO puede ver la password (es bcrypt), pero si puede generarle
+  // un acceso temporal de un solo uso. El dueño entra, setea su nueva
+  // password al primer login (must_change_password) y listo.
+  const generateMagic = async (u) => {
+    const nombre = `${u.name} ${u.apellido || ''}`.trim();
+    if (!window.confirm(`Generar acceso temporal de 48h para ${nombre}?\n\nVas a ver un link que tenés que mandarle por WhatsApp/email/etc. Es de un solo uso: cuando lo abren, se invalida.`)) return;
+    setMagicLoading(u.id);
+    try {
+      const r = await api.post(`/users/${u.id}/magic-link`);
+      const url = `${window.location.origin}/acceso/${r.data.magic_token}`;
+      setMagicResult({ url, target: r.data.target, expires_at: r.data.expires_at });
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Error al generar magic link');
+    } finally {
+      setMagicLoading(null);
+    }
+  };
+
+  const copyMagicLink = () => {
+    if (!magicResult) return;
+    navigator.clipboard.writeText(magicResult.url)
+      .then(() => toast.success('Link copiado'))
+      .catch(() => toast.error('No se pudo copiar'));
   };
 
   const softDeactivate = async (u) => {
@@ -188,6 +217,44 @@ const Users = () => {
             </button>
             <p className="text-[10px] text-center" style={{ color: '#4B5563' }}>
               Por seguridad, esta es la unica vez que vas a ver la contrasena
+            </p>
+          </div>
+        )}
+
+        {/* Magic link generado: link de 48h para mandarle al usuario */}
+        {magicResult && (
+          <div className="mb-6 rounded-xl p-4 space-y-3"
+               style={{ background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.35)' }}>
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+                   style={{ background: 'rgba(96,165,250,0.15)' }}>
+                <span className="text-xl">🔗</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-sm">Acceso temporal generado</p>
+                <p className="text-xs" style={{ color: '#9CA3AF' }}>
+                  Para {magicResult.target.name} · {ROLE_LABELS[magicResult.target.role] || magicResult.target.role}
+                </p>
+              </div>
+              <button onClick={() => setMagicResult(null)}
+                      className="text-gray-500 hover:text-white text-lg leading-none">×</button>
+            </div>
+
+            <p className="text-xs" style={{ color: '#9CA3AF' }}>
+              Mandale este link por WhatsApp/email. Es de <b>un solo uso</b> y expira en 48hs.
+              Cuando lo abra, va a entrar al sistema y tener que setear su nueva contraseña.
+            </p>
+
+            <div className="rounded-lg p-3 break-all font-mono text-[11px]"
+                 style={{ background: '#0D1117', border: '1px solid #1E2530', color: '#60A5FA' }}>
+              {magicResult.url}
+            </div>
+
+            <button onClick={copyMagicLink} className="btn-primary w-full text-sm py-2">
+              📋 Copiar link
+            </button>
+            <p className="text-[10px] text-center" style={{ color: '#4B5563' }}>
+              Si lo regenerás, el link anterior queda invalidado automáticamente.
             </p>
           </div>
         )}
@@ -336,11 +403,21 @@ const Users = () => {
                   )}
 
                   {/* Acciones */}
-                  <div className="flex items-center justify-end gap-2">
+                  <div className="flex items-center justify-end gap-2 flex-wrap">
                     {PUBLICAS_ROLES.includes(u.role) && (
                       <button onClick={() => editCommId === u.id ? setEditCommId(null) : openEditComm(u)}
                         className="text-xs text-blue-400 hover:text-blue-200 transition-colors">
                         {editCommId === u.id ? 'Cancelar' : '$ Comisión'}
+                      </button>
+                    )}
+                    {/* Magic link: solo para usuarios activos, no para el propio admin,
+                        y NO para admins ajenos (el backend lo bloquea igual). */}
+                    {u.is_active && u.role !== 'admin' && u.id !== me?.id && (
+                      <button onClick={() => generateMagic(u)}
+                        disabled={magicLoading === u.id}
+                        className="text-xs text-blue-400 hover:text-blue-200 transition-colors disabled:opacity-40"
+                        title="Generar acceso temporal de 48h (si olvidó la contraseña)">
+                        {magicLoading === u.id ? '...' : '🔗 Acceso'}
                       </button>
                     )}
                     {/* Activo: admin tiene "Eliminar" (hard delete); owner sigue
