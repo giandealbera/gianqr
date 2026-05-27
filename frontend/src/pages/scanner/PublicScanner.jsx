@@ -74,7 +74,7 @@ const PublicScanner = () => {
   const ticket = result?.data?.ticket;
 
   if (error) return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center p-6">
+    <div className="min-h-dvh bg-gray-950 flex items-center justify-center p-6">
       <div className="text-center">
         <p className="text-5xl mb-4">🔒</p>
         <p className="text-red-400 text-lg font-semibold">{error}</p>
@@ -84,13 +84,13 @@ const PublicScanner = () => {
   );
 
   if (!info) return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+    <div className="min-h-dvh bg-gray-950 flex items-center justify-center">
       <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-brand" />
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
+    <div className="min-h-dvh bg-gray-950 text-white">
       {/* Header */}
       <div className="bg-gray-900 border-b border-gray-800 px-4 py-4 text-center">
         <p className="text-xl font-black tracking-tight mb-2" style={{ color: '#C9974D' }}>GianQR</p>

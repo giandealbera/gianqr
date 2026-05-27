@@ -29,7 +29,7 @@ const MagicLogin = () => {
   }, [token]);
 
   if (error) return (
-    <div className="min-h-screen flex items-center justify-center p-6" style={{ background: '#07090E' }}>
+    <div className="min-h-dvh flex items-center justify-center p-6" style={{ background: '#07090E' }}>
       <div className="text-center">
         <p className="text-3xl font-black tracking-tight mb-6" style={{ color: '#C9974D' }}>GianQR</p>
         <p className="text-red-400 text-lg font-semibold">{error}</p>
@@ -40,7 +40,7 @@ const MagicLogin = () => {
   );
 
   return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: '#07090E' }}>
+    <div className="min-h-dvh flex items-center justify-center" style={{ background: '#07090E' }}>
       <div className="text-center">
         <p className="text-3xl font-black tracking-tight mb-6" style={{ color: '#C9974D' }}>GianQR</p>
         <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-brand mx-auto mb-4" />

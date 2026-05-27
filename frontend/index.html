@@ -3,14 +3,29 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- viewport-fit=cover habilita env(safe-area-inset-*) en iPhones con notch.
+         Sin esto, el contenido no se mete debajo del notch ni respeta la
+         barra de home indicator. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>GianQR — Sistema de Entradas</title>
     <meta name="description" content="Sistema de venta y control de entradas con QR para eventos" />
     <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#C9974D" />
+    <meta name="theme-color" content="#07090E" />
+
+    <!-- Apple PWA. apple-mobile-web-app-capable=yes hace que cuando el user
+         agrega la app al home screen, se abra en standalone (sin barra de
+         Safari). black-translucent deja la status bar transparente sobre
+         el fondo oscuro de la app — la hora/bateria quedan en blanco
+         encima del header. -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="GianQR" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
+
+    <!-- Evita que iOS detecte numeros como telefonos clickeables (transforma
+         "DNI 12345678" en un link a tel:). En una app de tickets con muchos
+         numeros visibles eso confunde. -->
+    <meta name="format-detection" content="telephone=no" />
   </head>
   <body>
     <div id="root"></div>

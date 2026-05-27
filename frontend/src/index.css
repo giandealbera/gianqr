@@ -5,16 +5,94 @@
 @tailwind utilities;
 
 @layer base {
+  /*
+   * Reset/normalize de quirks de iOS Safari.
+   * - text-size-adjust: 100% evita el "auto inflate" del texto cuando el
+   *   usuario rota a landscape o cuando Safari intenta "ayudarte".
+   * - min-height: -webkit-fill-available + 100dvh hace que el viewport
+   *   considere la barra de URL dinamica de iOS. Sin esto, los layouts
+   *   con min-h-screen quedan tapados por la barra al hacer scroll.
+   */
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    /* iOS safari URL bar: 100vh incluye su altura ("salta" al scrollear).
+       100dvh respeta el viewport visible REAL. Fallback a -webkit-fill-available
+       para iOS < 15.4. */
+    height: 100%;
+  }
   body {
     background-color: #07090E;
     color: #E8EAF0;
     font-family: 'Inter', system-ui, sans-serif;
     -webkit-tap-highlight-color: transparent;
+    /* Permite scroll vertical pero desactiva el pinch-zoom en TODO el body.
+       Para una app full-screen es deseable; el zoom puede activarse en
+       imagenes especificas si hace falta. NO usar en paginas publicas
+       donde el zoom es accesibilidad — por eso queda solo en .pwa-app
+       wrapper... pero en este caso la app entera lo merece. */
+    overscroll-behavior-y: contain;
+    /* Anti-bounce en algunos contextos. Comentamos: la app si necesita
+       scroll, no lo bloqueamos a nivel body. */
   }
 
-  .safe-area-bottom {
-    padding-bottom: env(safe-area-inset-bottom, 0);
+  /* Override del autofill amarillo de Safari (chrome tambien). Sin esto
+     los inputs autofilleados se ven con fondo amarillo brillante encima
+     del tema oscuro — feo. */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  textarea:-webkit-autofill,
+  select:-webkit-autofill {
+    -webkit-box-shadow: 0 0 0 1000px #161B24 inset !important;
+    -webkit-text-fill-color: #F1F5F9 !important;
+    caret-color: #C9974D;
+    transition: background-color 5000s ease-in-out 0s;
   }
+
+  /* iOS aplica un border-radius y un padding interno a los inputs y
+     buttons por defecto. Reset para que respeten lo que Tailwind dice. */
+  input, textarea, select, button {
+    -webkit-appearance: none;
+    appearance: none;
+    border-radius: 0; /* Tailwind aplica el correcto despues */
+  }
+
+  /* Selects nativos en iOS: la flechita nativa desaparece con
+     appearance:none, sumamos una propia (svg inline en CSS). */
+  select {
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    padding-right: 2rem !important;
+  }
+
+  /* type=date/time/datetime-local: iOS los renderiza como pickers
+     nativos. Forzamos altura igual al resto de inputs para que no
+     queden mas chiquitos. */
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"] {
+    min-height: 44px;
+  }
+
+  /*
+   * Safe-area utilities.
+   * iPhones con notch / Dynamic Island / home indicator tienen 4 insets:
+   *   safe-area-inset-top   (notch, ~47px en iPhone 14 Pro)
+   *   safe-area-inset-bottom (home indicator, ~34px)
+   *   safe-area-inset-left/right (rotacion landscape)
+   * Estos utilities los aplican a padding. SUM al padding existente.
+   */
+  .safe-area-top    { padding-top:    env(safe-area-inset-top, 0); }
+  .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom, 0); }
+  .safe-area-x {
+    padding-left:  env(safe-area-inset-left, 0);
+    padding-right: env(safe-area-inset-right, 0);
+  }
+  /* Para containers fixed: combina padding + el inset. */
+  .pt-safe { padding-top: max(env(safe-area-inset-top, 0), 0.5rem); }
+  .pb-safe { padding-bottom: max(env(safe-area-inset-bottom, 0), 0.5rem); }
 }
 
 @layer components {
@@ -25,12 +103,20 @@
            hover:bg-brand-dark transition-all duration-150
            disabled:opacity-40 disabled:cursor-not-allowed
            tracking-wide text-sm min-h-[44px] sm:min-h-0;
+    /* touch-action: manipulation saca el delay de 300ms que Safari aplicaba
+       para detectar double-tap-to-zoom. En 2025 ya casi no aplica pero no
+       cuesta nada poner el hint explicito. */
+    touch-action: manipulation;
+    /* Cursor pointer falta en algunos browsers cuando appearance:none */
+    cursor: pointer;
   }
   .btn-secondary {
     background-color: #1E2530;
     color: #E2E8F0;
     @apply font-semibold px-4 py-2 rounded-lg transition-all duration-150 tracking-wide text-sm border min-h-[44px] sm:min-h-0;
     border-color: #263040;
+    touch-action: manipulation;
+    cursor: pointer;
   }
   .btn-secondary:hover { background-color: #263040; }
 
@@ -61,6 +147,20 @@
 }
 
 @layer utilities {
+  /* min-h-screen reemplazado a nivel app por min-h-dvh donde lo usamos:
+     reemplazamos lugares clave a 100dvh para que el header sticky no
+     quede tapado por la barra de URL de iOS Safari. */
+  .min-h-dvh {
+    min-height: 100vh;          /* fallback */
+    min-height: 100dvh;
+    min-height: -webkit-fill-available;
+  }
+  .h-dvh {
+    height: 100vh;
+    height: 100dvh;
+    height: -webkit-fill-available;
+  }
+
   .animate-in {
     animation: fadeSlide 0.15s ease-out;
   }
@@ -84,6 +184,10 @@
       transition: transform 60ms ease-out;
     }
   }
+
+  /* Listas scrolleables que no propagan el bounce/pull-to-refresh al body.
+     Aplicar con className="overscroll-contain" en contenedores con overflow. */
+  .overscroll-contain { overscroll-behavior: contain; }
 
   /* Honoramos prefers-reduced-motion: si el sistema lo pide, aplanamos las
      animaciones de framer-motion y las propias. */

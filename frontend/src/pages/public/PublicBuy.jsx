@@ -220,13 +220,13 @@ const PublicBuy = () => {
   const typeLocked    = (isReserved || !!presetTypeId)  && !!selectedType;
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: '#07090E' }}>
+    <div className="min-h-dvh flex items-center justify-center" style={{ background: '#07090E' }}>
       <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-brand" />
     </div>
   );
 
   if (error) return (
-    <div className="min-h-screen flex items-center justify-center px-4" style={{ background: '#07090E' }}>
+    <div className="min-h-dvh flex items-center justify-center px-4" style={{ background: '#07090E' }}>
       <div className="text-center space-y-4 max-w-sm">
         <p className="text-4xl font-black text-brand">GianQR</p>
         <p className="text-red-400">{error}</p>
@@ -247,7 +247,7 @@ const PublicBuy = () => {
   const isLast    = personNum >= presetQty;
 
   return (
-    <div className="min-h-screen py-8 px-4" style={{ background: '#07090E' }}>
+    <div className="min-h-dvh py-8 px-4" style={{ background: '#07090E' }}>
       <div className="max-w-md mx-auto">
 
         <div className="text-center mb-6">

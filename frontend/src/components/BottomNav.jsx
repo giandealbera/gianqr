@@ -87,7 +87,7 @@ const BottomNav = () => {
   })();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 safe-area-bottom"
+    <nav className="fixed bottom-0 left-0 right-0 z-40 safe-area-bottom safe-area-x select-none"
          style={{ background: 'rgba(13,17,23,0.97)', borderTop: '1px solid #1E2530', backdropFilter: 'blur(12px)' }}>
       <div className="flex items-center justify-around px-1 py-1">
         {items.map(item => {

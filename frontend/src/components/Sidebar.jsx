@@ -56,7 +56,7 @@ const Sidebar = () => {
   const items = navItems[user?.role] || [];
 
   return (
-    <aside className="w-56 min-h-screen flex flex-col" style={{ background: '#0D1117', borderRight: '1px solid #1E2530' }}>
+    <aside className="w-56 min-h-dvh flex flex-col" style={{ background: '#0D1117', borderRight: '1px solid #1E2530' }}>
       {/* Logo */}
       <div className="px-6 py-5" style={{ borderBottom: '1px solid #1E2530' }}>
         <span className="text-lg font-black tracking-tight" style={{ color: '#C9974D' }}>GianQR</span>

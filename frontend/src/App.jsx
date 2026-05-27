@@ -106,7 +106,7 @@ const App = () => (
         <Route path="/comprar/:code" element={<PublicBuy />} />
         <Route path="/" element={<RoleRedirect />} />
         <Route path="/sin-acceso" element={
-          <div className="flex items-center justify-center h-screen flex-col gap-4">
+          <div className="flex items-center justify-center h-dvh flex-col gap-4">
             <p className="text-2xl">🚫 Sin acceso</p>
             <p className="text-gray-400">No tenés permisos para ver esta página.</p>
           </div>
@@ -217,7 +217,7 @@ const App = () => (
 
         {/* 404 */}
         <Route path="*" element={
-          <div className="flex items-center justify-center h-screen flex-col gap-4">
+          <div className="flex items-center justify-center h-dvh flex-col gap-4">
             <p className="text-5xl font-black text-brand">404</p>
             <p className="text-gray-400">Página no encontrada</p>
           </div>
