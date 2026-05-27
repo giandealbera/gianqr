@@ -783,9 +783,155 @@ const resumeSales = async (req, res) => {
   }
 };
 
+// GET /api/events/:id/export-data
+// Endpoint dedicado para la exportacion a Excel. Devuelve TODO lo que el
+// util exportEventXlsx.js necesita (event con ticket_types, tickets,
+// buyer_stats, promoter_sales) en una sola response.
+//
+// Restriccion estricta: solo el DUEÑO del evento (role=owner y aparece en
+// event_owners.user_id para este evento) puede llamarlo. Esto es mas
+// estricto que guardEventAccess (que ademas dejaria pasar a admins con
+// scope al evento). La idea: el export con datos personales del publico
+// es una accion sensible que se reserva al dueño real del evento.
+//
+// La route ademas usa roles('owner') asi que admins/jefes/vendedores
+// reciben 403 antes de llegar aca.
+const exportData = async (req, res) => {
+  const { id } = req.params;
+  try {
+    if (req.user?.role !== 'owner') {
+      return res.status(403).json({ error: 'Solo el dueño del evento puede exportar' });
+    }
+    const own = await db.query(
+      'SELECT 1 FROM event_owners WHERE event_id = ? AND user_id = ? LIMIT 1',
+      [id, req.user.id]
+    );
+    if (!own.rows[0]) {
+      return res.status(403).json({ error: 'No sos dueño de este evento' });
+    }
+
+    // Cargamos todo en paralelo. Las queries reflejan exactamente lo que
+    // usaba el util cuando llamaba a 4 endpoints separados.
+    const [
+      eventRes,
+      ticketTypesRes,
+      ticketsRes,
+    ] = await Promise.all([
+      db.query(
+        `SELECT e.*, v.name AS venue_name, v.capacity AS venue_capacity
+         FROM events e LEFT JOIN venues v ON v.id = e.venue_id
+         WHERE e.id = ?`, [id]
+      ),
+      db.query(
+        `SELECT *, (total_quota - sold_count) AS available
+         FROM ticket_types WHERE event_id = ? AND is_active = 1
+         ORDER BY created_at ASC`, [id]
+      ),
+      db.query(
+        `SELECT t.*, tt.name AS tipo_entrada, e.name AS evento, e.date,
+                pu.name AS vendedor_nombre, p.promo_code AS vendedor_code
+         FROM tickets t
+         JOIN ticket_types tt ON tt.id = t.ticket_type_id
+         JOIN events e ON e.id = t.event_id
+         LEFT JOIN promotors p ON p.id = t.promotor_id
+         LEFT JOIN users pu ON pu.id = p.user_id
+         WHERE t.event_id = ?
+         ORDER BY t.created_at DESC`, [id]
+      ),
+    ]);
+
+    if (!eventRes.rows[0]) return res.status(404).json({ error: 'Evento no encontrado' });
+
+    // Buyer stats — replicamos la logica del endpoint /buyer-stats inline
+    // para no hacer otra request HTTP. Una pasada sobre tickets ya en RAM.
+    const validTickets = ticketsRes.rows.filter(t =>
+      ['pagado', 'usado'].includes(t.status) &&
+      t.buyer_name && t.buyer_name !== 'Pendiente'
+    );
+    let sum = 0, minAge = 0, maxAge = 0, count = 0;
+    const buckets = { '<18': 0, '18-24': 0, '25-34': 0, '35-44': 0, '45+': 0 };
+    const localidadCount = {};
+    let emailCount = 0;
+    for (const t of validTickets) {
+      const n = parseInt(t.buyer_edad, 10);
+      if (!isNaN(n) && n > 0 && n < 120) {
+        if (count === 0 || n < minAge) minAge = n;
+        if (count === 0 || n > maxAge) maxAge = n;
+        sum += n;
+        count++;
+        if (n < 18) buckets['<18']++;
+        else if (n < 25) buckets['18-24']++;
+        else if (n < 35) buckets['25-34']++;
+        else if (n < 45) buckets['35-44']++;
+        else buckets['45+']++;
+      }
+      const loc = (t.buyer_localidad || '').trim();
+      if (loc) localidadCount[loc] = (localidadCount[loc] || 0) + 1;
+      if (t.buyer_email && t.buyer_email.includes('@')) emailCount++;
+    }
+    const buyer_stats = {
+      muestra: count,
+      cobertura_pct: validTickets.length > 0 ? Math.round((count / validTickets.length) * 100) : 0,
+      edad: count > 0 ? {
+        avg: sum / count,
+        min: minAge,
+        max: maxAge,
+        buckets: Object.entries(buckets).map(([rango, n]) => ({
+          rango,
+          count: n,
+          pct: count > 0 ? Math.round((n / count) * 100) : 0,
+        })),
+      } : null,
+      por_localidad: Object.entries(localidadCount)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([localidad, c]) => ({ localidad, count: c })),
+      con_email: emailCount,
+    };
+
+    // Promoter sales para este evento. Aggregamos en SQL para no traer
+    // ticket-por-ticket de nuevo.
+    const promoterSalesRes = await db.query(
+      `SELECT p.id AS promotor_id, u.name, u.apellido, p.promo_code,
+              p.commission, p.leader_commission,
+              COUNT(CASE WHEN t.status IN ('pagado','usado') THEN t.id END) AS total_vendidas,
+              COALESCE(SUM(CASE WHEN t.status IN ('pagado','usado') THEN t.amount_paid ELSE 0 END), 0) AS total_recaudado,
+              (COUNT(CASE WHEN t.status IN ('pagado','usado') THEN t.id END) * p.commission) AS comision_promotor,
+              COALESCE(SUM(CASE WHEN t.status IN ('pagado','usado') THEN t.amount_paid ELSE 0 END), 0)
+                - (COUNT(CASE WHEN t.status IN ('pagado','usado') THEN t.id END) * p.commission) AS debe_enviar
+       FROM promotors p
+       JOIN users u ON u.id = p.user_id AND u.is_active = 1
+       LEFT JOIN tickets t ON t.promotor_id = p.id AND t.event_id = ?
+       WHERE p.promo_code != 'CASA'
+       GROUP BY p.id, u.id
+       HAVING COUNT(t.id) > 0
+       ORDER BY total_recaudado DESC`,
+      [id]
+    );
+
+    // Audit log: registrar que se exporto este evento. Sirve para forense
+    // si despues hay un reclamo de "alguien filtro la base de compradores".
+    logAudit(req, 'EVENT_EXPORT', {
+      resourceType: 'event',
+      resourceId: id,
+      details: { tickets: ticketsRes.rows.length, format: 'xlsx' },
+    });
+
+    res.json({
+      event: { ...eventRes.rows[0], ticket_types: ticketTypesRes.rows },
+      tickets: ticketsRes.rows,
+      buyer_stats,
+      promoter_sales: promoterSalesRes.rows,
+    });
+  } catch (err) {
+    console.error('exportData error:', err);
+    res.status(500).json({ error: 'Error al exportar el evento' });
+  }
+};
+
 module.exports = {
   getAll, getOne, create, update, stats, history, resetEvent, cloneEvent,
-  stopSales, resumeSales, buyerStats,
+  stopSales, resumeSales, buyerStats, exportData,
   getVenues, getTicketTypes, addTicketType, updateTicketType, toggleTicketType,
   getOwners, addOwner, removeOwner,
 };

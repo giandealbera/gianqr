@@ -50,18 +50,15 @@ export async function exportEventXlsx(eventId, opts = {}) {
   // Cargamos exceljs solo ahora (lazy). Compatible con SSR + tree shaking.
   const ExcelJS = (await import('exceljs')).default;
 
-  // Fetch en paralelo de todo lo que necesitamos.
-  const [eventRes, ticketsRes, buyerStatsRes, promoterSalesRes] = await Promise.all([
-    api.get(`/events/${eventId}`),
-    api.get(`/tickets?event_id=${eventId}`),
-    api.get(`/events/${eventId}/buyer-stats`).catch(() => ({ data: null })),
-    api.get(`/users/promoter-sales?event_id=${eventId}`).catch(() => ({ data: [] })),
-  ]);
-
-  const event   = eventRes.data;
-  const tickets = ticketsRes.data || [];
-  const stats   = buyerStatsRes.data;
-  const promoters = promoterSalesRes.data || [];
+  // Endpoint dedicado: una sola request que devuelve TODO. El backend
+  // valida en el guard que sea owner del evento (role=owner +
+  // event_owners.user_id = req.user.id), asi un admin con DevTools no
+  // puede dispararlo aunque tenga acceso al evento por scope.
+  const r = await api.get(`/events/${eventId}/export-data`);
+  const event     = r.data.event;
+  const tickets   = r.data.tickets || [];
+  const stats     = r.data.buyer_stats;
+  const promoters = r.data.promoter_sales || [];
 
   const wb = new ExcelJS.Workbook();
   wb.creator       = 'GianQR';

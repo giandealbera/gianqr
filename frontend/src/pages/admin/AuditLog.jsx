@@ -29,6 +29,7 @@ const ACTION_LABEL = {
   EVENT_CREATE:            { label: 'Evento creado',            cat: 'event', tone: 'info' },
   EVENT_UPDATE:            { label: 'Evento editado',           cat: 'event', tone: 'info' },
   EVENT_RESET:             { label: 'Evento reiniciado',        cat: 'event', tone: 'danger' },
+  EVENT_EXPORT:            { label: 'Evento exportado (Excel)', cat: 'event', tone: 'info' },
   EVENT_OWNER_ADDED:       { label: 'Dueño asignado',           cat: 'event', tone: 'info' },
   EVENT_OWNER_REMOVED:     { label: 'Dueño removido',           cat: 'event', tone: 'warn' },
   TICKET_DELETE:           { label: 'Ticket eliminado',         cat: 'ticket', tone: 'danger' },

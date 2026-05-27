@@ -4,7 +4,7 @@ const auth    = require('../middleware/auth');
 const roles   = require('../middleware/roles');
 const {
   getAll, getOne, create, update, stats, history, resetEvent, cloneEvent,
-  stopSales, resumeSales, buyerStats,
+  stopSales, resumeSales, buyerStats, exportData,
   getVenues, getTicketTypes, addTicketType, updateTicketType, toggleTicketType,
   getOwners, addOwner, removeOwner,
 } = require('../controllers/eventsController');
@@ -18,6 +18,9 @@ router.get('/:id',     auth, getOne);
 router.get('/:id/stats', auth, roles('admin', 'owner'), stats);
 // Estadísticas demográficas del público (edad/localidad/email).
 router.get('/:id/buyer-stats', auth, roles('admin', 'owner'), buyerStats);
+// Export completo (xlsx). SOLO owner del evento; el controller exige ademas
+// que aparezca en event_owners. Admins reciben 403 desde el middleware roles().
+router.get('/:id/export-data', auth, roles('owner'), exportData);
 // Owner puede crear sus propios eventos (se auto-asigna como dueño).
 router.post('/',       auth, roles('admin', 'owner'), create);
 // Clonar evento (copia ticket_types y dueños del original).
