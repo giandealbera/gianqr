@@ -20,6 +20,7 @@ const PromoterSell = () => {
   // Link generado tras apretar "Generar QR". El vendedor no ve el QR
   // (eso lo ve el comprador al cargar sus datos). Solo copia y comparte el link.
   const [generatedLink, setGeneratedLink] = useState('');
+  const [loadingLink,   setLoadingLink]   = useState(false);
 
   useEffect(() => {
     api.get('/events').then(r => setEvents(r.data.filter(e => e.is_active)));
@@ -61,15 +62,38 @@ const PromoterSell = () => {
     return { open: true };
   })();
 
-  const generateLink = () => {
+  const generateLink = async () => {
     if (!promoCode || !eventSel || !typeSel) return;
     if (!saleWindowStatus.open) {
       toast.error(saleWindowStatus.reason || 'Ventas cerradas');
       return;
     }
-    const link = `${window.location.origin}/comprar/${promoCode}?event=${eventSel}&type=${typeSel}&qty=${qty}&pay=${payMethod}`;
-    setGeneratedLink(link);
-    toast.success('Link generado');
+    setLoadingLink(true);
+    try {
+      // Reservamos las entradas YA (descuenta cupo en este momento). El
+      // comprador despues solo carga sus datos sobre las reservadas vía
+      // ?tickets=, igual que el flujo de caja.
+      const response = await api.post('/tickets/pre-sell', {
+        event_id: eventSel,
+        ticket_type_id: typeSel,
+        qty,
+        payment_method: payMethod,
+      });
+      const ticketIds = response.data.tickets;
+      const link = `${window.location.origin}/comprar/${promoCode}?tickets=${ticketIds.join(',')}`;
+      setGeneratedLink(link);
+      // Refresco el tipo para que el "agotado" se vea actualizado.
+      try {
+        const r = await api.get(`/events/${eventSel}`);
+        setTicketTypes(r.data.ticket_types || []);
+      } catch { /* no-op */ }
+      toast.success('Entradas reservadas');
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.error || 'Error al generar el link');
+    } finally {
+      setLoadingLink(false);
+    }
   };
 
   const copyLink = () => {
@@ -82,7 +106,7 @@ const PromoterSell = () => {
       <div className="px-4 lg:px-8 py-6 max-w-2xl mx-auto">
         <h1 className="text-2xl font-bold mb-1">Vender entrada</h1>
         <p className="text-sm mb-6" style={{ color: '#6B7280' }}>
-          Definí evento, tipo, cantidad y forma de pago. Generá el link y compartilo con el comprador para que cargue sus datos y reciba su QR.
+          Definí evento, tipo, cantidad y forma de pago. Al generar el QR la entrada queda reservada (descuenta cupo); compartí el link con el comprador para que cargue sus datos y reciba su QR.
         </p>
 
         <div className="card space-y-5">
@@ -146,7 +170,7 @@ const PromoterSell = () => {
           {generatedLink ? (
             <div className="space-y-4 pt-2 border-t border-gray-800">
               <p className="text-xs uppercase tracking-widest font-semibold text-center" style={{ color: '#6B7280' }}>
-                Link para el comprador — compartilo para que cargue sus datos
+                Link para el comprador — ya quedó reservada
               </p>
               <p className="text-[10px] text-center -mt-2" style={{ color: '#4B5563' }}>
                 (El comprador carga sus datos y recibe su propio QR)
@@ -179,10 +203,10 @@ const PromoterSell = () => {
                   )}
                   <button
                     onClick={generateLink}
-                    disabled={!saleWindowStatus.open}
+                    disabled={loadingLink || !saleWindowStatus.open}
                     className="btn-primary w-full py-3 text-base font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    Generar QR
+                    {loadingLink ? 'Generando...' : 'Generar QR'}
                   </button>
                 </>
               ) : (

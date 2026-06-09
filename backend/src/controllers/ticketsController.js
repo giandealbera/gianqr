@@ -155,6 +155,25 @@ const preSell = async (req, res) => {
     if (!own.rows[0]) return res.status(403).json({ error: 'No sos dueño de este evento' });
   }
 
+  // Permisos por tipo: si el ticket_type tiene una lista de sellers
+  // autorizados y el jefe/vendedor NO esta en ella, rechazamos. Lista vacia =
+  // abierto a todos. Mismo criterio que createPublicTicket: evita que un
+  // vendedor reserve tipos para los que el dueño no lo habilito.
+  if (['jefe_publicas', 'vendedor'].includes(req.user.role)) {
+    const restR = await db.query(
+      'SELECT 1 FROM ticket_type_sellers WHERE ticket_type_id = ? LIMIT 1',
+      [ticket_type_id]
+    );
+    if (restR.rows.length > 0) {
+      const allowR = await db.query(
+        'SELECT 1 FROM ticket_type_sellers WHERE ticket_type_id = ? AND user_id = ? LIMIT 1',
+        [ticket_type_id, req.user.id]
+      );
+      if (!allowR.rows[0])
+        return res.status(403).json({ error: 'Este tipo de entrada no está habilitado para vos.' });
+    }
+  }
+
   const VALID_METHODS = ['efectivo', 'transferencia'];
   if (!isCortesia && !VALID_METHODS.includes(payment_method))
     return res.status(400).json({ error: 'Metodo de pago invalido' });
