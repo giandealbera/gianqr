@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import { Html5Qrcode } from 'html5-qrcode';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import toast from 'react-hot-toast';
@@ -15,6 +15,7 @@ const Scanner = () => {
   const [typeSel,      setTypeSel]      = useState(searchParams.get('ticket_type') || '');
   const [result,       setResult]       = useState(null);
   const [scanning,     setScanning]     = useState(false);
+  const [camError,     setCamError]     = useState(null);
   const lastScan = useRef(0);
   // Espejo de typeSel en ref para leer el valor mas reciente dentro del
   // callback del scanner SIN remontar el componente cuando typeSel cambia.
@@ -47,48 +48,65 @@ const Scanner = () => {
     setSearchParams(p, { replace: true });
   }, [eventSel, typeSel]);
 
-  // inicializar escáner
+  // inicializar escáner.
+  // API de bajo nivel (no el widget) para arrancar directo con la cámara
+  // trasera, sin botón de permiso ni selector — útil en el puerto/control.
   useEffect(() => {
-    const scanner = new Html5QrcodeScanner(
-      'qr-reader',
-      { fps: 10, qrbox: { width: 250, height: 250 }, rememberLastUsedCamera: true },
-      false
-    );
+    const html5 = new Html5Qrcode('qr-reader', { verbose: false });
+    let cancelled = false;
 
-    scanner.render(
-      async (decodedText) => {
-        const now = Date.now();
-        if (now - lastScan.current < COOLDOWN_MS) return;
-        lastScan.current = now;
+    const onScan = async (decodedText) => {
+      const now = Date.now();
+      if (now - lastScan.current < COOLDOWN_MS) return;
+      lastScan.current = now;
 
-        let qr_code = decodedText;
+      let qr_code = decodedText;
+      try {
+        const parsed = JSON.parse(decodedText);
+        qr_code = parsed.code || decodedText;
+      } catch { /* plain text */ }
+
+      setScanning(true);
+      try {
+        const body = { qr_code };
+        // Leemos del ref para tener el valor mas reciente sin tener
+        // typeSel en las deps del efecto.
+        const currentType = typeSelRef.current;
+        if (currentType) body.ticket_type_id = currentType;
+        const res = await api.post('/tickets/scan', body);
+        setResult({ ok: true, data: res.data });
+        toast.success('Entrada válida');
+      } catch (err) {
+        const errData = err.response?.data;
+        setResult({ ok: false, data: errData });
+        toast.error(errData?.error || 'QR inválido');
+      } finally {
+        setScanning(false);
+      }
+    };
+
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+    // 1) Directo a la cámara trasera. 2) Si el device la rechaza, listamos y
+    //    elegimos la que parezca trasera (o la última, que suele serlo).
+    html5.start({ facingMode: 'environment' }, config, onScan, () => {})
+      .catch(async () => {
+        if (cancelled) return;
         try {
-          const parsed = JSON.parse(decodedText);
-          qr_code = parsed.code || decodedText;
-        } catch { /* plain text */ }
-
-        setScanning(true);
-        try {
-          const body = { qr_code };
-          // Leemos del ref para tener el valor mas reciente sin tener
-          // typeSel en las deps del efecto.
-          const currentType = typeSelRef.current;
-          if (currentType) body.ticket_type_id = currentType;
-          const res = await api.post('/tickets/scan', body);
-          setResult({ ok: true, data: res.data });
-          toast.success('Entrada válida');
-        } catch (err) {
-          const errData = err.response?.data;
-          setResult({ ok: false, data: errData });
-          toast.error(errData?.error || 'QR inválido');
-        } finally {
-          setScanning(false);
+          const cams = await Html5Qrcode.getCameras();
+          if (cancelled) return;
+          if (!cams?.length) { setCamError('No se detectó ninguna cámara.'); return; }
+          const back = cams.find(c => /back|rear|tras|environment/i.test(c.label || '')) || cams[cams.length - 1];
+          await html5.start(back.id, config, onScan, () => {});
+        } catch {
+          if (!cancelled) setCamError('No se pudo acceder a la cámara. Revisá el permiso del navegador.');
         }
-      },
-      () => {}
-    );
+      });
 
-    return () => scanner.clear().catch(() => {});
+    return () => {
+      cancelled = true;
+      html5.stop().then(() => html5.clear()).catch(() => {});
+    };
   }, []); // <- sin deps: el escaner se monta UNA vez por vida del componente
 
   const [tokens, setTokens] = useState([]);
@@ -246,6 +264,9 @@ const Scanner = () => {
             <div className="card">
               <p className="text-sm text-gray-400 mb-4">Apunta la camara al QR de la entrada</p>
               <div id="qr-reader" className="rounded-lg overflow-hidden" />
+              {camError && (
+                <div className="text-center mt-3 text-red-400 text-sm">{camError}</div>
+              )}
               {scanning && (
                 <div className="text-center mt-3 text-brand animate-pulse">Verificando...</div>
               )}

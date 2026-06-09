@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import { Html5Qrcode } from 'html5-qrcode';
 
 const BACKEND = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
 const COOLDOWN_MS = 2500;
@@ -11,6 +11,7 @@ const PublicScanner = () => {
   const [error,    setError]    = useState(null);
   const [result,   setResult]   = useState(null);
   const [scanning, setScanning] = useState(false);
+  const [camError, setCamError] = useState(null);
   const lastScan   = useRef(0);
 
   // Cargar info del escáner (evento y tipo de entrada)
@@ -24,50 +25,70 @@ const PublicScanner = () => {
       .catch(() => setError('No se pudo conectar al servidor'));
   }, [token]);
 
-  // Iniciar scanner de QR
+  // Iniciar scanner de QR.
+  // Usamos la API de bajo nivel Html5Qrcode (no el widget Html5QrcodeScanner)
+  // para arrancar SOLO con la cámara trasera y sin el botón "pedir permiso" ni
+  // el selector de cámara: el portero abre el link y ya está escaneando.
   useEffect(() => {
     if (!info) return;
 
-    const scanner = new Html5QrcodeScanner(
-      'qr-reader',
-      { fps: 10, qrbox: { width: 260, height: 260 }, rememberLastUsedCamera: true },
-      false
-    );
+    const html5 = new Html5Qrcode('qr-reader', { verbose: false });
+    let cancelled = false;
 
-    scanner.render(
-      async (decodedText) => {
-        const now = Date.now();
-        if (now - lastScan.current < COOLDOWN_MS) return;
-        lastScan.current = now;
+    const onScan = async (decodedText) => {
+      const now = Date.now();
+      if (now - lastScan.current < COOLDOWN_MS) return;
+      lastScan.current = now;
 
-        let qr_code = decodedText;
+      let qr_code = decodedText;
+      try {
+        const parsed = JSON.parse(decodedText);
+        qr_code = parsed.code || decodedText;
+      } catch { /* plain text */ }
+
+      setScanning(true);
+      setResult(null);
+      try {
+        const res = await fetch(`${BACKEND}/scan/${token}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ qr_code }),
+        });
+        const data = await res.json();
+        setResult({ ok: res.ok && data.valid, data });
+      } catch {
+        setResult({ ok: false, data: { error: 'Error de conexión' } });
+      } finally {
+        setScanning(false);
+        // Auto-reset después de 4 segundos para el siguiente escaneo
+        setTimeout(() => setResult(null), 4000);
+      }
+    };
+
+    const config = { fps: 10, qrbox: { width: 260, height: 260 } };
+
+    // 1) Intento directo con la cámara trasera. En el celular esto dispara el
+    //    pedido de permiso UNA vez y abre la de atrás sin que el portero elija.
+    html5.start({ facingMode: 'environment' }, config, onScan, () => {})
+      .catch(async () => {
+        if (cancelled) return;
+        // 2) Fallback: algún device rechaza el constraint. Listamos cámaras y
+        //    elegimos la que parezca trasera (o la última, que suele serlo).
         try {
-          const parsed = JSON.parse(decodedText);
-          qr_code = parsed.code || decodedText;
-        } catch { /* plain text */ }
-
-        setScanning(true);
-        setResult(null);
-        try {
-          const res = await fetch(`${BACKEND}/scan/${token}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ qr_code }),
-          });
-          const data = await res.json();
-          setResult({ ok: res.ok && data.valid, data });
+          const cams = await Html5Qrcode.getCameras();
+          if (cancelled) return;
+          if (!cams?.length) { setCamError('No se detectó ninguna cámara.'); return; }
+          const back = cams.find(c => /back|rear|tras|environment/i.test(c.label || '')) || cams[cams.length - 1];
+          await html5.start(back.id, config, onScan, () => {});
         } catch {
-          setResult({ ok: false, data: { error: 'Error de conexión' } });
-        } finally {
-          setScanning(false);
-          // Auto-reset después de 4 segundos para el siguiente escaneo
-          setTimeout(() => setResult(null), 4000);
+          if (!cancelled) setCamError('No se pudo acceder a la cámara. Revisá el permiso del navegador.');
         }
-      },
-      () => {}
-    );
+      });
 
-    return () => scanner.clear().catch(() => {});
+    return () => {
+      cancelled = true;
+      html5.stop().then(() => html5.clear()).catch(() => {});
+    };
   }, [info, token]);
 
   const fmt = (d) => d ? new Date(d + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'long' }) : '';
@@ -105,7 +126,7 @@ const PublicScanner = () => {
 
       <div className="px-4 py-6 max-w-md mx-auto">
         {/* Resultado del escaneo */}
-        {result ? (
+        {result && (
           <div className={`rounded-2xl border-2 p-6 mb-6 text-center transition-all ${
             result.ok ? 'border-green-500 bg-green-900/20' : 'border-red-500 bg-red-900/20'
           }`}>
@@ -139,15 +160,21 @@ const PublicScanner = () => {
               Siguiente escaneo
             </button>
           </div>
-        ) : (
-          <div className="card mb-4">
-            <p className="text-sm text-gray-400 text-center mb-4">Apuntá la cámara al QR de la entrada</p>
-            <div id="qr-reader" className="rounded-xl overflow-hidden" />
-            {scanning && (
-              <p className="text-center text-brand text-sm mt-3 animate-pulse">Verificando...</p>
-            )}
-          </div>
         )}
+
+        {/* Cámara: SIEMPRE montada (aunque haya un resultado encima) para no
+            cortar el stream — si se desmonta, html5-qrcode pierde el video y
+            re-pide permiso. La ocultamos con display mientras se ve el cartel. */}
+        <div className="card mb-4" style={{ display: result ? 'none' : 'block' }}>
+          <p className="text-sm text-gray-400 text-center mb-4">Apuntá la cámara al QR de la entrada</p>
+          <div id="qr-reader" className="rounded-xl overflow-hidden" />
+          {camError && (
+            <p className="text-center text-red-400 text-sm mt-3">{camError}</p>
+          )}
+          {scanning && (
+            <p className="text-center text-brand text-sm mt-3 animate-pulse">Verificando...</p>
+          )}
+        </div>
 
         <p className="text-center text-xs text-gray-600">
           Solo para <strong className="text-gray-500">{info.ticket_type_name}</strong> · {info.event_name}
