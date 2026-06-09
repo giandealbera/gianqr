@@ -370,11 +370,11 @@ const getAll = async (req, res) => {
   if (event_id) { where.push('t.event_id = ?'); params.push(event_id); }
   if (status)   { where.push('t.status = ?');   params.push(status); }
   if (search)   {
-    // Incluye el nombre de quien generó el QR (su.name) para poder buscar
-    // una entrada por el vendedor/cajero que la cargó.
-    where.push('(t.buyer_name LIKE ? OR t.buyer_apellido LIKE ? OR t.buyer_email LIKE ? OR t.buyer_localidad LIKE ? OR t.qr_code LIKE ? OR su.name LIKE ?)');
+    // Incluye nombre y apellido de quien generó el QR para poder buscar una
+    // entrada por el vendedor/cajero que la cargó.
+    where.push('(t.buyer_name LIKE ? OR t.buyer_apellido LIKE ? OR t.buyer_email LIKE ? OR t.buyer_localidad LIKE ? OR t.qr_code LIKE ? OR su.name LIKE ? OR su.apellido LIKE ?)');
     const q = `%${search}%`;
-    params.push(q, q, q, q, q, q);
+    params.push(q, q, q, q, q, q, q);
   }
 
   const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
@@ -382,7 +382,7 @@ const getAll = async (req, res) => {
     const result = await db.query(
       `SELECT t.*, tt.name AS tipo_entrada, e.name AS evento, e.date,
               pu.name AS vendedor_nombre, p.promo_code AS vendedor_code,
-              su.name AS generado_por
+              TRIM(su.name || ' ' || COALESCE(su.apellido, '')) AS generado_por
        FROM tickets t
        JOIN ticket_types tt ON tt.id = t.ticket_type_id
        JOIN events e ON e.id = t.event_id
