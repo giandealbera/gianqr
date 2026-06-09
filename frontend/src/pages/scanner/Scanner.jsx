@@ -117,6 +117,17 @@ const Scanner = () => {
 
   const [tokens, setTokens] = useState([]);
   const [creatingLink, setCreatingLink] = useState(false);
+  // Selección de tipos PARA EL LINK del portero (independiente del filtro del
+  // escáner de arriba). "Todos" o un subconjunto vía checkboxes.
+  const [linkAllTypes, setLinkAllTypes] = useState(true);
+  const [linkTypeIds,  setLinkTypeIds]  = useState([]);
+
+  // Al cambiar de evento, reseteo la selección del link.
+  useEffect(() => { setLinkAllTypes(true); setLinkTypeIds([]); }, [eventSel]);
+
+  const toggleLinkType = (id) => {
+    setLinkTypeIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
 
   const loadTokens = (evId) => {
     if (!evId) { setTokens([]); return; }
@@ -126,17 +137,20 @@ const Scanner = () => {
   useEffect(() => { loadTokens(eventSel); }, [eventSel]);
 
   const createPublicLink = async () => {
-    if (!eventSel || !typeSel) {
-      return toast.error('Elegi evento y tipo de entrada para generar el link');
-    }
+    if (!eventSel) return toast.error('Elegí un evento para generar el link');
+    if (!linkAllTypes && linkTypeIds.length === 0)
+      return toast.error('Elegí "Todos los tipos" o al menos un tipo de entrada');
     setCreatingLink(true);
     try {
-      const selType = ticketTypes.find(t => t.id === typeSel);
-      const selEv   = events.find(e => e.id === eventSel);
+      const selEv = events.find(e => e.id === eventSel);
+      const names = linkAllTypes
+        ? 'Todos los tipos'
+        : linkTypeIds.map(id => ticketTypes.find(t => t.id === id)?.name).filter(Boolean).join(' + ');
       const res = await api.post('/scanner-tokens', {
         event_id: eventSel,
-        ticket_type_id: typeSel,
-        label: `${selEv?.name || ''} — ${selType?.name || ''}`,
+        all_types: linkAllTypes,
+        ticket_type_ids: linkAllTypes ? [] : linkTypeIds,
+        label: `${selEv?.name || ''} — ${names}`,
       });
       const url = `${window.location.origin}/scan/${res.data.token}`;
       // El link YA esta creado en backend. El copiado al clipboard puede fallar
@@ -227,11 +241,41 @@ const Scanner = () => {
               Link compartible para portero
             </p>
             <p className="text-xs" style={{ color: '#4B5563' }}>
-              Genera un link publico que el portero puede abrir desde su celular sin login. Validara solo entradas del tipo seleccionado.
+              Genera un link publico que el portero puede abrir desde su celular sin login. Elegí qué tipos de entrada valida.
             </p>
+
+            {!eventSel ? (
+              <p className="text-xs" style={{ color: '#6B7280' }}>Elegí un evento arriba para configurar el link.</p>
+            ) : (
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={linkAllTypes}
+                    onChange={e => setLinkAllTypes(e.target.checked)}
+                  />
+                  <span className="font-medium">Todos los tipos del evento</span>
+                </label>
+                {!linkAllTypes && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pl-1">
+                    {ticketTypes.map(tt => (
+                      <label key={tt.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={linkTypeIds.includes(tt.id)}
+                          onChange={() => toggleLinkType(tt.id)}
+                        />
+                        <span className="truncate">{tt.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <button
               onClick={createPublicLink}
-              disabled={!eventSel || !typeSel || creatingLink}
+              disabled={!eventSel || creatingLink || (!linkAllTypes && linkTypeIds.length === 0)}
               className="btn-primary w-full text-sm py-2 disabled:opacity-30"
             >
               {creatingLink ? 'Generando...' : 'Generar y copiar link para portero'}
@@ -245,7 +289,7 @@ const Scanner = () => {
                   <div key={tk.id} className="flex items-center gap-2 rounded-lg p-2 text-xs"
                        style={{ background: '#0D1117', border: '1px solid #1E2530' }}>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{tk.label || tk.ticket_type_name}</p>
+                      <p className="font-medium truncate">{tk.label || tk.type_names || tk.ticket_type_name}</p>
                       <p className="font-mono truncate" style={{ color: '#6B7280' }}>/scan/{tk.token.substring(0, 8)}...</p>
                     </div>
                     <button onClick={() => copyExisting(tk.token)}

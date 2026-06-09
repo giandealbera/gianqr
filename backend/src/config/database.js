@@ -359,6 +359,8 @@ async function runMigrations(queryFn, execFn) {
     // Reset de contraseña: token random + expiracion. Se invalida tras un uso.
     'ALTER TABLE users ADD COLUMN reset_token TEXT',
     'ALTER TABLE users ADD COLUMN reset_token_expires DATETIME',
+    // Link de portero que valida TODOS los tipos del evento (1 = todos).
+    'ALTER TABLE scanner_tokens ADD COLUMN all_types INTEGER DEFAULT 0',
   ];
   for (const sql of incrementals) {
     await tryMigrate(sql.slice(0, 60), sql);
@@ -388,6 +390,16 @@ async function runMigrations(queryFn, execFn) {
     is_active      INTEGER DEFAULT 1,
     created_by     TEXT,
     created_at     DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+
+  // Un link de portero puede validar VARIOS tipos (o todos). all_types=1 acepta
+  // cualquier tipo del evento; si hay filas en scanner_token_types, valida solo
+  // esos tipos; si no hay ninguna de las dos cosas, cae al ticket_type_id único
+  // (links viejos de un solo tipo siguen funcionando igual).
+  await execFn(`CREATE TABLE IF NOT EXISTS scanner_token_types (
+    token_id       TEXT NOT NULL,
+    ticket_type_id TEXT NOT NULL,
+    PRIMARY KEY (token_id, ticket_type_id)
   )`);
 
   await execFn(`CREATE TABLE IF NOT EXISTS zonas (

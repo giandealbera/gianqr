@@ -130,6 +130,24 @@ const EventTicketTypes = () => {
     }
   };
 
+  // Link que valida TODOS los tipos del evento (un solo portero para todo).
+  const generateAllTypesLink = async () => {
+    setGenningFor('all');
+    try {
+      const res = await api.post('/scanner-tokens', {
+        event_id: id,
+        all_types: true,
+        label: 'Todos los tipos',
+      });
+      setTokens(prev => [res.data, ...prev]);
+      toast.success('Link para todos los tipos generado!');
+    } catch {
+      toast.error('Error al generar link');
+    } finally {
+      setGenningFor(null);
+    }
+  };
+
   const revokeToken = async (tokenId) => {
     try {
       await api.delete(`/scanner-tokens/${tokenId}`);
@@ -218,6 +236,17 @@ const EventTicketTypes = () => {
           </div>
           <button onClick={openNew} className="btn-primary shrink-0">+ Nueva tanda</button>
         </div>
+
+        {/* Link de portero para TODOS los tipos del evento */}
+        {types.length > 0 && (
+          <button
+            onClick={generateAllTypesLink}
+            disabled={genningFor === 'all'}
+            className="w-full mb-5 text-sm px-3 py-2.5 rounded-lg border border-blue-800 text-blue-400 hover:border-blue-600 transition-colors disabled:opacity-50"
+            title="Genera un link de portero que valida cualquier tipo de entrada del evento">
+            {genningFor === 'all' ? 'Generando...' : '🔗 Link de portero para TODOS los tipos'}
+          </button>
+        )}
 
         {/* Formulario nueva/editar tanda */}
         {showForm && (
@@ -396,7 +425,7 @@ const EventTicketTypes = () => {
               {tokens.map(t => (
                 <div key={t.id} className="card py-3 flex items-center gap-3">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">{t.ticket_type_name}</p>
+                    <p className="text-sm font-medium">{t.type_names || t.ticket_type_name}</p>
                     <p className="text-xs text-gray-500 font-mono truncate">{FRONTEND}/scan/{t.token}</p>
                   </div>
                   <div className="flex gap-2 shrink-0">

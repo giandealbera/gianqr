@@ -11,6 +11,36 @@ async function canManageEvent(user, event_id) {
   return false;
 }
 
+// Devuelve los tipos de entrada (id + name) que valida un token, según el
+// modelo de 3 niveles: all_types=1 → todos los del evento; filas en
+// scanner_token_types → solo esos; si no, el ticket_type_id único (legacy).
+async function resolveTokenTypes(row) {
+  if (Number(row.all_types) === 1) {
+    const r = await db.query(
+      'SELECT id, name FROM ticket_types WHERE event_id = ? ORDER BY created_at ASC',
+      [row.event_id]
+    );
+    return { all: true, types: r.rows };
+  }
+  const j = await db.query(
+    `SELECT tt.id, tt.name
+       FROM scanner_token_types stt
+       JOIN ticket_types tt ON tt.id = stt.ticket_type_id
+      WHERE stt.token_id = ?`,
+    [row.id]
+  );
+  if (j.rows.length > 0) return { all: false, types: j.rows };
+  // Legacy: un solo tipo.
+  const r = await db.query('SELECT id, name FROM ticket_types WHERE id = ?', [row.ticket_type_id]);
+  return { all: false, types: r.rows };
+}
+
+// Texto para mostrar en la UI a partir de los tipos resueltos.
+function typesLabel(resolved) {
+  if (resolved.all) return 'Todos los tipos';
+  return resolved.types.map(t => t.name).join(' + ');
+}
+
 // GET /api/scanner-tokens?event_id= — admin/owner lista tokens activos de un evento
 const getTokens = async (req, res) => {
   const { event_id } = req.query;
@@ -21,41 +51,100 @@ const getTokens = async (req, res) => {
     const result = await db.query(
       `SELECT st.*, tt.name AS ticket_type_name, e.name AS event_name
        FROM scanner_tokens st
-       JOIN ticket_types tt ON tt.id = st.ticket_type_id
+       LEFT JOIN ticket_types tt ON tt.id = st.ticket_type_id
        JOIN events e ON e.id = st.event_id
        WHERE st.event_id = ? AND st.is_active = 1
        ORDER BY st.created_at DESC`,
       [event_id]
     );
-    res.json(result.rows);
+    const rows = [];
+    for (const row of result.rows) {
+      const resolved = await resolveTokenTypes(row);
+      rows.push({ ...row, type_names: typesLabel(resolved), all_types: Number(row.all_types) === 1 ? 1 : 0 });
+    }
+    res.json(rows);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error al obtener tokens' });
   }
 };
 
-// POST /api/scanner-tokens — admin/owner genera un link para una tanda
+// POST /api/scanner-tokens — admin/owner genera un link para una o varias tandas
+// Acepta: { event_id, ticket_type_id (legacy), ticket_type_ids: [], all_types, label }
 const createToken = async (req, res) => {
-  const { event_id, ticket_type_id, label } = req.body;
-  if (!event_id || !ticket_type_id)
-    return res.status(400).json({ error: 'event_id y ticket_type_id son requeridos' });
+  const { event_id, ticket_type_id, ticket_type_ids, all_types, label } = req.body;
+  if (!event_id) return res.status(400).json({ error: 'event_id es requerido' });
   if (!(await canManageEvent(req.user, event_id)))
     return res.status(403).json({ error: 'Sin acceso a este evento' });
+
+  // Normalizo los tipos pedidos (array nuevo + single legacy), sin duplicados.
+  const requested = [];
+  if (Array.isArray(ticket_type_ids)) requested.push(...ticket_type_ids);
+  if (ticket_type_id) requested.push(ticket_type_id);
+  const chosenIds = [...new Set(requested.filter(Boolean))];
+  const wantsAll = !!all_types;
+
+  if (!wantsAll && chosenIds.length === 0)
+    return res.status(400).json({ error: 'Elegí al menos un tipo de entrada o "Todos los tipos"' });
+
   try {
+    // Tipos reales del evento — para validar y elegir el placeholder NOT NULL.
+    const evTypes = await db.query(
+      'SELECT id, name FROM ticket_types WHERE event_id = ? ORDER BY created_at ASC',
+      [event_id]
+    );
+    if (evTypes.rows.length === 0)
+      return res.status(400).json({ error: 'El evento no tiene tipos de entrada' });
+    const validIds = new Set(evTypes.rows.map(t => t.id));
+
+    let placeholder;        // ticket_type_id (NOT NULL) representativo
+    let junction = [];      // filas extra solo si es subset multi-tipo
+    if (wantsAll) {
+      placeholder = evTypes.rows[0].id;
+    } else {
+      for (const id of chosenIds) {
+        if (!validIds.has(id))
+          return res.status(400).json({ error: 'Un tipo de entrada no pertenece a este evento' });
+      }
+      placeholder = chosenIds[0];
+      if (chosenIds.length > 1) junction = chosenIds;
+    }
+
+    // Label automático si no lo mandan.
+    let finalLabel = label;
+    if (!finalLabel) {
+      if (wantsAll) finalLabel = 'Todos los tipos';
+      else finalLabel = chosenIds
+        .map(id => evTypes.rows.find(t => t.id === id)?.name)
+        .filter(Boolean)
+        .join(' + ');
+    }
+
     const id    = uuidv4();
     const token = uuidv4();
-    await db.query(
-      'INSERT INTO scanner_tokens (id, token, event_id, ticket_type_id, label, created_by) VALUES (?,?,?,?,?,?)',
-      [id, token, event_id, ticket_type_id, label || null, req.user.id]
-    );
-    const result = await db.query(
+    await db.transaction(async (conn) => {
+      await conn.query(
+        'INSERT INTO scanner_tokens (id, token, event_id, ticket_type_id, all_types, label, created_by) VALUES (?,?,?,?,?,?,?)',
+        [id, token, event_id, placeholder, wantsAll ? 1 : 0, finalLabel || null, req.user.id]
+      );
+      for (const ttId of junction) {
+        await conn.query(
+          'INSERT INTO scanner_token_types (token_id, ticket_type_id) VALUES (?,?)',
+          [id, ttId]
+        );
+      }
+    });
+
+    const out = await db.query(
       `SELECT st.*, tt.name AS ticket_type_name, e.name AS event_name
        FROM scanner_tokens st
-       JOIN ticket_types tt ON tt.id = st.ticket_type_id
+       LEFT JOIN ticket_types tt ON tt.id = st.ticket_type_id
        JOIN events e ON e.id = st.event_id
        WHERE st.id = ?`, [id]
     );
-    res.status(201).json(result.rows[0]);
+    const row = out.rows[0];
+    const resolved = await resolveTokenTypes(row);
+    res.status(201).json({ ...row, type_names: typesLabel(resolved), all_types: wantsAll ? 1 : 0 });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error al crear token' });
@@ -95,7 +184,7 @@ const getScannerInfo = async (req, res) => {
               tt.name AS ticket_type_name, tt.price AS ticket_price
        FROM scanner_tokens st
        JOIN events e ON e.id = st.event_id
-       JOIN ticket_types tt ON tt.id = st.ticket_type_id
+       LEFT JOIN ticket_types tt ON tt.id = st.ticket_type_id
        WHERE st.token = ? AND st.is_active = 1`,
       [token]
     );
@@ -103,10 +192,11 @@ const getScannerInfo = async (req, res) => {
     const row = result.rows[0];
     if (tokenExpired(row.event_date))
       return res.status(410).json({ error: 'Link vencido: el evento ya finalizó' });
+    const resolved = await resolveTokenTypes(row);
     res.json({
       event_name:        row.event_name,
       event_date:        row.event_date,
-      ticket_type_name:  row.ticket_type_name,
+      ticket_type_name:  typesLabel(resolved),
       ticket_price:      row.ticket_price,
       label:             row.label,
     });
@@ -127,7 +217,7 @@ const publicScan = async (req, res) => {
       `SELECT st.*, tt.name AS ticket_type_name, e.name AS event_name, e.date AS event_date
        FROM scanner_tokens st
        JOIN events e ON e.id = st.event_id
-       JOIN ticket_types tt ON tt.id = st.ticket_type_id
+       LEFT JOIN ticket_types tt ON tt.id = st.ticket_type_id
        WHERE st.token = ? AND st.is_active = 1`,
       [token]
     );
@@ -136,6 +226,13 @@ const publicScan = async (req, res) => {
     const scannerInfo = tokenResult.rows[0];
     if (tokenExpired(scannerInfo.event_date))
       return res.status(410).json({ valid: false, error: 'Link vencido: el evento ya finalizó' });
+
+    // Tipos que este link acepta: null = todos los del evento.
+    let allowedIds = null;
+    if (Number(scannerInfo.all_types) !== 1) {
+      const resolved = await resolveTokenTypes(scannerInfo);
+      allowedIds = resolved.types.map(t => t.id);
+    }
 
     const ticketResult = await db.query(
       `SELECT t.*, tt.name AS tipo_entrada, e.name AS evento
@@ -151,10 +248,10 @@ const publicScan = async (req, res) => {
     if (ticket.event_id !== scannerInfo.event_id)
       return res.status(400).json({ valid: false, error: 'Este ticket es de otro evento', ticket });
 
-    if (ticket.ticket_type_id !== scannerInfo.ticket_type_id)
+    if (allowedIds && !allowedIds.includes(ticket.ticket_type_id))
       return res.status(400).json({
         valid: false,
-        error: `Ticket tipo "${ticket.tipo_entrada}" — este escáner es solo para "${scannerInfo.ticket_type_name}"`,
+        error: `Ticket tipo "${ticket.tipo_entrada}" — este escáner no acepta ese tipo`,
         ticket,
       });
 
