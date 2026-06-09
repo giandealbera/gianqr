@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
+import useBodyScrollLock from '../../hooks/useBodyScrollLock';
 import toast from 'react-hot-toast';
 
 const emptyForm = { name: '', price: '', total_quota: '' };
@@ -26,6 +27,7 @@ const EventTicketTypes = () => {
   // jefes/vendedores del owner (para los checkboxes). selectedSellers:
   // Set de user_ids marcados.
   const [sellersFor,       setSellersFor]       = useState(null);
+  useBodyScrollLock(!!sellersFor);
   const [allSellers,       setAllSellers]       = useState([]);
   const [selectedSellers,  setSelectedSellers]  = useState(new Set());
   const [sellersLoading,   setSellersLoading]   = useState(false);

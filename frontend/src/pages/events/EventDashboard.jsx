@@ -3,6 +3,8 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import { useAuth } from '../../context/AuthContext';
+import { useConfirm } from '../../context/ConfirmContext';
+import useBodyScrollLock from '../../hooks/useBodyScrollLock';
 import toast from 'react-hot-toast';
 
 const SvgIcon = ({ path, size = 'w-5 h-5' }) => (
@@ -34,10 +36,12 @@ const EventDashboard = () => {
   const { id } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const [event, setEvent]   = useState(null);
   const [stats, setStats]   = useState(null);
   const [loading, setLoading] = useState(true);
   const [showOwnersModal, setShowOwnersModal] = useState(false);
+  useBodyScrollLock(showOwnersModal);
   const [owners, setOwners]     = useState([]);
   const [allOwners, setAllOwners] = useState([]); // usuarios con rol owner
   const [addingOwner, setAddingOwner] = useState(false);
@@ -93,7 +97,13 @@ const EventDashboard = () => {
   const canSeeStats = ['admin','owner'].includes(user?.role);
 
   const stopSales = async () => {
-    if (!confirm('¿Cortar la venta de entradas? Nadie va a poder comprar más (vos podés reanudarla cuando quieras). Tu evento sigue accesible para rendir y escanear.')) return;
+    const ok = await confirm({
+      title: 'Cortar venta de entradas',
+      message: 'Nadie va a poder comprar más. Podés reanudar cuando quieras; el evento sigue accesible para rendir y escanear.',
+      confirmText: 'Cortar venta',
+      dangerous: true,
+    });
+    if (!ok) return;
     try {
       await api.post(`/events/${id}/stop-sales`);
       toast.success('Venta cortada');

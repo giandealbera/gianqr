@@ -3,6 +3,7 @@ import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
+import { useConfirm } from '../../context/ConfirmContext';
 
 const ROLES_ADMIN = ['jefe_publicas', 'vendedor', 'admin', 'owner'];
 const ROLES_OWNER = ['jefe_publicas', 'vendedor'];
@@ -21,6 +22,7 @@ const emptyFormFor = (isOwner) => ({
 
 const Users = () => {
   const { user: me } = useAuth();
+  const confirm = useConfirm();
   const isOwner = me?.role === 'owner';
   const ROLES = isOwner ? ROLES_OWNER : ROLES_ADMIN;
   const [users,       setUsers]       = useState([]);
@@ -87,7 +89,13 @@ const Users = () => {
   const hardDelete = async (u) => {
     const nombre = `${u.name} ${u.apellido || ''}`.trim();
     const tipo   = ROLE_LABELS[u.role] || u.role;
-    if (!window.confirm(`¿Eliminar definitivamente a ${nombre} (${tipo})?\n\nEsto borra al usuario de la base de datos. NO se puede deshacer.\n\n• Sus sesiones y códigos de 2FA se borran.\n• Sus eventos creados quedan sin dueño asignado.\n• Sus tickets vendidos/escaneados quedan en la base pero sin referencia.\n• Su staff (jefes/vendedores) queda huérfano.\n\nSi tenés dudas, usá "Desactivar" mejor.`)) return;
+    const ok = await confirm({
+      title: `Eliminar definitivamente a ${nombre} (${tipo})`,
+      message: 'Esto borra al usuario de la base de datos. NO se puede deshacer.\n• Sus sesiones y códigos de 2FA se borran.\n• Sus eventos creados quedan sin dueño asignado.\n• Sus tickets vendidos/escaneados quedan en la base pero sin referencia.\n• Su staff (jefes/vendedores) queda huérfano.\n\nSi tenés dudas, usá "Desactivar" mejor.',
+      confirmText: 'Eliminar definitivamente',
+      dangerous: true,
+    });
+    if (!ok) return;
     // Segundo confirm pidiendo escribir el nombre — ultimo seguro contra
     // "Enter por inercia" en el confirm anterior.
     const typed = window.prompt(`Escribí "${nombre}" exactamente para confirmar:`);
@@ -110,7 +118,12 @@ const Users = () => {
   // password al primer login (must_change_password) y listo.
   const generateMagic = async (u) => {
     const nombre = `${u.name} ${u.apellido || ''}`.trim();
-    if (!window.confirm(`Generar acceso temporal de 48h para ${nombre}?\n\nVas a ver un link que tenés que mandarle por WhatsApp/email/etc. Es de un solo uso: cuando lo abren, se invalida.`)) return;
+    const ok = await confirm({
+      title: `Generar acceso de 48h para ${nombre}`,
+      message: 'Vas a ver un link que tenés que mandarle por WhatsApp/email. Es de un solo uso: cuando lo abren, se invalida.',
+      confirmText: 'Generar link',
+    });
+    if (!ok) return;
     setMagicLoading(u.id);
     try {
       const r = await api.post(`/users/${u.id}/magic-link`);
@@ -131,7 +144,13 @@ const Users = () => {
   };
 
   const softDeactivate = async (u) => {
-    if (!window.confirm(`¿Desactivar a ${u.name}? Va a perder acceso pero queda el historial.`)) return;
+    const ok = await confirm({
+      title: `Desactivar a ${u.name}`,
+      message: 'Va a perder acceso pero queda el historial.',
+      confirmText: 'Desactivar',
+      dangerous: true,
+    });
+    if (!ok) return;
     try {
       await api.delete(`/users/${u.id}`);
       toast.success('Usuario desactivado');

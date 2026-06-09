@@ -4,6 +4,8 @@ import { FixedSizeList as VirtualList } from 'react-window';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import { useAuth } from '../../context/AuthContext';
+import { useConfirm } from '../../context/ConfirmContext';
+import { SkeletonRow } from '../../components/Skeleton';
 import toast from 'react-hot-toast';
 
 const STATUS_BADGE = {
@@ -67,6 +69,7 @@ const SoldTickets = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const confirm = useConfirm();
   // Solo el dueño del evento puede exportar. El admin ve la pantalla
   // (por scope a su arbol) pero no descarga el Excel completo.
   const canExport = user?.role === 'owner';
@@ -104,7 +107,13 @@ const SoldTickets = () => {
   }, [id]);
 
   const handleDelete = useCallback(async (t) => {
-    if (!window.confirm(`¿Eliminar la entrada de ${t.buyer_name || 'comprador'}?\nSe libera el cupo y no se puede deshacer.`)) return;
+    const ok = await confirm({
+      title: 'Eliminar entrada',
+      message: `Se va a borrar la entrada de ${t.buyer_name || 'comprador'}.\nEl cupo queda liberado y no se puede deshacer.`,
+      confirmText: 'Eliminar',
+      dangerous: true,
+    });
+    if (!ok) return;
     try {
       await api.delete(`/tickets/${t.id}`);
       setTickets(prev => prev.filter(x => x.id !== t.id));
@@ -113,7 +122,7 @@ const SoldTickets = () => {
       console.error(err);
       toast.error(err?.response?.data?.error || 'No se pudo eliminar');
     }
-  }, []);
+  }, [confirm]);
 
   // Filtros memoizados — sino se re-corren en cada keystroke incluso si
   // tickets no cambio (cuando el componente re-renderiza por otra razon).
@@ -232,9 +241,7 @@ const SoldTickets = () => {
 
         {/* Ticket list */}
         {loading ? (
-          <div className="flex justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-brand" />
-          </div>
+          <div>{Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)}</div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
             {search || statusFilter ? 'No se encontraron entradas' : 'No hay entradas vendidas'}

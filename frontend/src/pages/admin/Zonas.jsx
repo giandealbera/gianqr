@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
+import { useConfirm } from '../../context/ConfirmContext';
 import toast from 'react-hot-toast';
 
 const Zonas = () => {
+  const confirm = useConfirm();
   const [list, setList]       = useState([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm]       = useState({ id: null, name: '' });
@@ -39,7 +41,13 @@ const Zonas = () => {
   };
 
   const remove = async (z) => {
-    if (!confirm(`¿Eliminar la zona "${z.name}"? Los vendedores que estaban en esta zona quedarán sin zona asignada.`)) return;
+    const ok = await confirm({
+      title: `Eliminar zona "${z.name}"`,
+      message: 'Los vendedores que estaban en esta zona quedarán sin zona asignada.',
+      confirmText: 'Eliminar',
+      dangerous: true,
+    });
+    if (!ok) return;
     try {
       await api.delete(`/zonas/${z.id}`);
       toast.success('Zona eliminada');

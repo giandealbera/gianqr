@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
+import { useConfirm } from '../../context/ConfirmContext';
 import toast from 'react-hot-toast';
 
 const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n || 0);
 const REFRESH_MS = 3000;
 
 const LiveControl = () => {
+  const confirm = useConfirm();
   const [events,    setEvents]    = useState([]);
   const [eventSel,  setEventSel]  = useState('');
   const [stats,     setStats]     = useState(null);
@@ -91,7 +93,13 @@ const LiveControl = () => {
 
   const handleDelete = async (t) => {
     const nombre = `${t.buyer_name} ${t.buyer_apellido || ''}`.trim();
-    if (!confirm(`Eliminar la entrada de ${nombre}?\n\nQR: ${t.qr_code}\nEsto libera el cupo y borra el registro.`)) return;
+    const ok = await confirm({
+      title: `Eliminar entrada de ${nombre}`,
+      message: `QR: ${t.qr_code}\nSe libera el cupo y se borra el registro.`,
+      confirmText: 'Eliminar',
+      dangerous: true,
+    });
+    if (!ok) return;
     try {
       await api.delete(`/tickets/${t.id}`);
       toast.success('Entrada eliminada');

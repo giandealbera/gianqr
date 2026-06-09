@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
+import { useConfirm } from '../../context/ConfirmContext';
 import toast from 'react-hot-toast';
 
 const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n || 0);
@@ -11,6 +12,7 @@ const ROLE_LABELS = {
 };
 
 const Rendicion = () => {
+  const confirm = useConfirm();
   const [list,      setList]      = useState([]);
   const [search,    setSearch]    = useState('');
   const [loading,   setLoading]   = useState(true);
@@ -71,7 +73,12 @@ const Rendicion = () => {
     e.stopPropagation();
     if (publica.saldo_pendiente <= 0) return;
     const nombre = `${publica.name} ${publica.apellido || ''}`.trim();
-    if (!confirm(`Marcar a ${nombre} como pagó todo?\n\nSe registra un pago por ${fmt(publica.saldo_pendiente)} y su saldo queda en cero.`)) return;
+    const ok = await confirm({
+      title: `Marcar a ${nombre} como pagó todo`,
+      message: `Se registra un pago por ${fmt(publica.saldo_pendiente)} y su saldo queda en cero.`,
+      confirmText: 'Marcar pagado',
+    });
+    if (!ok) return;
     try {
       await api.post('/rendiciones', {
         promotor_id: publica.promotor_id,
@@ -88,7 +95,12 @@ const Rendicion = () => {
   const marcarPagoEvento = async (ev) => {
     const pendiente = (ev.a_enviar || 0) - (ev.pagado_evento || 0);
     if (pendiente <= 0) return;
-    if (!confirm(`Marcar el evento "${ev.evento}" como pagado?\n\nSe registra un pago por ${fmt(pendiente)} asociado a ese evento.`)) return;
+    const ok = await confirm({
+      title: `Marcar evento "${ev.evento}" como pagado`,
+      message: `Se registra un pago por ${fmt(pendiente)} asociado al evento.`,
+      confirmText: 'Marcar pagado',
+    });
+    if (!ok) return;
     try {
       await api.post('/rendiciones', {
         promotor_id: selected,
@@ -104,7 +116,13 @@ const Rendicion = () => {
   };
 
   const handleEliminarPago = async (pagoId) => {
-    if (!confirm('¿Eliminar este pago?')) return;
+    const ok = await confirm({
+      title: 'Eliminar pago',
+      message: 'Se borra el registro del pago.',
+      confirmText: 'Eliminar',
+      dangerous: true,
+    });
+    if (!ok) return;
     try {
       await api.delete(`/rendiciones/${pagoId}`);
       toast.success('Pago eliminado');

@@ -4,6 +4,7 @@ import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
+import { SkeletonEventCard } from '../../components/Skeleton';
 
 const initialForm = {
   name: '', description: '', date: '', start_time: '', end_time: '',
@@ -411,9 +412,9 @@ const MyEvents = () => {
 
         {/* Event list */}
         {loading ? (
-          <div className="flex justify-center py-16">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-brand" />
-          </div>
+          // 5 skeletons imitan el alto de un card de evento. El usuario ve
+          // la "forma" de la lista y la transicion a data se siente fluida.
+          <div>{Array.from({ length: 5 }).map((_, i) => <SkeletonEventCard key={i} />)}</div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-16">
             <p className="text-4xl mb-3">🎉</p>

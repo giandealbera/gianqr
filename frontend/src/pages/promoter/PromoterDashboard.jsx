@@ -3,12 +3,14 @@ import { Link } from 'react-router-dom';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import { useAuth } from '../../context/AuthContext';
+import { useConfirm } from '../../context/ConfirmContext';
 import toast from 'react-hot-toast';
 
 const emptyMember = { name: '', apellido: '', celular: '', localidad: '', email: '', password: '', commission: 800 };
 
 const PromoterDashboard = () => {
   const { user } = useAuth();
+  const confirm = useConfirm();
   const [data,         setData]         = useState(null);
   const [loading,      setLoading]      = useState(true);
   const [team,         setTeam]         = useState([]);
@@ -56,7 +58,13 @@ const PromoterDashboard = () => {
 
   const removeMember = async (m) => {
     const nombre = `${m.name} ${m.apellido || ''}`.trim();
-    if (!confirm(`Quitar a ${nombre} del equipo?\n\nNo va a poder loguearse mas, pero sus ventas e historial se conservan.`)) return;
+    const ok = await confirm({
+      title: `Quitar a ${nombre} del equipo`,
+      message: 'No va a poder loguearse más, pero sus ventas e historial se conservan.',
+      confirmText: 'Quitar',
+      dangerous: true,
+    });
+    if (!ok) return;
     try {
       await api.delete(`/users/team/${m.id}`);
       toast.success('Vendedor desactivado');

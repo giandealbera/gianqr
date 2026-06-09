@@ -7,6 +7,7 @@
 import { useEffect, useState } from 'react';
 import api from '../api/axios';
 import Layout from '../components/Layout';
+import { useConfirm } from '../context/ConfirmContext';
 import toast from 'react-hot-toast';
 
 // Heuristica simple para identificar el dispositivo a partir del UA.
@@ -40,6 +41,7 @@ const fmt = (s) => {
 };
 
 const Sessions = () => {
+  const confirm = useConfirm();
   const [rows, setRows]     = useState([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
@@ -68,7 +70,13 @@ const Sessions = () => {
   };
 
   const revokeOthers = async () => {
-    if (!window.confirm('Esto cierra TODAS las sesiones excepto la actual. ¿Continuar?')) return;
+    const ok = await confirm({
+      title: 'Cerrar otras sesiones',
+      message: 'Se cierran TODAS las sesiones activas excepto la actual.',
+      confirmText: 'Cerrar todas',
+      dangerous: true,
+    });
+    if (!ok) return;
     setBusyId('others');
     try {
       await api.post('/sessions/revoke-others');

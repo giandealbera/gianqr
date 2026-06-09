@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
+import { useConfirm } from '../../context/ConfirmContext';
 
 const EMPTY = { id: null, nombre: '', apellido: '', alias_cbu: '', notas: '' };
 
 const Proveedores = () => {
+  const confirm = useConfirm();
   const [list, setList]       = useState([]);
   const [search, setSearch]   = useState('');
   const [loading, setLoading] = useState(false);
@@ -72,7 +74,13 @@ const Proveedores = () => {
   };
 
   const remove = async (p) => {
-    if (!confirm(`¿Eliminar a ${p.nombre}${p.apellido ? ' ' + p.apellido : ''}?`)) return;
+    const ok = await confirm({
+      title: 'Eliminar proveedor',
+      message: `Se va a borrar a ${p.nombre}${p.apellido ? ' ' + p.apellido : ''}.`,
+      confirmText: 'Eliminar',
+      dangerous: true,
+    });
+    if (!ok) return;
     try {
       await api.delete(`/proveedores/${p.id}`);
       toast.success('Proveedor eliminado');

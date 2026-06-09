@@ -3,7 +3,9 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { Toaster } from 'react-hot-toast';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ConfirmProvider } from './context/ConfirmContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import ScrollManager from './components/ScrollManager';
 
 // Páginas del flujo de auth — eager (siempre cargan rápido al abrir la app)
 import Login             from './pages/Login';
@@ -95,7 +97,9 @@ const RoleRedirect = () => {
 
 const App = () => (
   <AuthProvider>
+    <ConfirmProvider>
     <BrowserRouter>
+      <ScrollManager />
       <Toaster
         position="top-right"
         toastOptions={{
@@ -235,6 +239,7 @@ const App = () => (
       </AnimatedRoutes>
       </Suspense>
     </BrowserRouter>
+    </ConfirmProvider>
   </AuthProvider>
 );
 

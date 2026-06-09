@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
+import useBodyScrollLock from '../../hooks/useBodyScrollLock';
 
 const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n || 0);
 
@@ -11,6 +12,7 @@ const ResetEventos = () => {
   const [confirm, setConfirm] = useState(null); // {event_id, name, vendidas, recaudado}
   const [typed, setTyped]     = useState('');
   const [resetting, setReset] = useState(false);
+  useBodyScrollLock(!!confirm);
 
   const load = async () => {
     setLoading(true);

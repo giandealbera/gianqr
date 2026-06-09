@@ -72,6 +72,17 @@ const BottomNav = () => {
     if (fn) fn().catch(() => {/* fallo silencioso, el lazy normal lo reintenta */});
   };
 
+  // Patron iOS nativo: tocar la pestaña ACTIVA en el nav inferior te lleva
+  // al top de la pagina con scroll suave. Sirve un monton en listas largas
+  // (eventos, tickets vendidos, control en vivo) — antes habia que swipear
+  // manualmente hasta arriba.
+  const handleNavClick = (to) => (e) => {
+    if (location.pathname === to) {
+      e.preventDefault();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
   // Match por "mejor prefijo": un item se prende si su path es el mas largo
   // de los items que prefijean el pathname actual. Asi `/promotor/vender`
   // prende "Vender" y NO "Mi Panel" (`/promotor`); `/admin/usuarios` prende
@@ -96,6 +107,7 @@ const BottomNav = () => {
             <NavLink
               key={item.to}
               to={item.to}
+              onClick={handleNavClick(item.to)}
               onTouchStart={() => prefetch(item.to)}
               onMouseEnter={() => prefetch(item.to)}
               className="relative flex flex-col items-center gap-0.5 px-3 py-2 rounded-lg text-xs font-medium min-w-[56px]"

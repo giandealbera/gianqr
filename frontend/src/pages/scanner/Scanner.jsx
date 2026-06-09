@@ -3,11 +3,13 @@ import { useSearchParams } from 'react-router-dom';
 import { Html5Qrcode } from 'html5-qrcode';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
+import { useConfirm } from '../../context/ConfirmContext';
 import toast from 'react-hot-toast';
 
 const COOLDOWN_MS = 2000;
 
 const Scanner = () => {
+  const confirm = useConfirm();
   const [searchParams, setSearchParams] = useSearchParams();
   const [events,       setEvents]       = useState([]);
   const [ticketTypes,  setTicketTypes]  = useState([]);
@@ -178,7 +180,13 @@ const Scanner = () => {
   };
 
   const deleteToken = async (id) => {
-    if (!confirm('Desactivar este link? El portero no va a poder escanear mas con el.')) return;
+    const ok = await confirm({
+      title: 'Desactivar link',
+      message: 'El portero no va a poder escanear más con este link.',
+      confirmText: 'Desactivar',
+      dangerous: true,
+    });
+    if (!ok) return;
     try {
       await api.delete(`/scanner-tokens/${id}`);
       toast.success('Link desactivado');
