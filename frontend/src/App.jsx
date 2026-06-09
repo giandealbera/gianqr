@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -95,18 +95,39 @@ const RoleRedirect = () => {
   return <Navigate to="/eventos" replace />;
 };
 
+// Toaster responsive: en desktop arriba a la derecha como siempre; en mobile
+// abajo al centro asi no tapa el header sticky y el dedo del usuario lo
+// alcanza facil con la mano que ya esta usando para tocar.
+const ResponsiveToaster = () => {
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 640px)');
+    const onChange = (e) => setIsMobile(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  return (
+    <Toaster
+      position={isMobile ? 'bottom-center' : 'top-right'}
+      // En mobile dejamos espacio arriba del bottom-nav (96px = pb-24) +
+      // safe-area-inset-bottom para no quedar tapados por el home indicator.
+      containerStyle={isMobile ? { bottom: 'calc(96px + env(safe-area-inset-bottom, 0))' } : undefined}
+      toastOptions={{
+        style: { background: '#1f2937', color: '#f9fafb', border: '1px solid #374151' },
+        success: { iconTheme: { primary: '#7C3AED', secondary: '#fff' } },
+      }}
+    />
+  );
+};
+
 const App = () => (
   <AuthProvider>
     <ConfirmProvider>
     <BrowserRouter>
       <ScrollManager />
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          style: { background: '#1f2937', color: '#f9fafb', border: '1px solid #374151' },
-          success: { iconTheme: { primary: '#7C3AED', secondary: '#fff' } },
-        }}
-      />
+      <ResponsiveToaster />
       <Suspense fallback={<PageLoader />}>
       <AnimatedRoutes>
       <Routes>

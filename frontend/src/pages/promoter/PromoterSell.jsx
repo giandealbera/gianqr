@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import toast from 'react-hot-toast';
@@ -21,6 +21,10 @@ const PromoterSell = () => {
   // (eso lo ve el comprador al cargar sus datos). Solo copia y comparte el link.
   const [generatedLink, setGeneratedLink] = useState('');
   const [loadingLink,   setLoadingLink]   = useState(false);
+  // Ref al card del link para auto-scrollear apenas aparece (en mobile el
+  // boton "Generar QR" y el form quedan arriba; al generar, el card del
+  // link aparece debajo y se perdia de vista).
+  const linkCardRef = useRef(null);
 
   useEffect(() => {
     api.get('/events').then(r => setEvents(r.data.filter(e => e.is_active)));
@@ -38,6 +42,17 @@ const PromoterSell = () => {
   useEffect(() => {
     setGeneratedLink('');
   }, [eventSel, typeSel, qty, payMethod]);
+
+  // Cuando aparece un link recien generado, scrolleamos suave hacia el card.
+  // En mobile el form puede ser largo y el link aparecia "abajo" sin que el
+  // vendedor lo viera.
+  useEffect(() => {
+    if (generatedLink && linkCardRef.current) {
+      requestAnimationFrame(() => {
+        linkCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    }
+  }, [generatedLink]);
 
   const selectedType  = ticketTypes.find(t => t.id === typeSel);
   const selectedEvent = events.find(e => e.id === eventSel);
@@ -168,7 +183,7 @@ const PromoterSell = () => {
           )}
 
           {generatedLink ? (
-            <div className="space-y-4 pt-2 border-t border-gray-800">
+            <div ref={linkCardRef} className="space-y-4 pt-2 border-t border-gray-800">
               <p className="text-xs uppercase tracking-widest font-semibold text-center" style={{ color: '#6B7280' }}>
                 Link para el comprador — ya quedó reservada
               </p>

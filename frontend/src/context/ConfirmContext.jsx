@@ -89,9 +89,20 @@ export const ConfirmProvider = ({ children }) => {
                 borderRadius: '20px 20px 0 0',
                 color:       '#E8EAF0',
               }}
+              // Swipe-down para cerrar (cancelar). dragConstraints={top:0} evita
+              // que se arrastre hacia arriba; al soltar pasada la mitad del
+              // umbral o con velocidad alta, lo tomamos como cancelar.
+              drag="y"
+              dragConstraints={{ top: 0, bottom: 0 }}
+              dragElastic={{ top: 0, bottom: 0.4 }}
+              onDragEnd={(_, info) => {
+                if (info.offset.y > 80 || info.velocity.y > 400) close(false);
+              }}
             >
-              {/* Drag handle visual en mobile (puramente cosmetico). */}
-              <div className="flex justify-center pt-2 sm:hidden">
+              {/* Drag handle visual en mobile — ahora es funcional: el usuario
+                  puede agarrar el sheet desde aca o desde cualquier parte y
+                  arrastrarlo hacia abajo para cancelar. */}
+              <div className="flex justify-center pt-2 sm:hidden cursor-grab active:cursor-grabbing">
                 <span className="w-10 h-1 rounded-full" style={{ background: '#2A3340' }} />
               </div>
 

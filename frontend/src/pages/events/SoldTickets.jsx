@@ -213,8 +213,12 @@ const SoldTickets = () => {
           </div>
         </div>
 
-        {/* Filters */}
-        <div className="flex gap-3 mb-4">
+        {/* Filters — sticky: con listas de 500+ tickets el buscador se
+            perdia arriba y habia que scrollear hasta el header para
+            refiltrar. Ahora viaja con el scroll. py-3 + bg blur disimula
+            el borde con la lista. top-14 deja pasar el header mobile. */}
+        <div className="sticky top-14 lg:top-0 z-20 -mx-4 lg:mx-0 px-4 lg:px-0 py-3 mb-2 flex gap-3"
+             style={{ background: 'rgba(7,9,14,0.85)', backdropFilter: 'blur(10px)' }}>
           <input
             type="search"
             enterKeyHint="search"
