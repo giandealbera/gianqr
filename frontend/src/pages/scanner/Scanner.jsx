@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Html5Qrcode } from 'html5-qrcode';
 import api from '../../api/axios';
@@ -16,7 +16,9 @@ const Scanner = () => {
   const [result,       setResult]       = useState(null);
   const [scanning,     setScanning]     = useState(false);
   const [camError,     setCamError]     = useState(null);
+  const [needsTap,     setNeedsTap]     = useState(false);
   const lastScan = useRef(0);
+  const scannerRef = useRef(null);
   // Espejo de typeSel en ref para leer el valor mas reciente dentro del
   // callback del scanner SIN remontar el componente cuando typeSel cambia.
   // Antes el useEffect dependia de [typeSel] y eso destruia/recreaba el
@@ -48,66 +50,70 @@ const Scanner = () => {
     setSearchParams(p, { replace: true });
   }, [eventSel, typeSel]);
 
-  // inicializar escáner.
-  // API de bajo nivel (no el widget) para arrancar directo con la cámara
-  // trasera, sin botón de permiso ni selector — útil en el puerto/control.
+  // Qué hacer cuando se lee un QR. Estable: lee typeSel del ref, no de deps.
+  const handleDecoded = useCallback(async (decodedText) => {
+    const now = Date.now();
+    if (now - lastScan.current < COOLDOWN_MS) return;
+    lastScan.current = now;
+
+    let qr_code = decodedText;
+    try {
+      const parsed = JSON.parse(decodedText);
+      qr_code = parsed.code || decodedText;
+    } catch { /* plain text */ }
+
+    setScanning(true);
+    try {
+      const body = { qr_code };
+      const currentType = typeSelRef.current;
+      if (currentType) body.ticket_type_id = currentType;
+      const res = await api.post('/tickets/scan', body);
+      setResult({ ok: true, data: res.data });
+      toast.success('Entrada válida');
+    } catch (err) {
+      const errData = err.response?.data;
+      setResult({ ok: false, data: errData });
+      toast.error(errData?.error || 'QR inválido');
+    } finally {
+      setScanning(false);
+    }
+  }, []);
+
+  // Arranca la cámara trasera con la API de bajo nivel (no el widget): sin
+  // botón "Request Camera Permission" en inglés ni selector. Si el navegador
+  // exige un toque, dejamos needsTap=true y mostramos un botón EN ESPAÑOL.
+  const startCamera = useCallback(async () => {
+    const html5 = scannerRef.current;
+    if (!html5) return;
+    setCamError(null);
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+    try {
+      await html5.start({ facingMode: 'environment' }, config, handleDecoded, () => {});
+      setNeedsTap(false);
+    } catch {
+      try {
+        const cams = await Html5Qrcode.getCameras();
+        if (!cams?.length) { setCamError('No se detectó ninguna cámara.'); setNeedsTap(true); return; }
+        const back = cams.find(c => /back|rear|tras|environment/i.test(c.label || '')) || cams[cams.length - 1];
+        await html5.start(back.id, config, handleDecoded, () => {});
+        setNeedsTap(false);
+      } catch {
+        // El navegador suele exigir un toque del usuario, o se denegó el permiso.
+        setNeedsTap(true);
+      }
+    }
+  }, [handleDecoded]);
+
+  // Montar el escáner UNA vez por vida del componente.
   useEffect(() => {
     const html5 = new Html5Qrcode('qr-reader', { verbose: false });
-    let cancelled = false;
-
-    const onScan = async (decodedText) => {
-      const now = Date.now();
-      if (now - lastScan.current < COOLDOWN_MS) return;
-      lastScan.current = now;
-
-      let qr_code = decodedText;
-      try {
-        const parsed = JSON.parse(decodedText);
-        qr_code = parsed.code || decodedText;
-      } catch { /* plain text */ }
-
-      setScanning(true);
-      try {
-        const body = { qr_code };
-        // Leemos del ref para tener el valor mas reciente sin tener
-        // typeSel en las deps del efecto.
-        const currentType = typeSelRef.current;
-        if (currentType) body.ticket_type_id = currentType;
-        const res = await api.post('/tickets/scan', body);
-        setResult({ ok: true, data: res.data });
-        toast.success('Entrada válida');
-      } catch (err) {
-        const errData = err.response?.data;
-        setResult({ ok: false, data: errData });
-        toast.error(errData?.error || 'QR inválido');
-      } finally {
-        setScanning(false);
-      }
-    };
-
-    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-
-    // 1) Directo a la cámara trasera. 2) Si el device la rechaza, listamos y
-    //    elegimos la que parezca trasera (o la última, que suele serlo).
-    html5.start({ facingMode: 'environment' }, config, onScan, () => {})
-      .catch(async () => {
-        if (cancelled) return;
-        try {
-          const cams = await Html5Qrcode.getCameras();
-          if (cancelled) return;
-          if (!cams?.length) { setCamError('No se detectó ninguna cámara.'); return; }
-          const back = cams.find(c => /back|rear|tras|environment/i.test(c.label || '')) || cams[cams.length - 1];
-          await html5.start(back.id, config, onScan, () => {});
-        } catch {
-          if (!cancelled) setCamError('No se pudo acceder a la cámara. Revisá el permiso del navegador.');
-        }
-      });
-
+    scannerRef.current = html5;
+    startCamera();
     return () => {
-      cancelled = true;
+      scannerRef.current = null;
       html5.stop().then(() => html5.clear()).catch(() => {});
     };
-  }, []); // <- sin deps: el escaner se monta UNA vez por vida del componente
+  }, [startCamera]);
 
   const [tokens, setTokens] = useState([]);
   const [creatingLink, setCreatingLink] = useState(false);
@@ -264,6 +270,12 @@ const Scanner = () => {
             <div className="card">
               <p className="text-sm text-gray-400 mb-4">Apunta la camara al QR de la entrada</p>
               <div id="qr-reader" className="rounded-lg overflow-hidden" />
+              {needsTap && (
+                <button onClick={startCamera}
+                  className="btn-primary w-full mt-4 text-sm py-2.5">
+                  📷 Activar cámara
+                </button>
+              )}
               {camError && (
                 <div className="text-center mt-3 text-red-400 text-sm">{camError}</div>
               )}
