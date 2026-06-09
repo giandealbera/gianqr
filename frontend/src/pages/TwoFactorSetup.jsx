@@ -123,8 +123,11 @@ const TwoFactorSetup = () => {
         {required && !enabled && (
           <div className="card mb-4"
                style={{ background: 'rgba(239,68,68,0.08)', borderColor: 'rgba(239,68,68,0.4)' }}>
-            <p className="text-sm font-semibold" style={{ color: '#FCA5A5' }}>
-              🔒 Tu rol requiere 2FA
+            <p className="text-sm font-semibold inline-flex items-center gap-2" style={{ color: '#FCA5A5' }}>
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              Tu rol requiere 2FA
             </p>
             <p className="text-xs mt-1" style={{ color: '#9CA3AF' }}>
               Por tener acceso administrativo, tenés que activar la verificación en dos pasos antes de seguir usando el sistema. Si no podés ahora, podés cerrar sesión.
@@ -147,7 +150,12 @@ const TwoFactorSetup = () => {
                 </div>
               ))}
             </div>
-            <button onClick={copyAllCodes} className="btn-primary w-full mt-4">📋 Copiar todos</button>
+            <button onClick={copyAllCodes} className="btn-primary w-full mt-4 inline-flex items-center justify-center gap-2">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1m-6-14h6a2 2 0 012 2v8a2 2 0 01-2 2h-6a2 2 0 01-2-2V7a2 2 0 012-2z" />
+              </svg>
+              Copiar todos
+            </button>
             <button onClick={() => setRecoveryCodes(null)} className="text-xs underline mt-3 w-full" style={{ color: '#6B7280' }}>
               Ya los guardé — cerrar
             </button>

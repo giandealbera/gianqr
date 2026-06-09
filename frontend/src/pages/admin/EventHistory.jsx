@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import { useAuth } from '../../context/AuthContext';
+import { Icon } from '../../components/Icon';
 import toast from 'react-hot-toast';
 
 const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n || 0);
@@ -177,10 +178,11 @@ const EventHistory = () => {
                                 type="button"
                                 onClick={(e) => { e.stopPropagation(); exportEvent(r.event_id); }}
                                 disabled={exportingId === r.event_id}
-                                className="text-xs text-blue-400 hover:text-blue-200 transition-colors disabled:opacity-40"
+                                className="text-xs text-blue-400 hover:text-blue-200 transition-colors disabled:opacity-40 inline-flex items-center gap-1"
                                 title="Descargar Excel completo del evento"
                               >
-                                {exportingId === r.event_id ? '...' : '📊 Excel'}
+                                <Icon name="download" className="w-3 h-3" />
+                                {exportingId === r.event_id ? '…' : 'Excel'}
                               </button>
                             </td>
                           )}

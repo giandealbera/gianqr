@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import { useConfirm } from '../../context/ConfirmContext';
+import { Icon } from '../../components/Icon';
 import toast from 'react-hot-toast';
 
 const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n || 0);
@@ -240,8 +241,9 @@ const LiveControl = () => {
                   if (top.length === 0) return null;
                   return (
                     <div className="card mb-6">
-                      <p className="text-xs uppercase tracking-widest font-semibold mb-3" style={{ color: '#6B7280' }}>
-                        🏆 Top vendedores del evento
+                      <p className="text-xs uppercase tracking-widest font-semibold mb-3 inline-flex items-center gap-2" style={{ color: '#6B7280' }}>
+                        <Icon name="trophy" className="w-3.5 h-3.5" />
+                        Top vendedores del evento
                       </p>
                       <div className="space-y-2">
                         {top.map((v, i) => (

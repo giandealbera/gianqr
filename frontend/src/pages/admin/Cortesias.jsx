@@ -4,6 +4,7 @@ import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import toast from 'react-hot-toast';
 import { downloadTicketsPdf } from '../../utils/downloadTicketsPdf';
+import { Icon } from '../../components/Icon';
 
 const emptyAttendee = () => ({ buyer_name: '', buyer_apellido: '', buyer_edad: '', buyer_localidad: '', buyer_email: '' });
 
@@ -97,7 +98,10 @@ const Cortesias = () => {
           >
             📄 Descargar PDF
           </button>
-          <button onClick={() => window.print()} className="btn-secondary flex-1">🖨️ Imprimir</button>
+          <button onClick={() => window.print()} className="btn-secondary flex-1 inline-flex items-center justify-center gap-1.5">
+            <Icon name="printer" className="w-3.5 h-3.5" />
+            Imprimir
+          </button>
           <button onClick={reset} className="btn-secondary flex-1">Generar más</button>
         </div>
       </div>

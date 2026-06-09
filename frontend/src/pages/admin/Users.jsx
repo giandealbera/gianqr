@@ -4,6 +4,7 @@ import Layout from '../../components/Layout';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import { useConfirm } from '../../context/ConfirmContext';
+import { Icon } from '../../components/Icon';
 
 const ROLES_ADMIN = ['jefe_publicas', 'vendedor', 'admin', 'owner'];
 const ROLES_OWNER = ['jefe_publicas', 'vendedor'];
@@ -246,8 +247,8 @@ const Users = () => {
                style={{ background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.35)' }}>
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
-                   style={{ background: 'rgba(96,165,250,0.15)' }}>
-                <span className="text-xl">🔗</span>
+                   style={{ background: 'rgba(96,165,250,0.15)', color: '#60A5FA' }}>
+                <Icon name="link" className="w-5 h-5" />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-sm">Acceso temporal generado</p>
@@ -269,8 +270,9 @@ const Users = () => {
               {magicResult.url}
             </div>
 
-            <button onClick={copyMagicLink} className="btn-primary w-full text-sm py-2">
-              📋 Copiar link
+            <button onClick={copyMagicLink} className="btn-primary w-full text-sm py-2 inline-flex items-center justify-center gap-2">
+              <Icon name="copy" className="w-4 h-4" />
+              Copiar link
             </button>
             <p className="text-[10px] text-center" style={{ color: '#4B5563' }}>
               Si lo regenerás, el link anterior queda invalidado automáticamente.
@@ -434,9 +436,10 @@ const Users = () => {
                     {u.is_active && u.role !== 'admin' && u.id !== me?.id && (
                       <button onClick={() => generateMagic(u)}
                         disabled={magicLoading === u.id}
-                        className="text-xs text-blue-400 hover:text-blue-200 transition-colors disabled:opacity-40"
+                        className="text-xs text-blue-400 hover:text-blue-200 transition-colors disabled:opacity-40 inline-flex items-center gap-1"
                         title="Generar acceso temporal de 48h (si olvidó la contraseña)">
-                        {magicLoading === u.id ? '...' : '🔗 Acceso'}
+                        <Icon name="link" className="w-3 h-3" />
+                        {magicLoading === u.id ? '…' : 'Acceso'}
                       </button>
                     )}
                     {/* Activo: admin tiene "Eliminar" (hard delete); owner sigue

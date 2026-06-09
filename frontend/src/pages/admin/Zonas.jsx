@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import { useConfirm } from '../../context/ConfirmContext';
+import { Icon } from '../../components/Icon';
 import toast from 'react-hot-toast';
 
 const Zonas = () => {
@@ -105,9 +106,10 @@ const Zonas = () => {
                 <div className="flex gap-2">
                   <button
                     onClick={() => setForm({ id: z.id, name: z.name })}
-                    className="text-xs text-gray-400 hover:text-white px-3 py-1.5"
+                    className="text-xs text-gray-400 hover:text-white px-3 py-1.5 inline-flex items-center gap-1.5"
                   >
-                    ✏️ Editar
+                    <Icon name="edit" className="w-3 h-3" />
+                    Editar
                   </button>
                   <button
                     onClick={() => remove(z)}

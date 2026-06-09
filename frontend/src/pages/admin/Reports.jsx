@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import { exportCsv } from '../../utils/exportCsv';
+import { Icon } from '../../components/Icon';
 
 /* ─── helpers ─────────────────────────────────────────────────────────── */
 const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n || 0);
@@ -212,8 +213,8 @@ const Reports = () => {
           width: 'fit-content',
         }}>
           {[
-            { id: 'overview', label: '📊 Vista general' },
-            { id: 'detail',   label: '📋 Detalle de ventas' },
+            { id: 'overview', label: 'Vista general' },
+            { id: 'detail',   label: 'Detalle de ventas' },
           ].map(t => (
             <button
               key={t.id}
@@ -408,7 +409,10 @@ const Reports = () => {
                 {filteredDetalle.length > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginBottom: '12px' }}>
                     <button onClick={handleExportCsv} className="btn-secondary text-xs">📥 Exportar CSV</button>
-                    <button onClick={() => window.print()} className="btn-secondary text-xs">🖨️ Imprimir</button>
+                    <button onClick={() => window.print()} className="btn-secondary text-xs inline-flex items-center gap-1.5">
+                      <Icon name="printer" className="w-3.5 h-3.5" />
+                      Imprimir
+                    </button>
                   </div>
                 )}
 

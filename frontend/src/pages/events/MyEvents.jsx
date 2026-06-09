@@ -335,7 +335,7 @@ const MyEvents = () => {
               </div>
             )}
             {editId && (
-              <p className="text-xs text-gray-500">Los tipos de entrada (nombre, precio, cupo) se editan desde el evento → <span className="text-brand">🏷️ Tandas de entradas</span>.</p>
+              <p className="text-xs text-gray-500">Los tipos de entrada (nombre, precio, cupo) se editan desde el evento → <span className="text-brand">Tandas de entradas</span>.</p>
             )}
 
             <div className="flex gap-3">

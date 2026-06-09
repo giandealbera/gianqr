@@ -4,6 +4,7 @@ import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import { useAuth } from '../../context/AuthContext';
 import { useConfirm } from '../../context/ConfirmContext';
+import { Icon } from '../../components/Icon';
 import toast from 'react-hot-toast';
 
 const emptyMember = { name: '', apellido: '', celular: '', localidad: '', email: '', password: '', commission: 800 };
@@ -231,8 +232,10 @@ const PromoterDashboard = () => {
                             <p className="font-medium text-sm">{m.name} {m.apellido || ''}</p>
                             <p className="text-xs text-slate-500">{m.celular || m.email}</p>
                             {m.zona_name && (
-                              <p className="text-[10px] mt-0.5 inline-block px-1.5 py-0.5 rounded bg-purple-900/40 text-purple-300">
-                                📍 {m.zona_name}
+                              <p className="text-[10px] mt-0.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded"
+                                 style={{ background: 'rgba(201,151,77,0.10)', color: '#C9974D' }}>
+                                <Icon name="pin" className="w-2.5 h-2.5" />
+                                {m.zona_name}
                               </p>
                             )}
                           </div>
