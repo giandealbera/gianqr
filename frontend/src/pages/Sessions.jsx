@@ -1,4 +1,4 @@
-// Sesiones del usuario logueado — ve dispositivos donde tiene sesion
+﻿// Sesiones del usuario logueado — ve dispositivos donde tiene sesion
 // activa y puede revocar individualmente o "cerrar todas las otras".
 //
 // La sesion actual se marca con un badge "Esta sesión" y no tiene boton
@@ -95,7 +95,7 @@ const Sessions = () => {
   return (
     <Layout>
       <div className="px-4 lg:px-8 py-6 max-w-2xl mx-auto">
-        <h1 className="text-2xl font-bold mb-1">Sesiones activas</h1>
+        <h1 className="text-xl font-semibold tracking-tight mb-1">Sesiones activas</h1>
         <p className="text-sm mb-6" style={{ color: '#6B7280' }}>
           Cada vez que iniciás sesión en un dispositivo se registra acá. Si ves alguna que no reconocés, cerrala.
         </p>

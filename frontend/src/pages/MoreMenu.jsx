@@ -41,20 +41,32 @@ const MoreMenu = () => {
     navigate('/login');
   };
 
+  // Etiqueta de rol mas presentable que el slug ("jefe_publicas" → "Jefe de públicas").
+  const ROLE_DISPLAY = {
+    admin:         'Administrador',
+    owner:         'Dueño',
+    jefe_publicas: 'Jefe de públicas',
+    vendedor:      'Vendedor',
+  };
+
   return (
     <Layout>
       <div className="px-4 lg:px-8 py-6 max-w-2xl mx-auto">
-        <h1 className="text-2xl font-bold mb-6">Más opciones</h1>
+        <h1 className="text-xl font-semibold tracking-tight mb-6">Más opciones</h1>
 
         {/* Profile card */}
         <div className="card flex items-center gap-4 mb-6">
-          <div className="w-14 h-14 rounded-full bg-brand/20 flex items-center justify-center text-brand text-xl font-bold">
+          <div className="w-12 h-12 rounded-full flex items-center justify-center text-base font-semibold"
+               style={{ background: 'rgba(201,151,77,0.12)', color: '#C9974D', border: '1px solid rgba(201,151,77,0.25)' }}>
             {user?.name?.charAt(0)?.toUpperCase()}
           </div>
-          <div>
-            <p className="font-semibold text-white">{user?.name}</p>
-            <p className="text-sm text-gray-400">{user?.email}</p>
-            <p className="text-xs text-brand capitalize mt-0.5">{user?.role}</p>
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold text-white truncate">{user?.name}</p>
+            <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+            <span className="inline-block text-[10px] uppercase tracking-wider mt-1 px-1.5 py-0.5 rounded font-medium"
+                  style={{ background: 'rgba(201,151,77,0.10)', color: '#C9974D' }}>
+              {ROLE_DISPLAY[user?.role] || user?.role}
+            </span>
           </div>
         </div>
 

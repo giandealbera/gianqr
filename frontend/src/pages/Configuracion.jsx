@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../api/axios';
@@ -55,7 +55,7 @@ const Configuracion = () => {
   return (
     <Layout>
       <div className="px-4 lg:px-8 py-6 max-w-xl mx-auto">
-        <h1 className="text-2xl font-bold mb-1">Configuración</h1>
+        <h1 className="text-xl font-semibold tracking-tight mb-1">Configuración</h1>
         <p className="text-sm text-gray-500 mb-6">Tu cuenta y preferencias.</p>
 
         {/* Datos de la cuenta */}

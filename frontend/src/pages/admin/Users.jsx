@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import toast from 'react-hot-toast';
@@ -194,7 +194,7 @@ const Users = () => {
     <Layout>
       <div className="px-4 lg:px-8 py-6 max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold">{isOwner ? 'Mi Personal' : 'Dueños'}</h1>
+          <h1 className="text-xl font-semibold tracking-tight">{isOwner ? 'Mi Personal' : 'Dueños'}</h1>
           <button onClick={() => { setShowForm(!showForm); setCreatedUser(null); }} className="btn-primary">
             {showForm ? 'Cancelar' : (isOwner ? '+ Nuevo miembro' : '+ Nuevo dueño')}
           </button>

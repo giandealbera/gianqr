@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import { useConfirm } from '../../context/ConfirmContext';
@@ -61,7 +61,7 @@ const Zonas = () => {
   return (
     <Layout>
       <div className="px-4 lg:px-8 py-6 max-w-2xl mx-auto">
-        <h1 className="text-2xl font-bold mb-1">Zonas</h1>
+        <h1 className="text-xl font-semibold tracking-tight mb-1">Zonas</h1>
         <p className="text-sm text-gray-500 mb-6">
           Agrupá vendedores y jefes de públicas por zona geográfica. Sirve para ver rendiciones agrupadas y asignar comisiones distintas.
         </p>

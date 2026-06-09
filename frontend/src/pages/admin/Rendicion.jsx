@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import { useConfirm } from '../../context/ConfirmContext';
@@ -380,7 +380,7 @@ const Rendicion = () => {
   return (
     <Layout>
       <div className="px-4 lg:px-8 py-6 max-w-4xl mx-auto">
-        <h1 className="text-2xl font-bold mb-1">Rendición de entradas</h1>
+        <h1 className="text-xl font-semibold tracking-tight mb-1">Rendición de entradas</h1>
         <p className="text-sm mb-6" style={{ color: '#6B7280' }}>
           Busca una pública para ver su perfil, lo que debe y registrar pagos.
         </p>

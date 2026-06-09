@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import { useConfirm } from '../../context/ConfirmContext';
@@ -137,7 +137,7 @@ const LiveControl = () => {
         {/* Header con indicador live */}
         <div className="flex items-start justify-between mb-1 gap-3">
           <div>
-            <h1 className="text-2xl font-bold flex items-center gap-3">
+            <h1 className="text-xl font-semibold tracking-tight flex items-center gap-3">
               Control en vivo
               <span className="flex items-center gap-1.5 text-xs font-normal">
                 <span className={`w-2 h-2 rounded-full ${pulse ? 'bg-green-400 animate-ping' : 'bg-green-500'}`} />

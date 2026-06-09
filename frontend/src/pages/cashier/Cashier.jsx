@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../api/axios';
@@ -116,7 +116,7 @@ const Cashier = () => {
   return (
     <Layout>
       <div className="px-4 lg:px-8 py-6 max-w-2xl mx-auto">
-        <h1 className="text-2xl font-bold mb-1">Caja</h1>
+        <h1 className="text-xl font-semibold tracking-tight mb-1">Caja</h1>
         <p className="text-sm mb-6" style={{ color: '#6B7280' }}>
           Definí evento, tipo, cantidad y forma de pago. Al apretar Generar link la entrada queda registrada como vendida; mandale el link al comprador para que cargue sus datos.
         </p>

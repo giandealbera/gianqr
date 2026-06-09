@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import toast from 'react-hot-toast';
@@ -119,7 +119,7 @@ const PromoterSell = () => {
   return (
     <Layout>
       <div className="px-4 lg:px-8 py-6 max-w-2xl mx-auto">
-        <h1 className="text-2xl font-bold mb-1">Vender entrada</h1>
+        <h1 className="text-xl font-semibold tracking-tight mb-1">Vender entrada</h1>
         <p className="text-sm mb-6" style={{ color: '#6B7280' }}>
           Definí evento, tipo, cantidad y forma de pago. Al generar el QR la entrada queda reservada (descuenta cupo); compartí el link con el comprador para que cargue sus datos y reciba su QR.
         </p>

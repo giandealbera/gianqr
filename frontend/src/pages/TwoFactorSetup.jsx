@@ -1,4 +1,4 @@
-// Setup de 2FA / TOTP.
+﻿// Setup de 2FA / TOTP.
 //
 // Flujo de pantalla:
 //   - Si todavia no esta habilitado: mostrar QR + secret + input para
@@ -114,7 +114,7 @@ const TwoFactorSetup = () => {
   return (
     <Layout>
       <div className="px-4 lg:px-8 py-6 max-w-xl mx-auto">
-        <h1 className="text-2xl font-bold mb-1">Verificación en dos pasos</h1>
+        <h1 className="text-xl font-semibold tracking-tight mb-1">Verificación en dos pasos</h1>
         <p className="text-sm mb-6" style={{ color: '#6B7280' }}>
           Sumá una segunda capa al login. Cada vez que entres, además de la contraseña vamos a pedirte un código de 6 dígitos que genera tu app de autenticación (Google Authenticator, 1Password, Authy, etc.).
         </p>
@@ -166,7 +166,12 @@ const TwoFactorSetup = () => {
         {enabled && !recoveryCodes && (
           <div className="card mb-4">
             <div className="flex items-center gap-3">
-              <span className="text-2xl">✅</span>
+              <span className="inline-flex items-center justify-center w-9 h-9 rounded-full shrink-0"
+                    style={{ background: 'rgba(16,185,129,0.12)', color: '#10B981', border: '1px solid rgba(16,185,129,0.30)' }}>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 13l4 4L19 7" />
+                </svg>
+              </span>
               <div className="flex-1">
                 <p className="text-sm font-semibold text-green-400">2FA está habilitado</p>
                 <p className="text-xs mt-0.5" style={{ color: '#6B7280' }}>El login te va a pedir el código de Authenticator.</p>

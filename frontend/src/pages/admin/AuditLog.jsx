@@ -1,4 +1,4 @@
-// Bitácora — visor del audit log para admin y owner.
+﻿// Bitácora — visor del audit log para admin y owner.
 //
 // Muestra todas las acciones sensibles registradas: resets de password,
 // cambios de rol, borrado de tickets, reset de eventos, login fallidos, etc.
@@ -103,7 +103,7 @@ const AuditLog = () => {
     <Layout>
       <div className="px-4 lg:px-8 py-6 max-w-6xl mx-auto">
         <div className="flex items-baseline justify-between mb-1">
-          <h1 className="text-2xl font-bold">Bitácora</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Bitácora</h1>
           <p className="text-xs" style={{ color: '#6B7280' }}>
             {total > 0 && !loading && `${pageStart}–${pageEnd} de ${total.toLocaleString('es-AR')}`}
           </p>

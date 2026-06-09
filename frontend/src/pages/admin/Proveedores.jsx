@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
@@ -103,7 +103,7 @@ const Proveedores = () => {
     <Layout>
       <div className="px-4 lg:px-8 py-6 max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold">Proveedores</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Proveedores</h1>
           <button onClick={openCreate} className="btn-primary">+ Nuevo</button>
         </div>
 

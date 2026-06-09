@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import toast from 'react-hot-toast';
@@ -31,7 +31,7 @@ const PromoterSales = () => {
   return (
     <Layout>
       <div className="px-4 lg:px-8 py-6 max-w-5xl mx-auto">
-        <h1 className="text-2xl font-bold mb-2">Ventas de Públicas</h1>
+        <h1 className="text-xl font-semibold tracking-tight mb-2">Ventas de Públicas</h1>
         <p className="text-gray-400 mb-6">Resumen del desempeño de tus públicas y liquidación de comisiones.</p>
 
         {/* Filters */}

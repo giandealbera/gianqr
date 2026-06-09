@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
@@ -55,7 +55,7 @@ const ResetEventos = () => {
   return (
     <Layout>
       <div className="px-4 lg:px-8 py-6 max-w-4xl mx-auto">
-        <h1 className="text-2xl font-bold mb-2">Reiniciar eventos</h1>
+        <h1 className="text-xl font-semibold tracking-tight mb-2">Reiniciar eventos</h1>
         <p className="text-sm text-gray-400 mb-6">
           Borra los <span className="text-red-400 font-medium">tickets vendidos</span> y las{' '}
           <span className="text-red-400 font-medium">rendiciones</span> del evento.<br />

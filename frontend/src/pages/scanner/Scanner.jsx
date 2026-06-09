@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+﻿import { useEffect, useRef, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Html5Qrcode } from 'html5-qrcode';
 import api from '../../api/axios';
@@ -216,7 +216,7 @@ const Scanner = () => {
   return (
     <Layout>
       <div className="px-4 lg:px-8 py-6 max-w-3xl mx-auto">
-        <h1 className="text-2xl font-bold mb-6">Escanear QR</h1>
+        <h1 className="text-xl font-semibold tracking-tight mb-6">Escanear QR</h1>
 
         {/* Filtros */}
         <div className="card mb-6 space-y-3">

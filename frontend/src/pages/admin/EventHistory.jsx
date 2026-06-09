@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+﻿import { Fragment, useEffect, useMemo, useState } from 'react';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import { useAuth } from '../../context/AuthContext';
@@ -65,7 +65,7 @@ const EventHistory = () => {
   return (
     <Layout>
       <div className="px-4 lg:px-8 py-6 max-w-6xl mx-auto">
-        <h1 className="text-2xl font-bold mb-6">Historial de eventos</h1>
+        <h1 className="text-xl font-semibold tracking-tight mb-6">Historial de eventos</h1>
 
         {/* Filtros */}
         <div className="card mb-6">

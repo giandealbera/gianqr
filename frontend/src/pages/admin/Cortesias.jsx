@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
@@ -63,7 +63,7 @@ const Cortesias = () => {
   if (created) return (
     <Layout>
       <div className="px-4 lg:px-8 py-6 max-w-3xl mx-auto">
-        <h1 className="text-2xl font-bold mb-1">Cortesias generadas</h1>
+        <h1 className="text-xl font-semibold tracking-tight mb-1">Cortesias generadas</h1>
         <p className="text-sm mb-6" style={{ color: '#6B7280' }}>
           {created.tickets.length} entrada(s) sin costo. Compartiselas a cada invitado.
         </p>
@@ -111,7 +111,7 @@ const Cortesias = () => {
   return (
     <Layout>
       <div className="px-4 lg:px-8 py-6 max-w-2xl mx-auto">
-        <h1 className="text-2xl font-bold mb-1">Cortesias</h1>
+        <h1 className="text-xl font-semibold tracking-tight mb-1">Cortesias</h1>
         <p className="text-sm mb-6" style={{ color: '#6B7280' }}>
           Genera entradas sin costo. Cada invitado recibe su propio QR para ingresar.
         </p>
