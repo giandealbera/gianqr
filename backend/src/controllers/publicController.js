@@ -1,6 +1,25 @@
 const { v4: uuidv4 } = require('uuid');
 const db = require('../config/database');
 const { checkSaleWindow } = require('../utils/saleWindow');
+const { sendPush } = require('./pushController');
+
+// Notifica push a los dueños cuando una tanda cruza el 90% o se agota.
+// Se llama post-commit; si VAPID no esta configurado, es no-op.
+async function maybeNotifyQuota({ oldSold, newSold, totalQuota, ttName, eventId }) {
+  try {
+    const oldRatio = oldSold / totalQuota;
+    const newRatio = newSold / totalQuota;
+    const crossed90      = oldRatio < 0.9 && newRatio >= 0.9;
+    const crossedSoldOut = oldRatio < 1   && newRatio >= 1;
+    if (!crossed90 && !crossedSoldOut) return;
+    const ev = (await db.query('SELECT name FROM events WHERE id = ?', [eventId])).rows[0];
+    const owners = await db.query('SELECT user_id FROM event_owners WHERE event_id = ?', [eventId]);
+    const payload = crossedSoldOut
+      ? { title: 'Sold out', body: `Se agotó "${ttName}" en ${ev?.name || 'tu evento'}.`, url: `/evento/${eventId}` }
+      : { title: 'Cupo bajo', body: `"${ttName}" llegó al 90% en ${ev?.name || 'tu evento'}.`, url: `/evento/${eventId}` };
+    for (const o of owners.rows) sendPush(o.user_id, payload).catch(() => {});
+  } catch { /* silencioso */ }
+}
 
 const getPublicEvents = async (req, res) => {
   try {
@@ -129,6 +148,7 @@ const createPublicTicket = async (req, res) => {
     const created = [];
     let finalPrice;
     let ttName;
+    let ttSnapshot = null; // datos del tt para push post-commit
 
     // Toda la creacion va en una transaccion: revalidamos cupo DENTRO, insertamos
     // los tickets, y subimos sold_count atomicamente. Asi evitamos oversell con
@@ -169,6 +189,14 @@ const createPublicTicket = async (req, res) => {
         'UPDATE ticket_types SET sold_count = sold_count + ? WHERE id = ?',
         [attendees.length, ticket_type_id]
       );
+
+      ttSnapshot = {
+        oldSold:    tt.sold_count,
+        newSold:    tt.sold_count + attendees.length,
+        totalQuota: tt.total_quota,
+        ttName:     tt.name,
+        eventId:    event_id,
+      };
     });
 
     res.status(201).json({
@@ -177,6 +205,8 @@ const createPublicTicket = async (req, res) => {
       payment_method: validMethod,
       cortesia: isCortesia,
     });
+
+    if (ttSnapshot) maybeNotifyQuota(ttSnapshot);
   } catch (err) {
     if (err.message === 'TT_NOT_FOUND')
       return res.status(400).json({ error: 'Tipo de entrada no disponible' });

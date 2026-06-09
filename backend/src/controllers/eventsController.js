@@ -2,6 +2,18 @@ const { v4: uuidv4 } = require('uuid');
 const db = require('../config/database');
 const { adminCanAccessEvent, resolveOwnerScopeForUser } = require('../utils/scope');
 const { logAudit } = require('../utils/auditLog');
+const { sendPush } = require('./pushController');
+
+// Notifica a TODOS los dueños asignados al evento. Lo hacemos fire-and-
+// forget: no bloqueamos la respuesta HTTP esperando el push, y si falla
+// no rompe el flujo principal. Sin VAPID keys configuradas el sendPush
+// es no-op silencioso.
+async function notifyEventOwners(eventId, payload) {
+  try {
+    const owners = await db.query('SELECT user_id FROM event_owners WHERE event_id = ?', [eventId]);
+    for (const o of owners.rows) sendPush(o.user_id, payload).catch(() => {});
+  } catch { /* silencioso */ }
+}
 
 // Helper: verifica si un owner tiene acceso a un evento
 async function ownerHasEvent(userId, eventId) {
@@ -843,12 +855,28 @@ const stopSales = async (req, res) => {
   const { id } = req.params;
   try {
     if (!await guardEventAccess(req, res, id)) return;
-    const ev = (await db.query('SELECT id, sales_stopped_at FROM events WHERE id = ?', [id])).rows[0];
+    const ev = (await db.query('SELECT id, name, sales_stopped_at FROM events WHERE id = ?', [id])).rows[0];
     if (!ev) return res.status(404).json({ error: 'Evento no encontrado' });
     if (ev.sales_stopped_at) return res.status(200).json({ message: 'La venta ya estaba cortada', sales_stopped_at: ev.sales_stopped_at });
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     await db.query('UPDATE events SET sales_stopped_at = ? WHERE id = ?', [now, id]);
     res.json({ message: 'Venta cortada', sales_stopped_at: now });
+
+    // Push a los duenos asignados — excluyendo a quien acaba de apretar el
+    // boton (sino le llega notif a el mismo). Fire-and-forget; corre despues
+    // del response para no demorarlo.
+    (async () => {
+      try {
+        const owners = await db.query('SELECT user_id FROM event_owners WHERE event_id = ? AND user_id != ?', [id, req.user.id]);
+        for (const o of owners.rows) {
+          sendPush(o.user_id, {
+            title: 'Venta cortada',
+            body:  `Se cortó la venta de "${ev.name}".`,
+            url:   `/evento/${id}`,
+          }).catch(() => {});
+        }
+      } catch {}
+    })();
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error al cortar venta' });

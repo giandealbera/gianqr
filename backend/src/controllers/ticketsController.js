@@ -3,6 +3,7 @@ const QRCode = require('qrcode');
 const db = require('../config/database');
 const { checkSaleWindow } = require('../utils/saleWindow');
 const { logAudit } = require('../utils/auditLog');
+const { sendPush } = require('./pushController');
 
 async function generateQR(ticketId) {
   const code    = `GIANQR-${ticketId.split('-')[0].toUpperCase()}`;
@@ -187,6 +188,9 @@ const preSell = async (req, res) => {
 
   try {
     const createdIds = [];
+    // Datos del tt para enviar push de "cupo bajo / sold out" DESPUES de
+    // commitear (no dentro de la transaccion).
+    let ttSnapshot = null;
 
     await db.transaction(async (conn) => {
       // FOR UPDATE: bloqueo de fila en PG para evitar oversell concurrente.
@@ -244,9 +248,38 @@ const preSell = async (req, res) => {
         'UPDATE ticket_types SET sold_count = sold_count + ? WHERE id = ?',
         [numQty, ticket_type_id]
       );
+
+      // Stash datos para el push post-commit. No podemos llamar sendPush
+      // aca adentro porque la transaccion no esta cerrada todavia.
+      ttSnapshot = { tt, numQty, event_id };
     });
 
     res.status(201).json({ tickets: createdIds });
+
+    // Push post-commit: aviso al dueño cuando la tanda cruza el 90% o se
+    // agota. Fire-and-forget; si no hay VAPID configurado es no-op.
+    if (ttSnapshot) {
+      (async () => {
+        try {
+          const { tt, numQty, event_id } = ttSnapshot;
+          const newSold = tt.sold_count + numQty;
+          const oldRatio = tt.sold_count / tt.total_quota;
+          const newRatio = newSold / tt.total_quota;
+          const crossed90 = oldRatio < 0.9 && newRatio >= 0.9;
+          const crossedSoldOut = oldRatio < 1 && newRatio >= 1;
+          if (!crossed90 && !crossedSoldOut) return;
+
+          const ev = (await db.query('SELECT name FROM events WHERE id = ?', [event_id])).rows[0];
+          const owners = await db.query('SELECT user_id FROM event_owners WHERE event_id = ?', [event_id]);
+          const payload = crossedSoldOut
+            ? { title: 'Sold out', body: `Se agotó "${tt.name}" en ${ev?.name || 'tu evento'}.`, url: `/evento/${event_id}` }
+            : { title: 'Cupo bajo', body: `"${tt.name}" llegó al 90% en ${ev?.name || 'tu evento'}.`, url: `/evento/${event_id}` };
+          for (const o of owners.rows) {
+            sendPush(o.user_id, payload).catch(() => {});
+          }
+        } catch { /* silencioso */ }
+      })();
+    }
   } catch (err) {
     if (err.message === 'TICKET_TYPE_NOT_FOUND')
       return res.status(404).json({ error: 'Tipo de entrada no encontrado' });
