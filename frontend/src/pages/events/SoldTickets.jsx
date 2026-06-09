@@ -8,6 +8,7 @@ import { useConfirm } from '../../context/ConfirmContext';
 import { SkeletonRow } from '../../components/Skeleton';
 import usePullToRefresh from '../../hooks/usePullToRefresh';
 import PullIndicator from '../../components/PullIndicator';
+import { Icon } from '../../components/Icon';
 import toast from 'react-hot-toast';
 
 const STATUS_BADGE = {
@@ -184,7 +185,7 @@ const SoldTickets = () => {
 
         <div className="flex items-start justify-between gap-3 mb-5">
           <div className="min-w-0">
-            <h1 className="text-xl font-bold mb-1">📋 Entradas vendidas</h1>
+            <h1 className="text-xl font-bold mb-1">Entradas vendidas</h1>
             <p className="text-sm text-gray-400 truncate">{event?.name}</p>
           </div>
           {canExport && (
@@ -192,10 +193,11 @@ const SoldTickets = () => {
               type="button"
               onClick={exportExcel}
               disabled={exporting || tickets.length === 0}
-              className="btn-secondary text-xs whitespace-nowrap shrink-0 disabled:opacity-40"
+              className="btn-secondary text-xs whitespace-nowrap shrink-0 disabled:opacity-40 inline-flex items-center gap-1.5"
               title="Descargar Excel completo del evento (resumen, entradas, demografía, vendedores)"
             >
-              {exporting ? 'Generando...' : '📊 Excel'}
+              <Icon name="download" className="w-3.5 h-3.5" />
+              {exporting ? 'Generando…' : 'Excel'}
             </button>
           )}
         </div>
@@ -255,14 +257,14 @@ const SoldTickets = () => {
           <div>{Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)}</div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
-            {search || statusFilter ? 'No se encontraron entradas' : 'No hay entradas vendidas'}
+            {search || statusFilter ? 'Sin resultados' : 'Sin entradas vendidas'}
           </div>
         ) : useVirtual ? (
           // Virtualizado: solo monta ~15 filas visibles en el DOM.
           // Cambia de O(n) a O(visible) en costo de render por scroll.
-          <>
+          <div className="fade-in">
             <p className="text-[10px] mb-2" style={{ color: '#4B5563' }}>
-              Mostrando {filtered.length.toLocaleString('es-AR')} entradas (lista virtualizada para rendimiento)
+              Mostrando {filtered.length.toLocaleString('es-AR')} entradas (lista virtualizada)
             </p>
             <VirtualList
               height={LIST_HEIGHT}
@@ -273,9 +275,9 @@ const SoldTickets = () => {
             >
               {TicketRow}
             </VirtualList>
-          </>
+          </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-2 fade-in">
             {filtered.map((t, i) => (
               <TicketRow key={t.id} index={i} style={{}} data={listData} />
             ))}

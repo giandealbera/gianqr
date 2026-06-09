@@ -116,8 +116,12 @@ const ResponsiveToaster = () => {
       // safe-area-inset-bottom para no quedar tapados por el home indicator.
       containerStyle={isMobile ? { bottom: 'calc(96px + env(safe-area-inset-bottom, 0))' } : undefined}
       toastOptions={{
-        style: { background: '#1f2937', color: '#f9fafb', border: '1px solid #374151' },
-        success: { iconTheme: { primary: '#7C3AED', secondary: '#fff' } },
+        // Estilo sobrio: fondo del card oscuro de la app, sin borde de
+        // contraste alto. Sin sombras decorativas.
+        style: { background: '#0F141B', color: '#E8EAF0', border: '1px solid #1E2530', padding: '10px 14px', fontSize: '13.5px' },
+        // Iconos en oro de marca (antes era violeta — fuera de paleta).
+        success: { iconTheme: { primary: '#C9974D', secondary: '#0F141B' } },
+        error:   { iconTheme: { primary: '#DC2626', secondary: '#0F141B' } },
       }}
     />
   );

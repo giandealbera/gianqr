@@ -5,6 +5,7 @@ import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import { useConfirm } from '../../context/ConfirmContext';
 import useWakeLock from '../../hooks/useWakeLock';
+import { Icon } from '../../components/Icon';
 import toast from 'react-hot-toast';
 
 const COOLDOWN_MS = 2000;
@@ -337,8 +338,9 @@ const Scanner = () => {
               <div id="qr-reader" className="rounded-lg overflow-hidden" />
               {needsTap && (
                 <button onClick={startCamera}
-                  className="btn-primary w-full mt-4 text-sm py-2.5">
-                  📷 Activar cámara
+                  className="btn-primary w-full mt-4 text-sm py-2.5 inline-flex items-center justify-center gap-2">
+                  <Icon name="camera" className="w-4 h-4" />
+                  Activar cámara
                 </button>
               )}
               {camError && (

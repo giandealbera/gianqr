@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import { SkeletonEventCard } from '../../components/Skeleton';
 import usePullToRefresh from '../../hooks/usePullToRefresh';
 import PullIndicator from '../../components/PullIndicator';
+import { Icon } from '../../components/Icon';
 
 const initialForm = {
   name: '', description: '', date: '', start_time: '', end_time: '',
@@ -214,9 +215,17 @@ const MyEvents = () => {
     <Layout>
       <PullIndicator pulling={pulling} progress={progress} />
       <div className="px-4 lg:px-8 py-6 max-w-3xl mx-auto lg:max-w-none">
-        {/* Greeting */}
-        <p className="text-gray-400 text-sm">Hola, <span className="text-white font-medium">{user?.name}</span></p>
-        <h1 className="text-2xl font-bold text-white mt-1 mb-5">Tus eventos</h1>
+        {/* Header: titulo de seccion. El nombre del usuario aparece en
+            el chip del header mobile y en el sidebar desktop — no hace
+            falta repetirlo como saludo, agrega ruido visual. */}
+        <div className="flex items-baseline justify-between mb-5">
+          <h1 className="text-xl font-semibold text-white tracking-tight">Eventos</h1>
+          {events.length > 0 && (
+            <span className="text-xs text-gray-500 tabular-nums">
+              {events.length} {events.length === 1 ? 'evento' : 'eventos'}
+            </span>
+          )}
+        </div>
 
         {/* Search + Create */}
         <div className="flex gap-3 mb-6">
@@ -265,7 +274,7 @@ const MyEvents = () => {
         {showForm && (
           <form onSubmit={handleSubmit} className="card mb-6 space-y-4 animate-in">
             <h2 className="font-semibold text-lg">
-              {editId ? `✏️ Editar evento — ${form.name}` : 'Nuevo evento'}
+              {editId ? `Editar evento — ${form.name}` : 'Nuevo evento'}
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -370,8 +379,9 @@ const MyEvents = () => {
                   ve la pantalla pero el export es solo para el dueño del evento. */}
               {cloneSrcId && user?.role === 'owner' && (
                 <button type="button" onClick={handleExportSrc} disabled={exporting}
-                        className="btn-secondary text-xs mt-2 w-full sm:w-auto disabled:opacity-40">
-                  {exporting ? 'Generando...' : '📊 Descargar Excel del evento origen'}
+                        className="btn-secondary text-xs mt-2 w-full sm:w-auto disabled:opacity-40 inline-flex items-center justify-center gap-1.5">
+                  <Icon name="download" className="w-3.5 h-3.5" />
+                  {exporting ? 'Generando…' : 'Descargar Excel del evento origen'}
                 </button>
               )}
               <p className="text-[10px] mt-1.5" style={{ color: '#4B5563' }}>
@@ -423,14 +433,17 @@ const MyEvents = () => {
           <div>{Array.from({ length: 5 }).map((_, i) => <SkeletonEventCard key={i} />)}</div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-16">
-            <p className="text-4xl mb-3">🎉</p>
-            <p className="text-gray-400">{search ? 'No se encontraron eventos' : 'No hay eventos todavía'}</p>
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full mb-3"
+                 style={{ background: '#161B24', border: '1px solid #1E2530', color: '#4B5563' }}>
+              <Icon name="empty" className="w-6 h-6" />
+            </div>
+            <p className="text-gray-400 text-sm">{search ? 'Sin resultados' : 'Sin eventos creados'}</p>
             {!search && ['admin','owner'].includes(user?.role) && (
-              <button onClick={openNew} className="btn-primary mt-4">+ Crear primer evento</button>
+              <button onClick={openNew} className="btn-primary mt-4">Crear evento</button>
             )}
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-3 fade-in">
             {filtered.map(ev => {
               const status = getStatus(ev);
               return (
@@ -446,7 +459,7 @@ const MyEvents = () => {
                       className="absolute top-3 right-3 p-1.5 rounded-lg bg-gray-800/60 hover:bg-gray-700 text-gray-300 transition-colors z-10"
                       title="Editar evento"
                     >
-                      ✏️
+                      <Icon name="edit" className="w-3.5 h-3.5" />
                     </button>
                   )}
                   <div className="flex items-start justify-between">

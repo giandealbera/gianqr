@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import useBodyScrollLock from '../../hooks/useBodyScrollLock';
+import { Icon } from '../../components/Icon';
 import toast from 'react-hot-toast';
 
 const emptyForm = { name: '', price: '', total_quota: '' };
@@ -233,7 +234,7 @@ const EventTicketTypes = () => {
 
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-xl font-bold">🏷️ Tandas de entradas</h1>
+            <h1 className="text-xl font-semibold tracking-tight">Tandas de entradas</h1>
             <p className="text-sm text-gray-400 mt-0.5">Configurá los precios y cupos</p>
           </div>
           <button onClick={openNew} className="btn-primary shrink-0">+ Nueva tanda</button>
@@ -244,9 +245,10 @@ const EventTicketTypes = () => {
           <button
             onClick={generateAllTypesLink}
             disabled={genningFor === 'all'}
-            className="w-full mb-5 text-sm px-3 py-2.5 rounded-lg border border-blue-800 text-blue-400 hover:border-blue-600 transition-colors disabled:opacity-50"
+            className="w-full mb-5 text-sm px-3 py-2.5 rounded-lg border border-blue-800 text-blue-400 hover:border-blue-600 transition-colors disabled:opacity-50 inline-flex items-center justify-center gap-2"
             title="Genera un link de portero que valida cualquier tipo de entrada del evento">
-            {genningFor === 'all' ? 'Generando...' : '🔗 Link de portero para TODOS los tipos'}
+            <Icon name="link" className="w-4 h-4" />
+            {genningFor === 'all' ? 'Generando…' : 'Link de portero para TODOS los tipos'}
           </button>
         )}
 
@@ -289,9 +291,12 @@ const EventTicketTypes = () => {
         <div className="space-y-3">
           {types.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-4xl mb-3">🎟️</p>
-              <p className="text-gray-400">No hay tandas todavía</p>
-              <button onClick={openNew} className="btn-primary mt-4">+ Crear primera tanda</button>
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full mb-3"
+                   style={{ background: '#161B24', border: '1px solid #1E2530', color: '#4B5563' }}>
+                <Icon name="ticket" className="w-6 h-6" />
+              </div>
+              <p className="text-gray-400 text-sm">Sin tandas creadas</p>
+              <button onClick={openNew} className="btn-primary mt-4">Crear tanda</button>
             </div>
           ) : types.map(tt => {
             const pct = tt.total_quota > 0 ? Math.round((tt.sold_count / tt.total_quota) * 100) : 0;
@@ -318,17 +323,19 @@ const EventTicketTypes = () => {
                   </div>
                   <div className="flex flex-col gap-2 shrink-0">
                     <button onClick={() => openEdit(tt)}
-                      className="text-xs px-3 py-1.5 rounded-lg border border-gray-700 text-gray-300 hover:border-gray-500 transition-colors">
-                      ✏️ Editar
+                      className="text-xs px-3 py-1.5 rounded-lg border border-gray-700 text-gray-300 hover:border-gray-500 transition-colors inline-flex items-center gap-1.5">
+                      <Icon name="edit" className="w-3 h-3" />
+                      Editar
                     </button>
                     <button onClick={() => openSellers(tt)}
                       className="text-xs px-3 py-1.5 rounded-lg border border-amber-800 text-amber-400 hover:border-amber-600 transition-colors"
                       title="Elegir quién puede generar este tipo de entrada">
-                      👥 Quién vende
+                      Quién vende
                     </button>
                     <button onClick={() => generateLink(tt)} disabled={genningFor === tt.id}
-                      className="text-xs px-3 py-1.5 rounded-lg border border-blue-800 text-blue-400 hover:border-blue-600 transition-colors disabled:opacity-50">
-                      {genningFor === tt.id ? '...' : '🔗 Link'}
+                      className="text-xs px-3 py-1.5 rounded-lg border border-blue-800 text-blue-400 hover:border-blue-600 transition-colors disabled:opacity-50 inline-flex items-center gap-1.5">
+                      <Icon name="link" className="w-3 h-3" />
+                      {genningFor === tt.id ? '...' : 'Link'}
                     </button>
                     <button onClick={() => toggle(tt)}
                       className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
@@ -422,7 +429,10 @@ const EventTicketTypes = () => {
         {/* Links de escáner generados */}
         {tokens.length > 0 && (
           <div className="mt-6">
-            <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">🔗 Links de escáner activos</h2>
+            <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 inline-flex items-center gap-2">
+              <Icon name="link" className="w-3.5 h-3.5" />
+              Links de escáner activos
+            </h2>
             <div className="space-y-2">
               {tokens.map(t => (
                 <div key={t.id} className="card py-3 flex items-center gap-3">

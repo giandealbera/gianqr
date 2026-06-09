@@ -166,6 +166,17 @@
   .badge-cancelado { @apply bg-red-950/60 text-red-400 text-xs px-2 py-0.5 rounded font-medium border border-red-900/60; }
 
   .surface-row { background-color: #161B24; border-radius: 0.5rem; }
+
+  /* Fade-in suave para reemplazar a un skeleton: las listas que aparecen
+     tras la carga inicial entran con esta animacion para no sentirse un
+     "pop" duro. Se usa via class="fade-in" en el contenedor de la lista. */
+  .fade-in {
+    animation: fadeIn 220ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
 }
 
 @layer utilities {

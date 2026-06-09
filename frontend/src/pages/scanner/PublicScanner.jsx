@@ -122,9 +122,14 @@ const PublicScanner = () => {
   if (error) return (
     <div className="min-h-dvh bg-gray-950 flex items-center justify-center p-6">
       <div className="text-center">
-        <p className="text-5xl mb-4">🔒</p>
-        <p className="text-red-400 text-lg font-semibold">{error}</p>
-        <p className="text-gray-500 mt-2 text-sm">Este link es inválido o fue desactivado</p>
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-full mb-4"
+             style={{ background: 'rgba(185,28,28,0.10)', border: '1px solid rgba(185,28,28,0.35)', color: '#FCA5A5' }}>
+          <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+        </div>
+        <p className="text-red-400 text-base font-semibold">{error}</p>
+        <p className="text-gray-500 mt-1.5 text-sm">Este link es inválido o fue desactivado</p>
       </div>
     </div>
   );
@@ -195,8 +200,12 @@ const PublicScanner = () => {
           <div id="qr-reader" className="rounded-xl overflow-hidden" />
           {needsTap && (
             <button onClick={startCamera}
-              className="mt-4 w-full py-3 rounded-xl bg-brand text-black font-semibold text-sm">
-              📷 Activar cámara
+              className="mt-4 w-full py-3 rounded-xl bg-brand text-black font-semibold text-sm inline-flex items-center justify-center gap-2">
+              {/* SVG inline para no agregar import a este chunk publico. */}
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9zM12 17a4 4 0 100-8 4 4 0 000 8z" />
+              </svg>
+              Activar cámara
             </button>
           )}
           {camError && (

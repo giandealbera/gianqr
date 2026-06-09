@@ -78,7 +78,7 @@ const EventStats = () => {
           ← {event?.name || 'Volver'}
         </button>
 
-        <h1 className="text-xl font-bold mb-1">📊 Datos y analíticas</h1>
+        <h1 className="text-xl font-semibold mb-1 tracking-tight">Analíticas</h1>
         <p className="text-sm text-gray-400 mb-6">{event?.name}</p>
 
         {/* Big numbers */}
