@@ -4,11 +4,22 @@ import { Html5Qrcode } from 'html5-qrcode';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import { useConfirm } from '../../context/ConfirmContext';
+import useWakeLock from '../../hooks/useWakeLock';
 import toast from 'react-hot-toast';
 
 const COOLDOWN_MS = 2000;
 
+// Vibracion corta = ok, doble larga = error. Util en boliches ruidosos.
+const VIBRATE_OK  = [40];
+const VIBRATE_BAD = [60, 60, 120];
+const buzz = (pattern) => {
+  if (typeof navigator !== 'undefined' && navigator.vibrate) {
+    try { navigator.vibrate(pattern); } catch { /* iOS Safari no soporta */ }
+  }
+};
+
 const Scanner = () => {
+  useWakeLock(true); // pantalla siempre prendida en el escaner
   const confirm = useConfirm();
   const [searchParams, setSearchParams] = useSearchParams();
   const [events,       setEvents]       = useState([]);
@@ -70,10 +81,12 @@ const Scanner = () => {
       const currentType = typeSelRef.current;
       if (currentType) body.ticket_type_id = currentType;
       const res = await api.post('/tickets/scan', body);
+      buzz(VIBRATE_OK);
       setResult({ ok: true, data: res.data });
       toast.success('Entrada válida');
     } catch (err) {
       const errData = err.response?.data;
+      buzz(VIBRATE_BAD);
       setResult({ ok: false, data: errData });
       toast.error(errData?.error || 'QR inválido');
     } finally {

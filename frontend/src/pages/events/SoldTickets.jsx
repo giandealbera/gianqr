@@ -6,6 +6,8 @@ import Layout from '../../components/Layout';
 import { useAuth } from '../../context/AuthContext';
 import { useConfirm } from '../../context/ConfirmContext';
 import { SkeletonRow } from '../../components/Skeleton';
+import usePullToRefresh from '../../hooks/usePullToRefresh';
+import PullIndicator from '../../components/PullIndicator';
 import toast from 'react-hot-toast';
 
 const STATUS_BADGE = {
@@ -96,15 +98,19 @@ const SoldTickets = () => {
     }
   };
 
-  useEffect(() => {
+  // Recarga la lista — usada por el effect inicial y por el pull-to-refresh.
+  const reload = useCallback(() =>
     Promise.all([
       api.get(`/events/${id}`),
       api.get(`/tickets?event_id=${id}`),
     ]).then(([ev, tk]) => {
       setEvent(ev.data);
       setTickets(tk.data);
-    }).finally(() => setLoading(false));
-  }, [id]);
+    }), [id]);
+
+  useEffect(() => { reload().finally(() => setLoading(false)); }, [reload]);
+
+  const { pulling, progress } = usePullToRefresh(reload);
 
   const handleDelete = useCallback(async (t) => {
     const ok = await confirm({
@@ -170,6 +176,7 @@ const SoldTickets = () => {
 
   return (
     <Layout>
+      <PullIndicator pulling={pulling} progress={progress} />
       <div className="px-4 lg:px-8 py-6 max-w-4xl mx-auto">
         <button onClick={() => navigate(`/evento/${id}`)} className="text-sm text-gray-400 hover:text-white mb-4 flex items-center gap-1">
           ← {event?.name || 'Volver'}

@@ -1,12 +1,26 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { Html5Qrcode } from 'html5-qrcode';
+import useWakeLock from '../../hooks/useWakeLock';
 
 const BACKEND = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
 const COOLDOWN_MS = 2500;
 
+// Patron de vibracion: corto = ok, doble largo = error. Sirve en la boca de
+// un boliche ruidoso donde el portero no escucha bien el toast.
+const VIBRATE_OK  = [40];
+const VIBRATE_BAD = [60, 60, 120];
+const buzz = (pattern) => {
+  if (typeof navigator !== 'undefined' && navigator.vibrate) {
+    try { navigator.vibrate(pattern); } catch { /* iOS Safari no soporta vibrate */ }
+  }
+};
+
 const PublicScanner = () => {
   const { token } = useParams();
+  // Mantiene la pantalla del portero prendida mientras el componente esta
+  // montado. Sin esto se bloquea el celu cada 30s y se pierde el flow.
+  useWakeLock(true);
   const [info,     setInfo]     = useState(null);
   const [error,    setError]    = useState(null);
   const [result,   setResult]   = useState(null);
@@ -48,8 +62,11 @@ const PublicScanner = () => {
         body: JSON.stringify({ qr_code }),
       });
       const data = await res.json();
-      setResult({ ok: res.ok && data.valid, data });
+      const ok = res.ok && data.valid;
+      buzz(ok ? VIBRATE_OK : VIBRATE_BAD);
+      setResult({ ok, data });
     } catch {
+      buzz(VIBRATE_BAD);
       setResult({ ok: false, data: { error: 'Error de conexión' } });
     } finally {
       setScanning(false);

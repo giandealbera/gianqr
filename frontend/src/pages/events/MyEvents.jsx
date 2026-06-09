@@ -5,6 +5,8 @@ import Layout from '../../components/Layout';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import { SkeletonEventCard } from '../../components/Skeleton';
+import usePullToRefresh from '../../hooks/usePullToRefresh';
+import PullIndicator from '../../components/PullIndicator';
 
 const initialForm = {
   name: '', description: '', date: '', start_time: '', end_time: '',
@@ -38,6 +40,9 @@ const MyEvents = () => {
       .finally(() => setLoading(false));
 
   useEffect(() => { load(); }, []);
+
+  // Pull-to-refresh: tira del top de la lista para refrescar sin reload.
+  const { pulling, progress } = usePullToRefresh(() => load());
 
   // Si llegan desde EventDashboard con ?edit=ID, abrimos directo el modal
   // de edicion del evento. Limpiamos el query string para que no quede pegajoso.
@@ -207,6 +212,7 @@ const MyEvents = () => {
 
   return (
     <Layout>
+      <PullIndicator pulling={pulling} progress={progress} />
       <div className="px-4 lg:px-8 py-6 max-w-3xl mx-auto lg:max-w-none">
         {/* Greeting */}
         <p className="text-gray-400 text-sm">Hola, <span className="text-white font-medium">{user?.name}</span></p>
