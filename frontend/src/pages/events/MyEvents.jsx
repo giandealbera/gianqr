@@ -215,7 +215,11 @@ const MyEvents = () => {
         <div className="flex gap-3 mb-6">
           <div className="flex-1 relative">
             <input
-              type="text"
+              type="search"
+              enterKeyHint="search"
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck="false"
               placeholder="Buscar evento"
               value={search}
               onChange={e => setSearch(e.target.value)}
@@ -301,10 +305,10 @@ const MyEvents = () => {
                   <div key={i} className="grid grid-cols-3 gap-3 mb-2">
                     <input className="input" placeholder="Nombre" value={tt.name}
                       onChange={e => updateTT(i, 'name', e.target.value)} required />
-                    <input className="input" placeholder="Precio $" type="number" min="0" value={tt.price}
+                    <input className="input" placeholder="Precio $" type="number" inputMode="decimal" min="0" value={tt.price}
                       onChange={e => updateTT(i, 'price', e.target.value)} required />
                     <div className="flex gap-2">
-                      <input className="input" placeholder="Cupo" type="number" min="1" value={tt.total_quota}
+                      <input className="input" placeholder="Cupo" type="number" inputMode="numeric" min="1" value={tt.total_quota}
                         onChange={e => updateTT(i, 'total_quota', e.target.value)} required />
                       {form.ticket_types.length > 1 && (
                         <button type="button" onClick={() => removeTT(i)} className="text-red-400 hover:text-red-300 px-2">✕</button>

@@ -20,6 +20,11 @@
        100dvh respeta el viewport visible REAL. Fallback a -webkit-fill-available
        para iOS < 15.4. */
     height: 100%;
+    /* overscroll-behavior: none mata el "pull-to-refresh" del browser cuando
+       el usuario tira hacia abajo desde el top de la pagina. En una PWA de
+       caja/escaneo eso recargaba la app sin aviso y se perdia el contexto
+       (filtros, link generado en pantalla, etc.). */
+    overscroll-behavior: none;
   }
   body {
     background-color: #07090E;
@@ -93,6 +98,19 @@
   /* Para containers fixed: combina padding + el inset. */
   .pt-safe { padding-top: max(env(safe-area-inset-top, 0), 0.5rem); }
   .pb-safe { padding-bottom: max(env(safe-area-inset-bottom, 0), 0.5rem); }
+
+  /* Respeta la preferencia de "reduce motion" del SO (iOS/macOS:
+     Ajustes → Accesibilidad → Movimiento). Apagamos las transiciones y
+     animaciones globales para gente que se marea con el slide horizontal
+     de las rutas. framer-motion ya respeta esta preferencia internamente. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration:   0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration:  0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
 @layer components {

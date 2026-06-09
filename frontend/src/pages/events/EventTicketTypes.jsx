@@ -262,14 +262,14 @@ const EventTicketTypes = () => {
             </div>
             <div>
               <label className="text-sm text-gray-400 block mb-1">Precio {!editId && '*'}</label>
-              <input className="input" required={!editId} type="number" min="0" step="0.01" placeholder="$"
+              <input className="input" required={!editId} type="number" inputMode="decimal" min="0" step="0.01" placeholder="$"
                 value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} />
             </div>
             <div>
               <label className="text-sm text-gray-400 block mb-1">
                 {editId ? 'Entradas a agregar' : 'Cupo inicial *'}
               </label>
-              <input className="input" required={!editId} type="number" min={editId ? "0" : "1"}
+              <input className="input" required={!editId} type="number" inputMode="numeric" min={editId ? "0" : "1"}
                 placeholder={editId ? 'opcional — ej: 50' : 'ej: 100'}
                 value={form.total_quota} onChange={e => setForm(f => ({ ...f, total_quota: e.target.value }))} />
               {editId && <p className="text-xs text-gray-500 mt-1">Si lo dejás vacío, no agrega entradas al cupo actual ({origType?.total_quota}).</p>}

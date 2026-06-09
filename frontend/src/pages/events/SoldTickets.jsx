@@ -207,7 +207,11 @@ const SoldTickets = () => {
         {/* Filters */}
         <div className="flex gap-3 mb-4">
           <input
-            type="text"
+            type="search"
+            enterKeyHint="search"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck="false"
             placeholder="Buscar por nombre, email o QR..."
             value={search}
             onChange={e => setSearch(e.target.value)}

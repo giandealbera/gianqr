@@ -304,6 +304,11 @@ const LiveControl = () => {
                 </div>
 
                 <input
+                  type="search"
+                  enterKeyHint="search"
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  spellCheck="false"
                   className="input mb-3"
                   placeholder="Buscar por nombre, email, localidad, codigo o quien lo generó..."
                   value={search}

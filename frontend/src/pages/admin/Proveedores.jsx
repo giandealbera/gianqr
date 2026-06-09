@@ -102,7 +102,11 @@ const Proveedores = () => {
         {/* Buscar */}
         <form onSubmit={handleSearch} className="card mb-6 flex gap-3">
           <input
-            type="text"
+            type="search"
+            enterKeyHint="search"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck="false"
             placeholder="Buscar por nombre, alias/CBU o notas..."
             value={search}
             onChange={e => setSearch(e.target.value)}

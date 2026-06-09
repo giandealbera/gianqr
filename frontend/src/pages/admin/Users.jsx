@@ -323,7 +323,7 @@ const Users = () => {
                   </div>
                   <div>
                     <label className="text-sm text-gray-400 block mb-1">Comisión propia ($ por entrada)</label>
-                    <input type="number" className="input" min="0" value={form.commission}
+                    <input type="number" inputMode="decimal" className="input" min="0" value={form.commission}
                       onChange={e => setForm(f => ({ ...f, commission: e.target.value }))} />
                   </div>
                   {form.role === 'vendedor' && (
@@ -339,7 +339,7 @@ const Users = () => {
                       {form.leader_id && (
                         <div>
                           <label className="text-sm text-gray-400 block mb-1">Comisión del jefe ($ por entrada)</label>
-                          <input type="number" className="input" min="0" value={form.leader_commission}
+                          <input type="number" inputMode="decimal" className="input" min="0" value={form.leader_commission}
                             onChange={e => setForm(f => ({ ...f, leader_commission: e.target.value }))} />
                         </div>
                       )}
@@ -457,13 +457,13 @@ const Users = () => {
                 <div className="mt-3 pt-3 border-t border-gray-800 grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-[10px] text-gray-400 uppercase block mb-1">Comisión propia ($ x entrada)</label>
-                    <input type="number" className="input text-sm py-1" min="0"
+                    <input type="number" inputMode="decimal" className="input text-sm py-1" min="0"
                       value={commForm.commission}
                       onChange={e => setCommForm(f => ({ ...f, commission: parseFloat(e.target.value) }))} />
                   </div>
                   <div>
                     <label className="text-[10px] text-gray-400 uppercase block mb-1">Comisión jefe ($ x entrada)</label>
-                    <input type="number" className="input text-sm py-1" min="0"
+                    <input type="number" inputMode="decimal" className="input text-sm py-1" min="0"
                       value={commForm.leader_commission}
                       onChange={e => setCommForm(f => ({ ...f, leader_commission: parseFloat(e.target.value) }))} />
                   </div>
