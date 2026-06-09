@@ -180,7 +180,7 @@ const Cortesias = () => {
                   <input className="input text-sm" required placeholder="Apellido *"
                     value={a.buyer_apellido}
                     onChange={e => updateAt(i, 'buyer_apellido', e.target.value)} />
-                  <input className="input text-sm" placeholder="Edad" inputMode="numeric"
+                  <input className="input text-sm" placeholder="Edad" inputMode="numeric" enterKeyHint="done"
                     value={a.buyer_edad}
                     onChange={e => updateAt(i, 'buyer_edad', e.target.value)} />
                   <input className="input text-sm" placeholder="Localidad"

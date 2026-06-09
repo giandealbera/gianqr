@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
@@ -159,7 +159,7 @@ const Login = () => {
                 required
                 autoFocus
                 autoComplete="one-time-code"
-                inputMode="numeric"
+                inputMode="numeric" enterKeyHint="done"
                 pattern="[0-9 ]*"
                 enterKeyHint="go"
                 className="input text-center text-lg font-mono tracking-widest"

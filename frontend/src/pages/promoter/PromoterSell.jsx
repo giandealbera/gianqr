@@ -1,6 +1,7 @@
 ﻿import { useEffect, useRef, useState } from 'react';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
+import { share } from '../../lib/share';
 import toast from 'react-hot-toast';
 
 const METHODS = [
@@ -111,9 +112,16 @@ const PromoterSell = () => {
     }
   };
 
-  const copyLink = () => {
+  // En iOS abre el sheet nativo (WhatsApp, Mensajes, Mail, AirDrop). En el
+  // resto cae al clipboard. Una sola UX para el vendedor — no tiene que
+  // pensar "¿copio o comparto?".
+  const shareLink = () => {
     if (!generatedLink) return;
-    navigator.clipboard.writeText(generatedLink).then(() => toast.success('Link copiado'));
+    share({
+      title: 'Tu entrada',
+      text: `Cargá tus datos para recibir tu QR:`,
+      url: generatedLink,
+    });
   };
 
   return (
@@ -191,12 +199,19 @@ const PromoterSell = () => {
                 (El comprador carga sus datos y recibe su propio QR)
               </p>
 
-              <div className="rounded-lg p-3 break-all font-mono text-xs"
+              <div className="rounded-lg p-3 break-all font-mono text-xs selectable"
                    style={{ background: '#161B24', border: '1px solid #1E2530', color: '#C9974D' }}>
                 {generatedLink}
               </div>
 
-              <button onClick={copyLink} className="btn-primary w-full py-3">Copiar link</button>
+              <button onClick={shareLink} className="btn-primary w-full py-3 inline-flex items-center justify-center gap-2">
+                {/* SVG share inline para no agregar import. Icono "compartir"
+                    estilo iOS (caja con flecha hacia arriba). */}
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 12V4m0 0L8 8m4-4l4 4" />
+                </svg>
+                Compartir link
+              </button>
 
               <button onClick={() => setGeneratedLink('')} className="btn-secondary w-full py-2.5">
                 + Generar otro link

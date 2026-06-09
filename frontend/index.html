@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" style="background:#07090E;">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -16,6 +16,10 @@
     <meta name="description" content="Sistema de venta y control de entradas con QR para eventos" />
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#07090E" />
+    <!-- color-scheme: dark le avisa al SO que la app es modo oscuro. Evita
+         el flash blanco al abrir la PWA desde el home screen en iOS, y hace
+         que los controles nativos (scrollbar, picker) se vean dark. -->
+    <meta name="color-scheme" content="dark" />
 
     <!-- Apple PWA. apple-mobile-web-app-capable=yes hace que cuando el user
          agrega la app al home screen, se abra en standalone (sin barra de

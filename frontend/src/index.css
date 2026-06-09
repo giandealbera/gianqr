@@ -30,6 +30,12 @@
     background-color: #07090E;
     color: #E8EAF0;
     font-family: 'Inter', system-ui, sans-serif;
+    /* Bloquea el long-press text-selection en chrome de UI (botones, nav,
+       headers). El usuario puede igual seleccionar texto en contenido
+       (clase .selectable, o cualquier input/textarea/p de texto largo). */
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
     -webkit-tap-highlight-color: transparent;
     /* touch-action: manipulation desactiva el doble-tap-zoom de iOS Safari
        (que el meta viewport user-scalable=no no llega a tapar en standalone
@@ -61,6 +67,15 @@
     -webkit-appearance: none;
     appearance: none;
     border-radius: 0; /* Tailwind aplica el correcto despues */
+  }
+
+  /* Restauramos seleccion de texto en campos editables y contenido textual
+     real (parrafos, codigos QR copiables, etc). El bloqueo global del
+     body se aplica a botones/nav/headers, no a esto. */
+  input, textarea, [contenteditable], .selectable, code, pre {
+    -webkit-user-select: text;
+    user-select: text;
+    -webkit-touch-callout: default;
   }
 
   /* Selects nativos en iOS: la flechita nativa desaparece con

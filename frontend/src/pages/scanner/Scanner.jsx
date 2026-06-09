@@ -6,6 +6,7 @@ import Layout from '../../components/Layout';
 import { useConfirm } from '../../context/ConfirmContext';
 import useWakeLock from '../../hooks/useWakeLock';
 import { Icon } from '../../components/Icon';
+import { share } from '../../lib/share';
 import toast from 'react-hot-toast';
 
 const COOLDOWN_MS = 2000;
@@ -188,9 +189,9 @@ const Scanner = () => {
     }
   };
 
-  const copyExisting = (token) => {
+  const shareToken = (token) => {
     const url = `${window.location.origin}/scan/${token}`;
-    navigator.clipboard.writeText(url).then(() => toast.success('Link copiado'));
+    share({ title: 'Link de escáner', text: 'Acceso al escáner de entradas:', url });
   };
 
   const deleteToken = async (id) => {
@@ -314,10 +315,10 @@ const Scanner = () => {
                       <p className="font-medium truncate">{tk.label || tk.type_names || tk.ticket_type_name}</p>
                       <p className="font-mono truncate" style={{ color: '#6B7280' }}>/scan/{tk.token.substring(0, 8)}...</p>
                     </div>
-                    <button onClick={() => copyExisting(tk.token)}
+                    <button onClick={() => shareToken(tk.token)}
                             className="px-2 py-1 rounded text-xs hover:bg-gray-800"
                             style={{ color: '#C9974D' }}>
-                      Copiar
+                      Compartir
                     </button>
                     <button onClick={() => deleteToken(tk.id)}
                             className="px-2 py-1 rounded text-xs text-red-400 hover:bg-red-900/20">

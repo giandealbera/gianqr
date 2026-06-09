@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import useBodyScrollLock from '../../hooks/useBodyScrollLock';
 import { Icon } from '../../components/Icon';
+import { share } from '../../lib/share';
 import toast from 'react-hot-toast';
 
 const emptyForm = { name: '', price: '', total_quota: '' };
@@ -161,9 +162,12 @@ const EventTicketTypes = () => {
     }
   };
 
-  const copyLink = (token) => {
-    navigator.clipboard.writeText(`${FRONTEND}/scan/${token}`);
-    toast.success('Link copiado!');
+  const shareLink = (token) => {
+    share({
+      title: 'Link de escáner',
+      text: 'Acceso al escáner de entradas:',
+      url: `${FRONTEND}/scan/${token}`,
+    });
   };
 
   const openNew = () => { setEditId(null); setForm(emptyForm); setShowForm(true); };
@@ -266,14 +270,14 @@ const EventTicketTypes = () => {
             </div>
             <div>
               <label className="text-sm text-gray-400 block mb-1">Precio {!editId && '*'}</label>
-              <input className="input" required={!editId} type="number" inputMode="decimal" min="0" step="0.01" placeholder="$"
+              <input className="input" required={!editId} type="number" inputMode="decimal" enterKeyHint="done" min="0" step="0.01" placeholder="$"
                 value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} />
             </div>
             <div>
               <label className="text-sm text-gray-400 block mb-1">
                 {editId ? 'Entradas a agregar' : 'Cupo inicial *'}
               </label>
-              <input className="input" required={!editId} type="number" inputMode="numeric" min={editId ? "0" : "1"}
+              <input className="input" required={!editId} type="number" inputMode="numeric" enterKeyHint="done" min={editId ? "0" : "1"}
                 placeholder={editId ? 'opcional — ej: 50' : 'ej: 100'}
                 value={form.total_quota} onChange={e => setForm(f => ({ ...f, total_quota: e.target.value }))} />
               {editId && <p className="text-xs text-gray-500 mt-1">Si lo dejás vacío, no agrega entradas al cupo actual ({origType?.total_quota}).</p>}
@@ -441,9 +445,9 @@ const EventTicketTypes = () => {
                     <p className="text-xs text-gray-500 font-mono truncate">{FRONTEND}/scan/{t.token}</p>
                   </div>
                   <div className="flex gap-2 shrink-0">
-                    <button onClick={() => copyLink(t.token)}
+                    <button onClick={() => shareLink(t.token)}
                       className="text-xs px-3 py-1.5 rounded-lg bg-brand/20 text-brand hover:bg-brand/30 transition-colors">
-                      Copiar
+                      Compartir
                     </button>
                     <button onClick={() => revokeToken(t.id)}
                       className="text-xs px-3 py-1.5 rounded-lg border border-red-800 text-red-400 hover:border-red-600 transition-colors">

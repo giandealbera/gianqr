@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { downloadTicketsPdf } from '../../utils/downloadTicketsPdf';
@@ -340,7 +340,7 @@ const PublicBuy = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-sm text-gray-400 block mb-1">Edad</label>
-                  <input className="input" inputMode="numeric" pattern="[0-9]*" maxLength={3}
+                  <input className="input" inputMode="numeric" enterKeyHint="done" pattern="[0-9]*" maxLength={3}
                     placeholder="25" value={form.buyer_edad}
                     onChange={e => setForm(f => ({ ...f, buyer_edad: e.target.value }))} />
                 </div>

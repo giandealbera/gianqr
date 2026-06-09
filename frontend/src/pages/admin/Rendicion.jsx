@@ -234,7 +234,7 @@ const Rendicion = () => {
                   <div>
                     <label className="text-xs block mb-1" style={{ color: '#6B7280' }}>Monto *</label>
                     <input
-                      type="number" inputMode="decimal" step="0.01" min="0" required
+                      type="number" inputMode="decimal" enterKeyHint="done" step="0.01" min="0" required
                       className="input"
                       placeholder="0"
                       value={pagoForm.amount}

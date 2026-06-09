@@ -7,6 +7,7 @@ import { ConfirmProvider } from './context/ConfirmContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import ScrollManager from './components/ScrollManager';
 import OfflineBanner from './components/OfflineBanner';
+import InstallTip from './components/InstallTip';
 
 // Páginas del flujo de auth — eager (siempre cargan rápido al abrir la app)
 import Login             from './pages/Login';
@@ -133,6 +134,7 @@ const App = () => (
     <BrowserRouter>
       <ScrollManager />
       <OfflineBanner />
+      <InstallTip />
       <ResponsiveToaster />
       <Suspense fallback={<PageLoader />}>
       <AnimatedRoutes>

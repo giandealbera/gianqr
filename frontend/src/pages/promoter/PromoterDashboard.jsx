@@ -212,7 +212,7 @@ const PromoterDashboard = () => {
                         </div>
                         <div className="sm:col-span-2">
                           <label className="text-xs text-slate-400 block mb-1">Comision del vendedor ($ por entrada)</label>
-                          <input type="number" inputMode="decimal" className="input" min="0" value={memberForm.commission}
+                          <input type="number" inputMode="decimal" enterKeyHint="done" className="input" min="0" value={memberForm.commission}
                             onChange={e => setMemberForm(f => ({ ...f, commission: e.target.value }))} />
                         </div>
                       </div>

@@ -203,7 +203,7 @@ const TwoFactorSetup = () => {
                    value={actionForm.password}
                    onChange={e => setActionForm(f => ({ ...f, password: e.target.value }))} />
             <input type="text" required placeholder="Código (6 dígitos o XXXX-XXXX)"
-                   autoComplete="one-time-code" inputMode="numeric"
+                   autoComplete="one-time-code" inputMode="numeric" enterKeyHint="done"
                    className="input text-center font-mono"
                    value={actionForm.token}
                    onChange={e => setActionForm(f => ({ ...f, token: e.target.value }))} />
@@ -258,7 +258,7 @@ const TwoFactorSetup = () => {
                 Ingresá el código de 6 dígitos que muestra la app ahora.
               </p>
               <input type="text" required autoFocus
-                     autoComplete="one-time-code" inputMode="numeric" pattern="[0-9 ]*"
+                     autoComplete="one-time-code" inputMode="numeric" enterKeyHint="done" pattern="[0-9 ]*"
                      placeholder="000000"
                      className="input text-center text-lg font-mono tracking-widest"
                      maxLength={9}
