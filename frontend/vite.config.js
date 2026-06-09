@@ -16,6 +16,10 @@ export default defineConfig({
       workbox: {
         // Cache estatico del shell: HTML/JS/CSS/imagenes generadas por Vite.
         globPatterns: ['**/*.{js,css,html,svg,png,ico,webp}'],
+        // importScripts injecta nuestro custom SW de Web Push dentro del SW
+        // generado por workbox. Asi mantenemos el caching de workbox y
+        // sumamos el handler de 'push' / 'notificationclick' en un solo SW.
+        importScripts: ['/sw-push.js'],
         // Navegacion SPA: si la ruta no esta cacheada, devuelve index.html
         // (el router de React la resuelve adentro).
         navigateFallback: '/index.html',

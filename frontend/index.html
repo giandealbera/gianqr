@@ -31,6 +31,27 @@
     <meta name="apple-mobile-web-app-title" content="GianQR" />
     <link rel="apple-touch-icon" href="/favicon.svg" />
 
+    <!-- Splash screens para iOS PWA. Sin esto, al abrir la app desde el home
+         screen se ve un flash blanco hasta que el JS hidrata. Generados con
+         scripts/generate-splash.js (solidos del color de marca). Cada media
+         query matchea con un iPhone especifico — iOS elige el que aplica. -->
+    <link rel="apple-touch-startup-image" href="/splash/splash-1290x2796.png"
+          media="(device-width:430px) and (device-height:932px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)" />
+    <link rel="apple-touch-startup-image" href="/splash/splash-1179x2556.png"
+          media="(device-width:393px) and (device-height:852px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)" />
+    <link rel="apple-touch-startup-image" href="/splash/splash-1284x2778.png"
+          media="(device-width:428px) and (device-height:926px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)" />
+    <link rel="apple-touch-startup-image" href="/splash/splash-1170x2532.png"
+          media="(device-width:390px) and (device-height:844px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)" />
+    <link rel="apple-touch-startup-image" href="/splash/splash-1125x2436.png"
+          media="(device-width:375px) and (device-height:812px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)" />
+    <link rel="apple-touch-startup-image" href="/splash/splash-828x1792.png"
+          media="(device-width:414px) and (device-height:896px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)" />
+    <link rel="apple-touch-startup-image" href="/splash/splash-1242x2208.png"
+          media="(device-width:414px) and (device-height:736px) and (-webkit-device-pixel-ratio:3) and (orientation:portrait)" />
+    <link rel="apple-touch-startup-image" href="/splash/splash-750x1334.png"
+          media="(device-width:375px) and (device-height:667px) and (-webkit-device-pixel-ratio:2) and (orientation:portrait)" />
+
     <!-- Evita que iOS detecte numeros como telefonos clickeables (transforma
          "DNI 12345678" en un link a tel:). En una app de tickets con muchos
          numeros visibles eso confunde. -->

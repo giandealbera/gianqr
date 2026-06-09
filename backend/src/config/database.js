@@ -402,6 +402,23 @@ async function runMigrations(queryFn, execFn) {
     PRIMARY KEY (token_id, ticket_type_id)
   )`);
 
+  // Suscripciones de Web Push por usuario. Una misma cuenta puede tener
+  // varias (un iPhone, una iPad, una compu). endpoint es UNIQUE — si el
+  // mismo dispositivo se vuelve a subscribir, el INSERT IGNORE/ON CONFLICT
+  // evita duplicados. Cuando el dispositivo se "desubscribe" (logout o
+  // toggle off), se borra la fila.
+  await execFn(`CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id          TEXT PRIMARY KEY,
+    user_id     TEXT NOT NULL,
+    endpoint    TEXT NOT NULL UNIQUE,
+    p256dh      TEXT NOT NULL,
+    auth        TEXT NOT NULL,
+    user_agent  TEXT,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  )`);
+  await tryMigrate('migration', 'CREATE INDEX IF NOT EXISTS idx_push_user ON push_subscriptions(user_id)');
+
   await execFn(`CREATE TABLE IF NOT EXISTS zonas (
     id          TEXT PRIMARY KEY,
     name        TEXT NOT NULL UNIQUE,

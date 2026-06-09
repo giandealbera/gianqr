@@ -4,10 +4,25 @@ import toast from 'react-hot-toast';
 import api from '../api/axios';
 import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
+import useNotifications from '../hooks/useNotifications';
 
 const Configuracion = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const notif = useNotifications();
+
+  const toggleNotif = async () => {
+    if (notif.subscribed) {
+      await notif.disable();
+      toast.success('Notificaciones desactivadas');
+    } else {
+      const r = await notif.enable();
+      if (r.ok) toast.success('Notificaciones activadas');
+      else if (r.reason === 'denied') toast.error('Diste permiso "Bloquear". Hay que cambiarlo desde Ajustes del navegador.');
+      else if (r.reason === 'server-not-configured') toast.error('Notificaciones todavía no habilitadas por el admin');
+      else toast.error('No se pudieron activar');
+    }
+  };
   const [form, setForm] = useState({
     currentPassword: '',
     newPassword: '',
@@ -76,6 +91,36 @@ const Configuracion = () => {
             </div>
           </div>
         </div>
+
+        {/* Notificaciones — solo si el browser soporta. Si el servidor todavia
+            no tiene VAPID keys, mostramos pero deshabilitado. */}
+        {notif.supported && (
+          <div className="card mb-6">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <h2 className="font-semibold">Notificaciones</h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Avisos del sistema en tu dispositivo (cortes de venta, recordatorios, etc.).
+                </p>
+                {!notif.serverEnabled && (
+                  <p className="text-[11px] text-amber-400 mt-1.5">Próximamente — el sistema todavía no las está enviando.</p>
+                )}
+                {notif.permission === 'denied' && (
+                  <p className="text-[11px] text-red-400 mt-1.5">Bloqueadas — habilitalas desde los ajustes del navegador.</p>
+                )}
+              </div>
+              <button
+                onClick={toggleNotif}
+                disabled={notif.loading || notif.permission === 'denied'}
+                className={`shrink-0 relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-40 ${notif.subscribed ? 'bg-brand' : 'bg-gray-700'}`}
+                role="switch"
+                aria-checked={notif.subscribed}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${notif.subscribed ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Cambio de contraseña */}
         <div className="card">

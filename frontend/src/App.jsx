@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { ConfirmProvider } from './context/ConfirmContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import ScrollManager from './components/ScrollManager';
+import GestureManager from './components/GestureManager';
 import OfflineBanner from './components/OfflineBanner';
 import InstallTip from './components/InstallTip';
 
@@ -133,6 +134,7 @@ const App = () => (
     <ConfirmProvider>
     <BrowserRouter>
       <ScrollManager />
+      <GestureManager />
       <OfflineBanner />
       <InstallTip />
       <ResponsiveToaster />
