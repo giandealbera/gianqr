@@ -30,7 +30,7 @@ const PREFETCH = {
   '/escaner':         () => import('../pages/scanner/Scanner'),
   '/promotor':        () => import('../pages/promoter/PromoterDashboard'),
   '/promotor/vender': () => import('../pages/promoter/PromoterSell'),
-  '/mas':             () => import('../pages/MoreMenu'),
+  // /mas se importa eager — no necesita prefetch.
 };
 
 const navMap = {

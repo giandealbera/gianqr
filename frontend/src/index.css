@@ -26,11 +26,11 @@
     color: #E8EAF0;
     font-family: 'Inter', system-ui, sans-serif;
     -webkit-tap-highlight-color: transparent;
-    /* Permite scroll vertical pero desactiva el pinch-zoom en TODO el body.
-       Para una app full-screen es deseable; el zoom puede activarse en
-       imagenes especificas si hace falta. NO usar en paginas publicas
-       donde el zoom es accesibilidad — por eso queda solo en .pwa-app
-       wrapper... pero en este caso la app entera lo merece. */
+    /* touch-action: manipulation desactiva el doble-tap-zoom de iOS Safari
+       (que el meta viewport user-scalable=no no llega a tapar en standalone
+       PWA). Mantiene scroll vertical/horizontal y pan — solo bloquea el
+       zoom por gesto, que es lo que renegaba el usuario. */
+    touch-action: manipulation;
     overscroll-behavior-y: contain;
     /* Anti-bounce en algunos contextos. Comentamos: la app si necesita
        scroll, no lo bloqueamos a nivel body. */

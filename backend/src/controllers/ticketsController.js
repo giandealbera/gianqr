@@ -452,7 +452,12 @@ const remove = async (req, res) => {
       await conn.execute('DELETE FROM payments WHERE ticket_id = ?', [req.params.id]);
       await conn.execute('DELETE FROM tickets WHERE id = ?', [req.params.id]);
       if (wasValid) {
-        await conn.execute('UPDATE ticket_types SET sold_count = MAX(0, sold_count - 1) WHERE id = ?', [ticketTypeId]);
+        // CASE WHEN ... portable: SQLite acepta MAX(a,b) escalar pero Postgres
+        // no (alli MAX es solo agregada → tiraba "function does not exist").
+        await conn.execute(
+          'UPDATE ticket_types SET sold_count = CASE WHEN sold_count > 0 THEN sold_count - 1 ELSE 0 END WHERE id = ?',
+          [ticketTypeId]
+        );
       }
     });
 

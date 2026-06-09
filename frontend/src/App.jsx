@@ -9,6 +9,10 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Login             from './pages/Login';
 import ForgotPassword    from './pages/ForgotPassword';
 import ResetPassword     from './pages/ResetPassword';
+// MoreMenu eager: el chunk lazy fallaba en pantallas con cache de PWA stale
+// (pegada en "pantalla negra"), y como es chiquito (solo navegacion estatica)
+// no aporta diferencia al bundle inicial.
+import MoreMenu          from './pages/MoreMenu';
 
 // El resto: lazy. Se descargan recién cuando el user navega a esa ruta.
 // El bundle inicial baja MUCHO así (de ~600KB a ~150KB).
@@ -35,24 +39,29 @@ const EventHistory      = lazy(() => import('./pages/admin/EventHistory'));
 const Proveedores       = lazy(() => import('./pages/admin/Proveedores'));
 const ResetEventos      = lazy(() => import('./pages/admin/ResetEventos'));
 const Zonas             = lazy(() => import('./pages/admin/Zonas'));
-const MoreMenu          = lazy(() => import('./pages/MoreMenu'));
 const Configuracion     = lazy(() => import('./pages/Configuracion'));
 const ForceChangePassword = lazy(() => import('./pages/ForceChangePassword'));
 const AuditLog         = lazy(() => import('./pages/admin/AuditLog'));
 const TwoFactorSetup   = lazy(() => import('./pages/TwoFactorSetup'));
 const Sessions         = lazy(() => import('./pages/Sessions'));
 
-// Barra de progreso superior mientras carga un chunk lazy. Sustituye al
-// spinner full-screen anterior — la pantalla anterior queda visible y el
-// usuario percibe la transicion como instantanea.
+// Fallback para chunks lazy: barra superior + spinner centrado. Antes era
+// solo la barrita, y un chunk lento (PWA con cache stale, red flaky) se veia
+// como "pantalla negra" porque la pagina anterior ya se desmonto y no habia
+// contenido visible. Con el spinner el usuario sabe que esta cargando.
 const PageLoader = () => (
-  <motion.div
-    initial={{ scaleX: 0, opacity: 0.8 }}
-    animate={{ scaleX: 0.92, opacity: 1 }}
-    transition={{ duration: 1.6, ease: [0.16, 1, 0.3, 1] }}
-    style={{ transformOrigin: '0% 50%', background: '#C9974D' }}
-    className="fixed top-0 left-0 right-0 h-0.5 z-[60]"
-  />
+  <>
+    <motion.div
+      initial={{ scaleX: 0, opacity: 0.8 }}
+      animate={{ scaleX: 0.92, opacity: 1 }}
+      transition={{ duration: 1.6, ease: [0.16, 1, 0.3, 1] }}
+      style={{ transformOrigin: '0% 50%', background: '#C9974D' }}
+      className="fixed top-0 left-0 right-0 h-0.5 z-[60]"
+    />
+    <div className="flex items-center justify-center h-dvh bg-gray-950">
+      <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-brand" />
+    </div>
+  </>
 );
 
 // Wrapper que anima la entrada/salida de cada ruta. Slide horizontal corto
