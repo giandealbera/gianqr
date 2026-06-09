@@ -21,7 +21,8 @@ router.get('/',       auth, roles('admin', 'owner'), getAll);
 router.get('/:id',    auth, roles('admin', 'owner'), getOne);
 router.get('/:id/qr', auth, roles('admin', 'owner'), getQR);
 
-// Eliminar (solo admin)
-router.delete('/:id', auth, roles('admin'), remove);
+// Eliminar (admin y owner — el controller verifica que el owner sea dueño
+// del evento del ticket, y que el admin lo tenga en su arbol).
+router.delete('/:id', auth, roles('admin', 'owner'), remove);
 
 module.exports = router;

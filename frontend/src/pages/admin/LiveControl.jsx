@@ -107,7 +107,7 @@ const LiveControl = () => {
     if (filter === 'pendiente' && t.status === 'usado') return false;
     if (search) {
       const q = search.toLowerCase();
-      const hay = `${t.buyer_name || ''} ${t.buyer_apellido || ''} ${t.buyer_email || ''} ${t.buyer_localidad || ''} ${t.qr_code || ''}`.toLowerCase();
+      const hay = `${t.buyer_name || ''} ${t.buyer_apellido || ''} ${t.buyer_email || ''} ${t.buyer_localidad || ''} ${t.qr_code || ''} ${t.generado_por || ''} ${t.vendedor_nombre || ''} ${t.vendedor_code || ''}`.toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
@@ -305,7 +305,7 @@ const LiveControl = () => {
 
                 <input
                   className="input mb-3"
-                  placeholder="Buscar por nombre, apellido, email, localidad, codigo..."
+                  placeholder="Buscar por nombre, email, localidad, codigo o quien lo generó..."
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                 />
@@ -320,7 +320,7 @@ const LiveControl = () => {
                         <th className="py-3 px-3 font-medium">Localidad</th>
                         <th className="py-3 px-3 font-medium">Email</th>
                         <th className="py-3 px-3 font-medium">Tipo</th>
-                        <th className="py-3 px-3 font-medium">Vendedor</th>
+                        <th className="py-3 px-3 font-medium">Generó</th>
                         <th className="py-3 px-3 font-medium">Estado</th>
                         <th className="py-3 px-3 font-medium">Ingreso</th>
                         <th className="py-3 px-3 font-medium">Codigo</th>
@@ -342,7 +342,7 @@ const LiveControl = () => {
                             <td className="py-3 px-3 text-xs" style={{ color: '#9CA3AF' }}>{t.buyer_email || '—'}</td>
                             <td className="py-3 px-3" style={{ color: '#9CA3AF' }}>{t.tipo_entrada}</td>
                             <td className="py-3 px-3 text-xs" style={{ color: '#9CA3AF' }}>
-                              {t.vendedor_nombre || 'Caja'}
+                              {t.generado_por || t.vendedor_nombre || 'Caja'}
                               {t.vendedor_code && <span className="ml-1 font-mono" style={{ color: '#C9974D' }}>({t.vendedor_code})</span>}
                             </td>
                             <td className="py-3 px-3">

@@ -24,7 +24,7 @@ const LIST_HEIGHT = 600; // viewport del scroller interno
 // `data` viene desde itemData (filteredTickets). Si solo cambia el scroll,
 // las filas no re-renderizan.
 const TicketRow = ({ index, style, data }) => {
-  const t = data[index];
+  const t = data.items[index];
   return (
     <div style={style} className="px-1">
       <div className="card flex items-center justify-between gap-3 py-3 mb-2">
@@ -38,10 +38,25 @@ const TicketRow = ({ index, style, data }) => {
           <p className="text-xs text-gray-500 truncate mt-0.5">
             {t.buyer_email} · {t.tipo_entrada}
           </p>
+          <p className="text-[10px] text-gray-600 truncate mt-0.5">
+            Generó: {t.generado_por || t.vendedor_nombre || 'Caja'}
+            {t.vendedor_code ? ` (${t.vendedor_code})` : ''}
+          </p>
         </div>
-        <div className="text-right shrink-0">
-          <p className="text-sm font-semibold text-green-400">{fmt(t.amount_paid)}</p>
-          <p className="text-[10px] text-gray-600 font-mono">{t.qr_code}</p>
+        <div className="text-right shrink-0 flex items-center gap-3">
+          <div>
+            <p className="text-sm font-semibold text-green-400">{fmt(t.amount_paid)}</p>
+            <p className="text-[10px] text-gray-600 font-mono">{t.qr_code}</p>
+          </div>
+          {data.onDelete && (
+            <button
+              onClick={() => data.onDelete(t)}
+              className="text-xs text-red-400 hover:text-red-300 font-medium shrink-0"
+              title="Eliminar entrada (libera el cupo)"
+            >
+              Eliminar
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -55,6 +70,8 @@ const SoldTickets = () => {
   // Solo el dueño del evento puede exportar. El admin ve la pantalla
   // (por scope a su arbol) pero no descarga el Excel completo.
   const canExport = user?.role === 'owner';
+  // Borrar entradas: dueño y admin (el backend revalida scope por ticket).
+  const canDelete = ['owner', 'admin'].includes(user?.role);
   const [tickets, setTickets] = useState([]);
   const [event, setEvent]     = useState(null);
   const [loading, setLoading] = useState(true);
@@ -86,6 +103,18 @@ const SoldTickets = () => {
     }).finally(() => setLoading(false));
   }, [id]);
 
+  const handleDelete = useCallback(async (t) => {
+    if (!window.confirm(`¿Eliminar la entrada de ${t.buyer_name || 'comprador'}?\nSe libera el cupo y no se puede deshacer.`)) return;
+    try {
+      await api.delete(`/tickets/${t.id}`);
+      setTickets(prev => prev.filter(x => x.id !== t.id));
+      toast.success('Entrada eliminada');
+    } catch (err) {
+      console.error(err);
+      toast.error(err?.response?.data?.error || 'No se pudo eliminar');
+    }
+  }, []);
+
   // Filtros memoizados — sino se re-corren en cada keystroke incluso si
   // tickets no cambio (cuando el componente re-renderiza por otra razon).
   const filtered = useMemo(() => {
@@ -95,7 +124,10 @@ const SoldTickets = () => {
       if (!q) return true;
       return t.buyer_name?.toLowerCase().includes(q) ||
              t.buyer_email?.toLowerCase().includes(q) ||
-             t.qr_code?.toLowerCase().includes(q);
+             t.qr_code?.toLowerCase().includes(q) ||
+             t.generado_por?.toLowerCase().includes(q) ||
+             t.vendedor_nombre?.toLowerCase().includes(q) ||
+             t.vendedor_code?.toLowerCase().includes(q);
     });
   }, [tickets, statusFilter, search]);
 
@@ -118,6 +150,14 @@ const SoldTickets = () => {
   // mas barato y permite usar el flow nativo del browser (zoom, find-in-page).
   const VIRT_THRESHOLD = 80;
   const useVirtual = filtered.length > VIRT_THRESHOLD;
+
+  // react-window pasa un solo `data`. Envolvemos items + callback para que
+  // TicketRow pueda renderizar y eventualmente borrar. Memoizado para no
+  // romper el bail-out de re-render por scroll.
+  const listData = useMemo(
+    () => ({ items: filtered, onDelete: canDelete ? handleDelete : null }),
+    [filtered, canDelete, handleDelete]
+  );
 
   return (
     <Layout>
@@ -206,7 +246,7 @@ const SoldTickets = () => {
               height={LIST_HEIGHT}
               itemCount={filtered.length}
               itemSize={ROW_HEIGHT}
-              itemData={filtered}
+              itemData={listData}
               width="100%"
             >
               {TicketRow}
@@ -215,7 +255,7 @@ const SoldTickets = () => {
         ) : (
           <div className="space-y-2">
             {filtered.map((t, i) => (
-              <TicketRow key={t.id} index={i} style={{}} data={filtered} />
+              <TicketRow key={t.id} index={i} style={{}} data={listData} />
             ))}
           </div>
         )}

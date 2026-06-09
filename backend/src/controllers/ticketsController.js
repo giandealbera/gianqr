@@ -370,21 +370,25 @@ const getAll = async (req, res) => {
   if (event_id) { where.push('t.event_id = ?'); params.push(event_id); }
   if (status)   { where.push('t.status = ?');   params.push(status); }
   if (search)   {
-    where.push('(t.buyer_name LIKE ? OR t.buyer_apellido LIKE ? OR t.buyer_email LIKE ? OR t.buyer_localidad LIKE ? OR t.qr_code LIKE ?)');
+    // Incluye el nombre de quien generó el QR (su.name) para poder buscar
+    // una entrada por el vendedor/cajero que la cargó.
+    where.push('(t.buyer_name LIKE ? OR t.buyer_apellido LIKE ? OR t.buyer_email LIKE ? OR t.buyer_localidad LIKE ? OR t.qr_code LIKE ? OR su.name LIKE ?)');
     const q = `%${search}%`;
-    params.push(q, q, q, q, q);
+    params.push(q, q, q, q, q, q);
   }
 
   const whereClause = where.length ? 'WHERE ' + where.join(' AND ') : '';
   try {
     const result = await db.query(
       `SELECT t.*, tt.name AS tipo_entrada, e.name AS evento, e.date,
-              pu.name AS vendedor_nombre, p.promo_code AS vendedor_code
+              pu.name AS vendedor_nombre, p.promo_code AS vendedor_code,
+              su.name AS generado_por
        FROM tickets t
        JOIN ticket_types tt ON tt.id = t.ticket_type_id
        JOIN events e ON e.id = t.event_id
        LEFT JOIN promotors p ON p.id = t.promotor_id
        LEFT JOIN users pu ON pu.id = p.user_id
+       LEFT JOIN users su ON su.id = t.sold_by
        ${whereClause}
        ORDER BY t.created_at DESC LIMIT 5000`,
       params
@@ -413,13 +417,34 @@ const getQR = async (req, res) => {
   }
 };
 
-// DELETE /api/tickets/:id — solo admin
+// DELETE /api/tickets/:id — admin y owner (owner solo de sus eventos)
 const remove = async (req, res) => {
   try {
-    const t = await db.query('SELECT ticket_type_id, status FROM tickets WHERE id = ?', [req.params.id]);
+    const t = await db.query('SELECT event_id, ticket_type_id, status FROM tickets WHERE id = ?', [req.params.id]);
     if (!t.rows[0]) return res.status(404).json({ error: 'Ticket no encontrado' });
+    const eventId      = t.rows[0].event_id;
     const ticketTypeId = t.rows[0].ticket_type_id;
     const wasValid     = ['pagado', 'usado'].includes(t.rows[0].status);
+
+    // Scope por rol (anti-IDOR / anti cross-tenant):
+    //  - owner: solo borra tickets de eventos donde figura como dueño.
+    //  - admin: solo borra tickets de eventos de SU arbol (mismo criterio
+    //    que getAll), evita que un admin borre tickets de otro tenant.
+    if (req.user?.role === 'owner') {
+      const own = await db.query('SELECT 1 FROM event_owners WHERE event_id = ? AND user_id = ?', [eventId, req.user.id]);
+      if (!own.rows[0]) return res.status(403).json({ error: 'Sin acceso a este ticket' });
+    } else if (req.user?.role === 'admin') {
+      const inTree = await db.query(
+        `SELECT 1 FROM events e
+          WHERE e.id = ?
+            AND (e.created_by = ?
+                 OR e.id IN (SELECT eo.event_id FROM event_owners eo
+                             JOIN users u ON u.id = eo.user_id
+                             WHERE u.created_by = ?))`,
+        [eventId, req.user.id, req.user.id]
+      );
+      if (!inTree.rows[0]) return res.status(403).json({ error: 'Sin acceso a este ticket' });
+    }
 
     // Atomico: payments + ticket + sold_count en la misma transaccion.
     // Sin esto, si el delete del ticket fallaba el cupo nunca se liberaba;
