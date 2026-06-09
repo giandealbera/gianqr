@@ -40,14 +40,11 @@ async function run() {
     eventId = evRow.rows[0].id;
     console.log(`Evento existente: ${eventId}`);
   } else {
-    const venueRow = await db.query("SELECT id FROM venues LIMIT 1");
-    const venueId = venueRow.rows[0]?.id;
-    if (!venueId) { console.error('No hay venues. Arranca el server una vez primero.'); process.exit(1); }
     eventId = uuidv4();
     const tomorrow = new Date(Date.now() + 86400000).toISOString().substring(0, 10);
     await db.query(
-      "INSERT INTO events (id, name, date, start_time, venue_id, is_active) VALUES (?,?,?,?,?,1)",
-      [eventId, evNombre, tomorrow, '22:00', venueId]
+      "INSERT INTO events (id, name, date, start_time, is_active) VALUES (?,?,?,?,1)",
+      [eventId, evNombre, tomorrow, '22:00']
     );
     console.log(`Evento creado: ${eventId}`);
   }

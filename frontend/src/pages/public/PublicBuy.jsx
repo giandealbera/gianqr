@@ -296,7 +296,6 @@ const PublicBuy = () => {
                 <p className="font-semibold text-sm">{selectedEvent.name}</p>
                 <p className="text-xs mt-0.5" style={{ color: '#6B7280' }}>
                   {new Date(selectedEvent.date + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}
-                  {selectedEvent.venue_name ? ` · ${selectedEvent.venue_name}` : ''}
                 </p>
                 {typeLocked && selectedType && (
                   <p className="text-xs mt-1 font-medium" style={{ color: '#C9974D' }}>

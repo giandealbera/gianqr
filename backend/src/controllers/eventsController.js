@@ -43,13 +43,12 @@ const getAll = async (req, res) => {
     // Owner: solo ve los eventos que le asignaron.
     if (req.user?.role === 'owner') {
       const result = await db.query(
-        `SELECT e.*, v.name AS venue_name, v.capacity AS venue_capacity,
+        `SELECT e.*,
                 COUNT(DISTINCT CASE WHEN t.status IN ('pagado','usado') THEN t.id END) AS tickets_sold
          FROM events e
          JOIN event_owners eo ON eo.event_id = e.id AND eo.user_id = ?
-         LEFT JOIN venues v ON v.id = e.venue_id
          LEFT JOIN tickets t ON t.event_id = e.id
-         GROUP BY e.id, v.id
+         GROUP BY e.id
          ORDER BY e.date DESC, e.start_time DESC`,
         [req.user.id]
       );
@@ -63,14 +62,13 @@ const getAll = async (req, res) => {
       const { PG_MODE } = require('../config/database');
       const aggOwners = PG_MODE ? `STRING_AGG(u.name, ', ')` : `GROUP_CONCAT(u.name, ', ')`;
       const result = await db.query(
-        `SELECT e.*, v.name AS venue_name, v.capacity AS venue_capacity,
+        `SELECT e.*,
                 COUNT(DISTINCT CASE WHEN t.status IN ('pagado','usado') THEN t.id END) AS tickets_sold,
                 (SELECT ${aggOwners}
                  FROM event_owners eo
                  JOIN users u ON u.id = eo.user_id
                  WHERE eo.event_id = e.id) AS owner_names
          FROM events e
-         LEFT JOIN venues v ON v.id = e.venue_id
          LEFT JOIN tickets t ON t.event_id = e.id
          WHERE e.created_by = ?
             OR e.id IN (
@@ -78,7 +76,7 @@ const getAll = async (req, res) => {
               JOIN users u ON u.id = eo.user_id
               WHERE u.created_by = ?
             )
-         GROUP BY e.id, v.id
+         GROUP BY e.id
          ORDER BY e.date DESC, e.start_time DESC`,
         [req.user.id, req.user.id]
       );
@@ -98,13 +96,12 @@ const getAll = async (req, res) => {
       const ownerScopeId = await resolveOwnerScopeForUser(req.user.id);
       if (!ownerScopeId) return res.json([]);
       const result = await db.query(
-        `SELECT e.*, v.name AS venue_name, v.capacity AS venue_capacity,
+        `SELECT e.*,
                 COUNT(DISTINCT CASE WHEN t.status IN ('pagado','usado') THEN t.id END) AS tickets_sold
          FROM events e
          JOIN event_owners eo ON eo.event_id = e.id AND eo.user_id = ?
-         LEFT JOIN venues v ON v.id = e.venue_id
          LEFT JOIN tickets t ON t.event_id = e.id
-         GROUP BY e.id, v.id
+         GROUP BY e.id
          ORDER BY e.date DESC, e.start_time DESC`,
         [ownerScopeId]
       );
@@ -126,9 +123,7 @@ const getOne = async (req, res) => {
     if (!await guardEventAccess(req, res, id)) return;
 
     const eventResult = await db.query(
-      `SELECT e.*, v.name AS venue_name, v.capacity AS venue_capacity
-       FROM events e LEFT JOIN venues v ON v.id = e.venue_id
-       WHERE e.id = ?`, [id]
+      `SELECT e.* FROM events e WHERE e.id = ?`, [id]
     );
     if (!eventResult.rows[0]) return res.status(404).json({ error: 'Evento no encontrado' });
 
@@ -158,7 +153,7 @@ function sanitizeFlyerUrl(url) {
 }
 
 const create = async (req, res) => {
-  const { venue_id, name, description, date, start_time, end_time, flyer_url, ticket_types,
+  const { name, description, date, start_time, end_time, flyer_url, ticket_types,
           sale_start_at, sale_end_at } = req.body;
   if (!name || !date || !start_time)
     return res.status(400).json({ error: 'name, date y start_time son requeridos' });
@@ -173,10 +168,10 @@ const create = async (req, res) => {
     const eventId = uuidv4();
     await db.transaction(async (conn) => {
       await conn.execute(
-        `INSERT INTO events (id, venue_id, name, description, date, start_time, end_time, flyer_url,
+        `INSERT INTO events (id, name, description, date, start_time, end_time, flyer_url,
                              sale_start_at, sale_end_at, created_by)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-        [eventId, venue_id || null, name, description || null, date, start_time,
+         VALUES (?,?,?,?,?,?,?,?,?,?)`,
+        [eventId, name, description || null, date, start_time,
          end_time || null, sanitizeFlyerUrl(flyer_url), sale_start_at, sale_end_at, req.user.id]
       );
 
@@ -229,10 +224,10 @@ const cloneEvent = async (req, res) => {
     const newEventId = uuidv4();
     await db.transaction(async (conn) => {
       await conn.execute(
-        `INSERT INTO events (id, venue_id, name, description, date, start_time, end_time, flyer_url,
+        `INSERT INTO events (id, name, description, date, start_time, end_time, flyer_url,
                              sale_start_at, sale_end_at, created_by)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-        [newEventId, orig.venue_id, name, orig.description, date, start_time,
+         VALUES (?,?,?,?,?,?,?,?,?,?)`,
+        [newEventId, name, orig.description, date, start_time,
          end_time || orig.end_time, orig.flyer_url, sale_start_at, sale_end_at, req.user.id]
       );
       for (const tt of origTT) {
@@ -271,7 +266,7 @@ const update = async (req, res) => {
 
   if (!await guardEventAccess(req, res, id)) return;
 
-  const { name, description, date, start_time, end_time, flyer_url, is_active, venue_id,
+  const { name, description, date, start_time, end_time, flyer_url, is_active,
           sale_start_at, sale_end_at } = req.body;
   if (sale_start_at && sale_end_at && new Date(sale_end_at) <= new Date(sale_start_at))
     return res.status(400).json({ error: 'El cierre de venta debe ser posterior a la apertura' });
@@ -280,9 +275,9 @@ const update = async (req, res) => {
   try {
     await db.query(
       `UPDATE events SET name=?, description=?, date=?, start_time=?,
-       end_time=?, flyer_url=?, is_active=?, venue_id=?,
+       end_time=?, flyer_url=?, is_active=?,
        sale_start_at=?, sale_end_at=? WHERE id=?`,
-      [name, description, date, start_time, end_time, sanitizeFlyerUrl(flyer_url), is_active ? 1 : 0, venue_id || null,
+      [name, description, date, start_time, end_time, sanitizeFlyerUrl(flyer_url), is_active ? 1 : 0,
        sale_start_at || null, sale_end_at || null, id]
     );
     const result = await db.query('SELECT * FROM events WHERE id = ?', [id]);
@@ -320,14 +315,6 @@ const stats = async (req, res) => {
   }
 };
 
-const getVenues = async (req, res) => {
-  try {
-    const result = await db.query('SELECT * FROM venues WHERE is_active = 1 ORDER BY name');
-    res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ error: 'Error al obtener salas' });
-  }
-};
 
 // GET /api/events/:id/ticket-types
 const getTicketTypes = async (req, res) => {
@@ -915,9 +902,7 @@ const exportData = async (req, res) => {
       ticketsRes,
     ] = await Promise.all([
       db.query(
-        `SELECT e.*, v.name AS venue_name, v.capacity AS venue_capacity
-         FROM events e LEFT JOIN venues v ON v.id = e.venue_id
-         WHERE e.id = ?`, [id]
+        `SELECT e.* FROM events e WHERE e.id = ?`, [id]
       ),
       db.query(
         `SELECT *, (total_quota - sold_count) AS available
@@ -1029,7 +1014,7 @@ const exportData = async (req, res) => {
 module.exports = {
   getAll, getOne, create, update, stats, history, resetEvent, cloneEvent,
   stopSales, resumeSales, buyerStats, exportData,
-  getVenues, getTicketTypes, addTicketType, updateTicketType, toggleTicketType,
+  getTicketTypes, addTicketType, updateTicketType, toggleTicketType,
   getTicketTypeSellers, setTicketTypeSellers,
   getOwners, addOwner, removeOwner,
 };

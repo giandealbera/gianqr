@@ -1,6 +1,6 @@
 /**
  * GianQR - Seed inicial
- * Crea el usuario admin y sala por defecto si no existen.
+ * Crea el usuario admin por defecto si no existe.
  * Se ejecuta automáticamente al arrancar el servidor.
  */
 require('dotenv').config({ path: require('path').join(__dirname, '../../.env') });
@@ -58,15 +58,6 @@ async function seed() {
     if (oldVend.rows.length > 0) {
       await db.query("UPDATE users SET email = ? WHERE email = 'vendedor'", ['vendedor@gianqr.com']);
       console.log('✅ Vendedor migrado a vendedor@gianqr.com');
-    }
-
-    // Crear sala por defecto si no existe
-    const venues = await db.query("SELECT id FROM venues LIMIT 1");
-    if (venues.rows.length === 0) {
-      await db.query(
-        "INSERT INTO venues (id, name, capacity, description) VALUES (?,?,?,?)",
-        [uuidv4(), 'Pista Principal', 500, 'Sala principal del boliche']
-      );
     }
   } catch (err) {
     console.error('❌ Error en seed:', err.message);

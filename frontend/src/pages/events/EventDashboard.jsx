@@ -181,12 +181,6 @@ const EventDashboard = () => {
                       })}
                       {event.start_time && ` · ${event.start_time.slice(0, 5)} hs`}
                     </span>
-                    {event.venue_name && (
-                      <span className="flex items-center gap-1.5 text-sm text-gray-500">
-                        <SvgIcon path={ICONS.location} size="w-3.5 h-3.5" />
-                        {event.venue_name}
-                      </span>
-                    )}
                   </div>
                 </div>
 

@@ -183,6 +183,10 @@ const PromoterSell = () => {
 
               <button onClick={copyLink} className="btn-primary w-full py-3">Copiar link</button>
 
+              <button onClick={() => setGeneratedLink('')} className="btn-secondary w-full py-2.5">
+                + Generar otro link
+              </button>
+
               <p className="text-xs text-center" style={{ color: '#4B5563' }}>
                 {selectedEvent?.name} · {selectedType?.name} · {qty} {qty === 1 ? 'entrada' : 'entradas'} · {METHODS.find(m => m.value === payMethod)?.label}
               </p>

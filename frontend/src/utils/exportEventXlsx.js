@@ -89,7 +89,6 @@ export async function exportEventXlsx(eventId, opts = {}) {
   addKV('Evento',          event.name || '');
   addKV('Fecha',           fmtEventDate(event.date));
   if (event.start_time) addKV('Hora',            event.start_time);
-  if (event.venue_name) addKV('Lugar',           event.venue_name);
   addKV('Estado',          event.is_active ? 'Activo' : 'Inactivo');
   resumen.addRow([]);
 

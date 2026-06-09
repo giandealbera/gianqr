@@ -47,7 +47,6 @@ const Dashboard = () => {
                 <thead>
                   <tr className="text-gray-400 border-b border-gray-800">
                     <th className="text-left pb-2">Evento</th>
-                    <th className="text-left pb-2">Sala</th>
                     <th className="text-left pb-2">Fecha</th>
                     <th className="text-left pb-2">Hora</th>
                     <th className="text-right pb-2">Vendidas</th>
@@ -57,7 +56,6 @@ const Dashboard = () => {
                   {upcomingEvents.map(ev => (
                     <tr key={ev.id} className="hover:bg-gray-800/50">
                       <td className="py-3 font-medium">{ev.name}</td>
-                      <td className="py-3 text-gray-400">{ev.venue_name || '—'}</td>
                       <td className="py-3 text-gray-400">{new Date(ev.date + 'T12:00:00').toLocaleDateString('es-AR')}</td>
                       <td className="py-3 text-gray-400">{ev.start_time?.slice(0,5)}</td>
                       <td className="py-3 text-right text-green-400">{ev.tickets_sold || 0}</td>

@@ -8,9 +8,8 @@ const getPublicEvents = async (req, res) => {
     // Ahora: 2 queries totales, agrupadas en JS. Mucho más rápido con muchos eventos.
     const [evResult, ttResult] = await Promise.all([
       db.query(
-        `SELECT e.id, e.name, e.date, e.start_time, v.name as venue_name
+        `SELECT e.id, e.name, e.date, e.start_time
          FROM events e
-         LEFT JOIN venues v ON v.id = e.venue_id
          WHERE e.is_active = 1
          ORDER BY e.date ASC`
       ),

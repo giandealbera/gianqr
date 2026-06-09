@@ -8,7 +8,7 @@ import { useAuth } from '../../context/AuthContext';
 const initialForm = {
   name: '', description: '', date: '', start_time: '', end_time: '',
   sale_start_at: '', sale_end_at: '',
-  venue_id: '', flyer_url: '',
+  flyer_url: '',
   ticket_types: [{ name: 'General', price: '', total_quota: '' }],
 };
 
@@ -17,7 +17,6 @@ const MyEvents = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [events, setEvents]     = useState([]);
-  const [venues, setVenues]     = useState([]);
   const [loading, setLoading]   = useState(true);
   const [search, setSearch]     = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -33,13 +32,9 @@ const MyEvents = () => {
   const [exporting, setExporting]     = useState(false);
 
   const load = () =>
-    Promise.all([
-      api.get('/events'),
-      api.get('/events/venues').catch(() => ({ data: [] })),
-    ]).then(([ev, vn]) => {
-      setEvents(ev.data);
-      setVenues(vn.data);
-    }).finally(() => setLoading(false));
+    api.get('/events')
+      .then(ev => setEvents(ev.data))
+      .finally(() => setLoading(false));
 
   useEffect(() => { load(); }, []);
 
@@ -107,7 +102,6 @@ const MyEvents = () => {
       end_time: (ev.end_time || '').slice(0, 5),
       sale_start_at: ev.sale_start_at ? ev.sale_start_at.slice(0, 16) : '',
       sale_end_at: ev.sale_end_at ? ev.sale_end_at.slice(0, 16) : '',
-      venue_id: ev.venue_id || '',
       flyer_url: ev.flyer_url || '',
       ticket_types: [],  // En edit no tocamos tipos (van a /evento/:id/tipos)
       is_active: ev.is_active !== 0,
@@ -184,7 +178,6 @@ const MyEvents = () => {
           end_time: form.end_time || null,
           flyer_url: form.flyer_url || null,
           is_active: form.is_active,
-          venue_id: form.venue_id || null,
           sale_start_at: form.sale_start_at || null,
           sale_end_at: form.sale_end_at || null,
         });
@@ -268,14 +261,6 @@ const MyEvents = () => {
                 <label className="text-sm text-gray-400 block mb-1">Nombre *</label>
                 <input className="input" required value={form.name}
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-              </div>
-              <div>
-                <label className="text-sm text-gray-400 block mb-1">Sala</label>
-                <select className="input" value={form.venue_id}
-                  onChange={e => setForm(f => ({ ...f, venue_id: e.target.value }))}>
-                  <option value="">Sin sala asignada</option>
-                  {venues.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-                </select>
               </div>
               <div>
                 <label className="text-sm text-gray-400 block mb-1">Fecha *</label>
@@ -466,9 +451,6 @@ const MyEvents = () => {
                         <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${status.cls}`}>
                           {status.label}
                         </span>
-                        {ev.venue_name && (
-                          <span className="text-xs text-gray-500">📍 {ev.venue_name}</span>
-                        )}
                       </div>
                     </div>
                     {/* Contador de vendidas: solo admin/owner. Jefe/vendedor

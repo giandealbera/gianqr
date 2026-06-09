@@ -5,12 +5,11 @@ const roles   = require('../middleware/roles');
 const {
   getAll, getOne, create, update, stats, history, resetEvent, cloneEvent,
   stopSales, resumeSales, buyerStats, exportData,
-  getVenues, getTicketTypes, addTicketType, updateTicketType, toggleTicketType,
+  getTicketTypes, addTicketType, updateTicketType, toggleTicketType,
   getTicketTypeSellers, setTicketTypeSellers,
   getOwners, addOwner, removeOwner,
 } = require('../controllers/eventsController');
 
-router.get('/venues',  auth, getVenues);
 router.get('/history', auth, roles('admin', 'owner'), history);
 
 // owner puede ver y editar sus eventos

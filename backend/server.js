@@ -93,7 +93,7 @@ const start = async () => {
   await initDb();
   console.log(`  ✅ Base de datos lista (${PG_MODE ? 'Postgres' : 'SQLite local'})`);
 
-  // Ejecutar seed (crea admin y sala por defecto)
+  // Ejecutar seed (crea admin por defecto)
   try { await require('./src/seed')(); } catch(e) { /* ya seedeado */ }
 
   app.listen(PORT, () => {

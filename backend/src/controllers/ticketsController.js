@@ -314,11 +314,10 @@ const getOne = async (req, res) => {
   try {
     const result = await db.query(
       `SELECT t.*, tt.name AS tipo_entrada, tt.price,
-              e.name AS evento, e.date, e.start_time, v.name AS sala
+              e.name AS evento, e.date, e.start_time
        FROM tickets t
        JOIN ticket_types tt ON tt.id = t.ticket_type_id
        JOIN events e ON e.id = t.event_id
-       LEFT JOIN venues v ON v.id = e.venue_id
        WHERE t.id = ?`, [req.params.id]
     );
     if (!result.rows[0]) return res.status(404).json({ error: 'Ticket no encontrado' });
