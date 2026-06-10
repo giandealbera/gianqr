@@ -268,9 +268,12 @@ const getReservedTickets = async (req, res) => {
       });
     }
 
-    // Mezcla (algunas completadas, otras no) — caso raro, link manipulado.
-    if (rows.some(r => r.payment_ref !== 'RESERVADO'))
-      return res.status(409).json({ error: 'Link parcialmente utilizado, contactá al organizador' });
+    // Estado mixto (algunos cargados, otros no): NO es error. Pasa cuando el
+    // comprador carga 1 de 5, refresca / cierra el tab / vuelve al dia
+    // siguiente. Antes devolviamos 409 y el comprador quedaba bloqueado.
+    // Ahora devolvemos SOLO los pendientes y el frontend retoma desde ahi.
+    const pending = rows.filter(r => r.payment_ref === 'RESERVADO');
+    const completedCount = rows.length - pending.length;
 
     res.json({
       event_id: rows[0].event_id,
@@ -281,7 +284,13 @@ const getReservedTickets = async (req, res) => {
       price: rows[0].price,
       payment_method: rows[0].payment_method,
       cortesia: rows[0].payment_method === 'cortesia',
-      ticket_ids: rows.map(r => r.id),
+      // Solo IDs pendientes — el frontend usa esto como la lista a cargar.
+      ticket_ids: pending.map(r => r.id),
+      // Cuantos ya estaban cargados antes de abrir el link esta vez.
+      completed_count: completedCount,
+      // Total original (pendientes + completados) — util para mostrar
+      // "Continuando desde la persona 3 de 5".
+      total_count: rows.length,
     });
   } catch (err) {
     console.error('getReservedTickets error:', err.message);

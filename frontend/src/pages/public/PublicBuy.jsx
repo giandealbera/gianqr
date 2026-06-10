@@ -18,7 +18,15 @@ const PublicBuy = () => {
   // (?tickets=ID1,ID2). El comprador solo carga nombre/apellido.
   const presetTickets  = searchParams.get('tickets') || '';
   const isReserved     = !!presetTickets;
-  const reservedIds    = presetTickets ? presetTickets.split(',').filter(Boolean) : [];
+  // Lista de IDs inicial del URL — la usamos como fallback. Una vez que el
+  // backend responde con tickets-info, reemplazamos por la lista de
+  // PENDIENTES (filtra los que ya quedaron cargados). Esto evita que un
+  // refresh / volver al link tras cargar 1 de N rompa el flow con
+  // "Link parcialmente utilizado".
+  const urlReservedIds = presetTickets ? presetTickets.split(',').filter(Boolean) : [];
+  const [reservedIds,    setReservedIds]    = useState(urlReservedIds);
+  const [completedCount, setCompletedCount] = useState(0); // ya cargados antes
+  const [totalCount,     setTotalCount]     = useState(urlReservedIds.length);
 
   const presetEventId  = searchParams.get('event') || '';
   const presetTypeId   = searchParams.get('type')  || '';
@@ -75,6 +83,14 @@ const PublicBuy = () => {
           }
           const i = info.body;
           setReservedInfo(i);
+          // Backend ahora devuelve i.ticket_ids = SOLO pendientes (si hay
+          // mixto, filtra los completados). Usamos eso como la lista de
+          // trabajo. Si por compatibilidad no viene, caemos al URL.
+          if (Array.isArray(i.ticket_ids) && i.ticket_ids.length > 0) {
+            setReservedIds(i.ticket_ids);
+          }
+          if (typeof i.completed_count === 'number') setCompletedCount(i.completed_count);
+          if (typeof i.total_count === 'number')     setTotalCount(i.total_count);
           const list = Array.isArray(evs) ? evs : [];
           setEvents(list);
           setEventSel(i.event_id);
@@ -254,6 +270,21 @@ const PublicBuy = () => {
           <p className="text-3xl font-black tracking-tight" style={{ color: '#C9974D' }}>GianQR</p>
           <p className="text-sm mt-1" style={{ color: '#4B5568' }}>Registro de entrada</p>
         </div>
+
+        {/* Aviso cuando se retoma a mitad de camino: el link traia N entradas
+            pero algunas ya quedaron cargadas (cierre de tab, volver al dia
+            siguiente, etc). Hoy seguimos desde la pendiente. */}
+        {isReserved && completedCount > 0 && mode !== 'done' && (
+          <div className="card mb-4 py-3"
+               style={{ background: 'rgba(201,151,77,0.06)', borderColor: 'rgba(201,151,77,0.3)' }}>
+            <p className="text-sm font-medium" style={{ color: '#C9974D' }}>
+              Continuando desde la entrada {completedCount + personNum} de {totalCount}
+            </p>
+            <p className="text-xs mt-1" style={{ color: '#9AA3B2' }}>
+              {completedCount === 1 ? 'Ya cargaste 1 entrada antes' : `Ya cargaste ${completedCount} entradas antes`}. Te quedan {presetQty - createdAll.length}.
+            </p>
+          </div>
+        )}
 
         {/* Indicador de progreso si hay mas de 1 */}
         {presetQty > 1 && mode !== 'done' && (
