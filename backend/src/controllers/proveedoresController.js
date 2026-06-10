@@ -22,7 +22,8 @@ const list = async (req, res) => {
     const params = [];
     const conds = [];
     if (search) {
-      conds.push(`(nombre LIKE ? OR apellido LIKE ? OR alias_cbu LIKE ? OR notas LIKE ?)`);
+      // LOWER en ambos lados → case-insensitive en PG y SQLite.
+      conds.push(`(LOWER(nombre) LIKE LOWER(?) OR LOWER(apellido) LIKE LOWER(?) OR LOWER(alias_cbu) LIKE LOWER(?) OR LOWER(notas) LIKE LOWER(?))`);
       const like = `%${search}%`;
       params.push(like, like, like, like);
     }

@@ -239,7 +239,7 @@ const publicScan = async (req, res) => {
        FROM tickets t
        JOIN ticket_types tt ON tt.id = t.ticket_type_id
        JOIN events e ON e.id = t.event_id
-       WHERE t.qr_code = ?`,
+       WHERE UPPER(t.qr_code) = UPPER(?)`,
       [qr_code]
     );
     const ticket = ticketResult.rows[0];

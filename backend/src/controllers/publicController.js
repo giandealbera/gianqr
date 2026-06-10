@@ -69,7 +69,7 @@ const getPromoterInfo = async (req, res) => {
       `SELECT u.name, u.apellido, p.promo_code
        FROM promotors p
        JOIN users u ON u.id = p.user_id
-       WHERE p.promo_code = ? AND u.is_active = 1`,
+       WHERE UPPER(p.promo_code) = UPPER(?) AND u.is_active = 1`,
       [code]
     );
     if (!result.rows[0]) return res.status(404).json({ error: 'Link invalido' });
@@ -80,7 +80,9 @@ const getPromoterInfo = async (req, res) => {
 };
 
 const createPublicTicket = async (req, res) => {
-  const { code } = req.params;
+  // Normalizo el code a uppercase asi /comprar/CASA y /comprar/casa son
+  // el mismo flow. Los promo codes son uppercase por convencion.
+  const code = (req.params.code || '').toUpperCase();
   const { event_id, ticket_type_id, payment_method, attendees, cortesia } = req.body;
   // Cortesia solo se honra para el codigo CASA (interno del dueno)
   const isCortesia = cortesia === true && code === 'CASA';
@@ -115,7 +117,7 @@ const createPublicTicket = async (req, res) => {
     const promoResult = await db.query(
       `SELECT p.id, p.user_id FROM promotors p
        JOIN users u ON u.id = p.user_id
-       WHERE p.promo_code = ? AND u.is_active = 1`,
+       WHERE UPPER(p.promo_code) = UPPER(?) AND u.is_active = 1`,
       [code]
     );
     const promotor = promoResult.rows[0];
@@ -302,7 +304,8 @@ const getReservedTickets = async (req, res) => {
 // El comprador completa nombre/apellido en cada entrada reservada.
 // Devuelve los QRs igual que createPublicTicket.
 const completeReservedTickets = async (req, res) => {
-  const { code } = req.params;
+  // Normalizo: /comprar/CASA == /comprar/casa.
+  const code = (req.params.code || '').toUpperCase();
   const { ticket_ids, attendees } = req.body;
 
   if (!Array.isArray(ticket_ids) || ticket_ids.length === 0)
@@ -339,7 +342,7 @@ const completeReservedTickets = async (req, res) => {
       const promo = await db.query(
         `SELECT p.id FROM promotors p
           JOIN users u ON u.id = p.user_id
-         WHERE p.promo_code = ? AND u.is_active = 1`,
+         WHERE UPPER(p.promo_code) = UPPER(?) AND u.is_active = 1`,
         [code]
       );
       if (!promo.rows[0]) return res.status(404).json({ error: 'Link invalido' });
@@ -380,7 +383,8 @@ const completeReservedTickets = async (req, res) => {
 
 // POST /api/public/recover/:code — comprador busca sus tickets por nombre+apellido+(email)
 const recoverTickets = async (req, res) => {
-  const { code } = req.params;
+  // Normalizo: /recover/CASA == /recover/casa.
+  const code = (req.params.code || '').toUpperCase();
   const { nombre, apellido, email } = req.body;
 
   if (!nombre || !apellido)
@@ -412,7 +416,7 @@ const recoverTickets = async (req, res) => {
         : 't.promotor_id IS NULL';
       params = casaId ? [casaId, nombre, apellido, ...emailParam] : [nombre, apellido, ...emailParam];
     } else {
-      const promo = await db.query('SELECT id FROM promotors WHERE promo_code = ?', [code]);
+      const promo = await db.query('SELECT id FROM promotors WHERE UPPER(promo_code) = UPPER(?)', [code]);
       if (!promo.rows[0]) return res.status(404).json({ error: 'Link invalido' });
       promotorWhere = 't.promotor_id = ?';
       params = [promo.rows[0].id, nombre, apellido, ...emailParam];

@@ -9,7 +9,8 @@ const listPublicas = async (req, res) => {
     const params = [];
     let searchClause = '';
     if (search) {
-      searchClause = `AND (u.name LIKE ? OR u.apellido LIKE ? OR p.promo_code LIKE ?)`;
+      // LOWER en ambos lados → case-insensitive en PG y SQLite.
+      searchClause = `AND (LOWER(u.name) LIKE LOWER(?) OR LOWER(u.apellido) LIKE LOWER(?) OR LOWER(p.promo_code) LIKE LOWER(?))`;
       params.push(`%${search}%`, `%${search}%`, `%${search}%`);
     }
 

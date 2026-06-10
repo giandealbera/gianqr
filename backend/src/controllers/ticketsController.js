@@ -68,7 +68,7 @@ const create = async (req, res) => {
         const [pRows] = await conn.execute('SELECT id FROM promotors WHERE user_id = ?', [req.user.id]);
         if (pRows[0]) promotorId = pRows[0].id;
       } else if (promotor_code) {
-        const [pRows] = await conn.execute('SELECT id FROM promotors WHERE promo_code = ?', [promotor_code]);
+        const [pRows] = await conn.execute('SELECT id FROM promotors WHERE UPPER(promo_code) = UPPER(?)', [promotor_code]);
         if (pRows[0]) promotorId = pRows[0].id;
       }
 
@@ -303,7 +303,7 @@ const scan = async (req, res) => {
        FROM tickets t
        JOIN ticket_types tt ON tt.id = t.ticket_type_id
        JOIN events e ON e.id = t.event_id
-       WHERE t.qr_code = ?`, [qr_code]
+       WHERE UPPER(t.qr_code) = UPPER(?)`, [qr_code]
     );
 
     const ticket = result.rows[0];
@@ -404,7 +404,10 @@ const getAll = async (req, res) => {
   if (search)   {
     // Incluye nombre y apellido de quien generó el QR para poder buscar una
     // entrada por el vendedor/cajero que la cargó.
-    where.push('(t.buyer_name LIKE ? OR t.buyer_apellido LIKE ? OR t.buyer_email LIKE ? OR t.buyer_localidad LIKE ? OR t.qr_code LIKE ? OR su.name LIKE ? OR su.apellido LIKE ?)');
+    // LOWER en ambos lados: LIKE es case-sensitive en Postgres (case-
+    // insensitive en SQLite). Asi unificamos buscando case-insensitive en
+    // ambos motores sin tener que usar ILIKE (que es PG-only).
+    where.push('(LOWER(t.buyer_name) LIKE LOWER(?) OR LOWER(t.buyer_apellido) LIKE LOWER(?) OR LOWER(t.buyer_email) LIKE LOWER(?) OR LOWER(t.buyer_localidad) LIKE LOWER(?) OR LOWER(t.qr_code) LIKE LOWER(?) OR LOWER(su.name) LIKE LOWER(?) OR LOWER(su.apellido) LIKE LOWER(?))');
     const q = `%${search}%`;
     params.push(q, q, q, q, q, q, q);
   }
