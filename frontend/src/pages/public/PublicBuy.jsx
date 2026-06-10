@@ -2,6 +2,7 @@
 import { useParams, useSearchParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { downloadTicketsPdf } from '../../utils/downloadTicketsPdf';
+import LocalidadInput from '../../components/LocalidadInput';
 
 const BACKEND = (import.meta.env.VITE_API_URL || 'http://localhost:4000/api');
 
@@ -377,9 +378,12 @@ const PublicBuy = () => {
                 </div>
                 <div>
                   <label className="text-sm text-gray-400 block mb-1">Localidad</label>
-                  <input className="input" placeholder="San Juan" value={form.buyer_localidad}
-                    autoComplete="address-level2" autoCapitalize="words"
-                    onChange={e => setForm(f => ({ ...f, buyer_localidad: e.target.value }))} />
+                  <LocalidadInput
+                    backend={BACKEND}
+                    value={form.buyer_localidad}
+                    onChange={(v) => setForm(f => ({ ...f, buyer_localidad: v }))}
+                    placeholder="San Juan"
+                  />
                 </div>
               </div>
               <div>
