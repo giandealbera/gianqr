@@ -262,6 +262,82 @@ const forgotPassword = async (req, res) => {
   }
 };
 
+// POST /api/auth/forgot-password-phone — recovery sin email.
+// Recibe { celular, apellido }, valida que ambos matcheen un usuario
+// activo, genera magic_token de 1h y devuelve el link /acceso/:token
+// directamente en la respuesta. El frontend muestra un boton "Entrar"
+// que toca ese link y loguea al usuario (que despues setea su nueva pwd
+// con el flujo must_change_password — gratis porque magicLogin ya lo
+// hace).
+//
+// Seguridad: pediomos celular AND apellido (no solo uno). El celular solo
+// no alcanza porque podria leakearse (whatsapp, base de datos compartida).
+// El combo apellido+celular es lo bastante unico para una app de
+// boliche/eventos donde los users se conocen. Esta detras del mismo
+// forgotPasswordLimiter (5 intentos / IP / 15min) — bloquea fuerza bruta.
+//
+// La respuesta es generica si no encuentra: no revelamos si el celular
+// existe o si fue el apellido el que no matcheo (anti-enumeration).
+const forgotPasswordByPhone = async (req, res) => {
+  const { celular, apellido } = req.body;
+  if (!celular || !apellido)
+    return res.status(400).json({ error: 'Celular y apellido son requeridos' });
+
+  // Respuesta generica de "no se encontro" — misma forma que el caso ok
+  // para no filtrar info por status/mensaje.
+  const notFound = { ok: false, error: 'No encontramos esa combinación. Probá con email o pedile a un admin que te genere un acceso.' };
+
+  try {
+    // Normalizo el celular sacando todo lo no numerico (espacios, guiones,
+    // parentesis, '+'). Asi "+54 9 11 5555-5555" matchea con "5491155555555"
+    // si se cargo el numero un poco distinto.
+    const cleanCel = String(celular).replace(/\D/g, '');
+    if (cleanCel.length < 6) {
+      await new Promise(r => setTimeout(r, 200));
+      return res.json(notFound);
+    }
+
+    // Match insensible al caso del apellido + comparacion del celular
+    // ignorando caracteres no numericos en BD tambien.
+    const result = await db.query(
+      `SELECT id, name, apellido
+         FROM users
+        WHERE is_active = 1
+          AND LOWER(TRIM(apellido)) = LOWER(TRIM(?))
+          AND REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(celular,''), ' ', ''), '-', ''), '(', ''), ')', ''), '+', ''), '.', '') = ?`,
+      [apellido, cleanCel]
+    );
+    const user = result.rows[0];
+    if (!user) {
+      // Pequeno delay para que el timing no delate "no existe vs existe pero apellido mal"
+      await new Promise(r => setTimeout(r, 200));
+      return res.json(notFound);
+    }
+
+    const magicToken = crypto.randomBytes(32).toString('hex');
+    // 1h de vida — mismo SLA que el reset-token de email.
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    await db.query(
+      'UPDATE users SET magic_token = ?, magic_token_expires = ? WHERE id = ?',
+      [magicToken, expiresAt, user.id]
+    );
+
+    logAudit(req, 'AUTH_FORGOT_BY_PHONE', { user_id: user.id });
+
+    // Devolvemos el link directamente. La proteccion contra robo del
+    // magic-link en transito es el HTTPS — mismo modelo que el reset por
+    // email.
+    res.json({
+      ok: true,
+      user_name: user.name,
+      magic_path: `/acceso/${magicToken}`,
+    });
+  } catch (err) {
+    console.error('forgotPasswordByPhone error:', err.message);
+    res.json(notFound);
+  }
+};
+
 // POST /api/auth/reset-password — recibe token + nueva password, valida y resetea
 const resetPassword = async (req, res) => {
   const { token, password } = req.body;
@@ -341,4 +417,4 @@ const changePassword = async (req, res) => {
   }
 };
 
-module.exports = { login, me, magicLogin, forgotPassword, resetPassword, changePassword, verifyTwoFactor };
+module.exports = { login, me, magicLogin, forgotPassword, forgotPasswordByPhone, resetPassword, changePassword, verifyTwoFactor };

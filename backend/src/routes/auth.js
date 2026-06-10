@@ -2,13 +2,14 @@ const express = require('express');
 const router  = express.Router();
 const auth    = require('../middleware/auth');
 const { loginLimiter, magicLimiter, forgotPasswordLimiter, resetPasswordLimiter } = require('../middleware/rateLimiters');
-const { login, me, magicLogin, forgotPassword, resetPassword, changePassword, verifyTwoFactor } = require('../controllers/authController');
+const { login, me, magicLogin, forgotPassword, forgotPasswordByPhone, resetPassword, changePassword, verifyTwoFactor } = require('../controllers/authController');
 const { setup: tfaSetup, enable: tfaEnable, disable: tfaDisable, regenerateRecoveryCodes, status: tfaStatus } = require('../controllers/tfaController');
 
 router.post('/login', loginLimiter, login);
 router.get('/me', auth, me);
 router.get('/magic/:token', magicLimiter, magicLogin);
-router.post('/forgot-password', forgotPasswordLimiter, forgotPassword);
+router.post('/forgot-password',       forgotPasswordLimiter, forgotPassword);
+router.post('/forgot-password-phone', forgotPasswordLimiter, forgotPasswordByPhone);
 router.post('/reset-password',  resetPasswordLimiter, resetPassword);
 router.post('/change-password', auth, changePassword);
 
