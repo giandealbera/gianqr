@@ -3,6 +3,7 @@ const db = require('../config/database');
 const { checkSaleWindow } = require('../utils/saleWindow');
 const { sendPush } = require('./pushController');
 const { normalizeCity } = require('../utils/normalize');
+const AR_CITIES = require('../data/argentine-cities');
 
 // Notifica push a los dueños cuando una tanda cruza el 90% o se agota.
 // Se llama post-commit; si VAPID no esta configurado, es no-op.
@@ -447,10 +448,21 @@ const recoverTickets = async (req, res) => {
 };
 
 // GET /api/public/localidades?q=fir — autocomplete de ciudades para el
-// formulario de carga del comprador. Devuelve hasta 8 sugerencias de
-// ciudades YA cargadas en el sistema que matchean (case-insensitive) con
-// el query. Las ordena por cantidad de tickets (mas usadas primero) para
-// que las opciones obvias salten arriba.
+// formulario de carga del comprador.
+//
+// Combina 2 fuentes:
+//   1) Ciudades YA cargadas en la BD (de tickets previos) — saltan arriba
+//      ordenadas por cantidad (las mas usadas primero).
+//   2) Catalogo estatico AR_CITIES (~200 ciudades argentinas con
+//      provincia) — como red de seguridad para que el primer comprador
+//      tambien vea sugerencias.
+//
+// Devuelve hasta 8 items: { value, label }
+//   value = "Firmat, Santa Fe" — lo que se va a guardar en buyer_localidad
+//   label = igual al value (la UI muestra value).
+//
+// Si una ciudad de tickets matchea con una del seed, se prioriza la del
+// seed para tener la provincia.
 //
 // Es publico — sin auth — porque lo consume PublicBuy (link de comprador).
 // No expone PII: solo nombres de ciudades agregados.
@@ -458,12 +470,7 @@ const getLocalidadesSuggestions = async (req, res) => {
   const q = String(req.query.q || '').trim();
   if (q.length < 2) return res.json({ items: [] });
   try {
-    // LOWER en ambos lados para case-insensitive en PG + SQLite. Agrupo
-    // por la version normalizada (LOWER TRIM) asi "Firmat" y "firmat"
-    // colapsan a uno solo. La columna del resultado es el localidad ORIGINAL
-    // del registro mas reciente (ya normalizado en futuros inserts gracias
-    // a normalizeCity, pero data vieja queda como esta — el frontend
-    // muestra el primero que aparezca).
+    // 1) Dinamicas: ciudades de tickets ya cargados que matcheen.
     const r = await db.query(
       `SELECT MIN(buyer_localidad) AS city, COUNT(*) AS n
          FROM tickets
@@ -472,13 +479,53 @@ const getLocalidadesSuggestions = async (req, res) => {
           AND LOWER(buyer_localidad) LIKE LOWER(?)
         GROUP BY LOWER(TRIM(buyer_localidad))
         ORDER BY n DESC
-        LIMIT 8`,
+        LIMIT 12`,
       [`${q}%`]
     );
-    // Re-normalizo la salida con title-case por las dudas (data vieja
-    // puede tener "FIRMAT" o "firmat" — devolvemos "Firmat" siempre).
-    const items = (r.rows || []).map(row => normalizeCity(row.city)).filter(Boolean);
-    res.json({ items: Array.from(new Set(items)).slice(0, 8) });
+    const dynamic = (r.rows || [])
+      .map(row => (row.city || '').trim())
+      .filter(Boolean);
+
+    // 2) Estaticas del catalogo: prefix-match case-insensitive en ciudad
+    // o provincia (asi "san" matchea "San Juan" y "Salta", "santa" matchea
+    // "Santa Fe", etc).
+    const qLower = q.toLowerCase();
+    const staticMatches = AR_CITIES.filter(c =>
+      c.city.toLowerCase().startsWith(qLower) ||
+      c.province.toLowerCase().startsWith(qLower)
+    );
+
+    // Merge sin duplicados. La clave de deduplicacion es LOWER(city) —
+    // asi "Firmat" del seed pisa a "FIRMAT" dinamico (preservamos la
+    // provincia del seed). Mantenemos el orden: primero dinamicas (mas
+    // relevantes para el evento), despues estaticas.
+    const seen = new Set();
+    const items = [];
+
+    // Dinamicas primero — si encuentra la ciudad en el seed, le toma la
+    // provincia; sino, la deja sin provincia (data vieja puede no tenerla).
+    for (const cityName of dynamic) {
+      const key = cityName.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const found = AR_CITIES.find(c => c.city.toLowerCase() === key);
+      const normalizedCity = normalizeCity(cityName);
+      const province = found?.province || null;
+      const label = province ? `${normalizedCity}, ${province}` : normalizedCity;
+      items.push({ value: label, label });
+      if (items.length >= 8) break;
+    }
+    // Estaticas para completar hasta 8.
+    for (const c of staticMatches) {
+      const key = c.city.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const label = `${c.city}, ${c.province}`;
+      items.push({ value: label, label });
+      if (items.length >= 8) break;
+    }
+
+    res.json({ items });
   } catch (err) {
     console.error('getLocalidadesSuggestions error:', err.message);
     res.json({ items: [] });

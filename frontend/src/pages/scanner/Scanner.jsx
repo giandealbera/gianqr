@@ -9,7 +9,10 @@ import { Icon } from '../../components/Icon';
 import { share } from '../../lib/share';
 import toast from 'react-hot-toast';
 
-const COOLDOWN_MS = 2000;
+// Cooldown bajado para que escanear filas largas sea fluido (lo mismo
+// hicimos en PublicScanner). 1.2s sigue alcanzando para que un mismo QR
+// no se dispare 2 veces por accidente.
+const COOLDOWN_MS = 1200;
 
 // Vibracion corta = ok, doble larga = error. Util en boliches ruidosos.
 const VIBRATE_OK  = [40];
@@ -103,7 +106,14 @@ const Scanner = () => {
     const html5 = scannerRef.current;
     if (!html5) return;
     setCamError(null);
-    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+    // fps 25 + disableFlip — mismo razonamiento que PublicScanner. Mas
+    // frames procesados por segundo = deteccion mas rapida del QR cuando
+    // el portero apunta a la entrada.
+    const config = {
+      fps: 25,
+      qrbox: { width: 250, height: 250 },
+      disableFlip: true,
+    };
     try {
       await html5.start({ facingMode: 'environment' }, config, handleDecoded, () => {});
       setNeedsTap(false);

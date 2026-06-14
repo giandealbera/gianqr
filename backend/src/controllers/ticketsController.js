@@ -303,7 +303,7 @@ const scan = async (req, res) => {
        FROM tickets t
        JOIN ticket_types tt ON tt.id = t.ticket_type_id
        JOIN events e ON e.id = t.event_id
-       WHERE UPPER(t.qr_code) = UPPER(?)`, [qr_code]
+       WHERE t.qr_code = ?`, [String(qr_code || '').toUpperCase().trim()]
     );
 
     const ticket = result.rows[0];

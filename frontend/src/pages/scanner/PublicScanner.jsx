@@ -4,7 +4,10 @@ import { Html5Qrcode } from 'html5-qrcode';
 import useWakeLock from '../../hooks/useWakeLock';
 
 const BACKEND = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
-const COOLDOWN_MS = 2500;
+// Cooldown bajado de 2500ms a 1200ms: con 2.5s entre scans, escanear una
+// fila larga (300 personas en la puerta) se sentia lento. 1.2s sigue
+// alcanzando para que no se re-dispare por accidente el mismo QR.
+const COOLDOWN_MS = 1200;
 
 // Patron de vibracion: corto = ok, doble largo = error. Sirve en la boca de
 // un boliche ruidoso donde el portero no escucha bien el toast.
@@ -71,7 +74,10 @@ const PublicScanner = () => {
     } finally {
       setScanning(false);
       // Auto-reset después de 4 segundos para el siguiente escaneo
-      setTimeout(() => setResult(null), 4000);
+      // Auto-reset bajado de 4s a 2s: el portero ve el resultado, asiente,
+      // necesita la camara lista para el proximo. 4s era una eternidad
+      // cuando habia fila.
+      setTimeout(() => setResult(null), 2000);
     }
   }, [token]);
 
@@ -83,7 +89,16 @@ const PublicScanner = () => {
     const html5 = scannerRef.current;
     if (!html5) return;
     setCamError(null);
-    const config = { fps: 10, qrbox: { width: 260, height: 260 } };
+    // fps subido de 10 a 25: html5-qrcode toma mas frames por segundo y
+    // detecta el QR mas rapido. Cuesta algo mas de CPU pero los iPhones
+    // y Android medianamente modernos lo manejan sin problema.
+    // disableFlip: el motor no busca el QR invertido — saca otra pasada
+    // que no aporta nada en escaneos normales.
+    const config = {
+      fps: 25,
+      qrbox: { width: 260, height: 260 },
+      disableFlip: true,
+    };
     try {
       // 1) Intento directo con la cámara trasera (environment).
       await html5.start({ facingMode: 'environment' }, config, handleDecoded, () => {});

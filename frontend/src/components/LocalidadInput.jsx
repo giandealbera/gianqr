@@ -32,7 +32,9 @@ const LocalidadInput = ({ value, onChange, placeholder = 'San Juan', backend }) 
         const r = await fetch(`${backend}/public/localidades?q=${encodeURIComponent(q)}`);
         if (!r.ok) return;
         const data = await r.json();
-        const items = (data.items || []).filter(c => c.toLowerCase() !== q.toLowerCase());
+        // Backend ahora devuelve [{value, label}]. Filtro los que ya estan
+        // identicos al input para no sugerir lo mismo que el user tipeo.
+        const items = (data.items || []).filter(it => (it.value || '').toLowerCase() !== q.toLowerCase());
         setSuggestions(items);
       } catch { /* silencioso — autocomplete es opcional */ }
     }, 250);
@@ -53,11 +55,11 @@ const LocalidadInput = ({ value, onChange, placeholder = 'San Juan', backend }) 
     };
   }, [open]);
 
-  const pick = (city) => {
-    onChange(city);
+  const pick = (item) => {
+    // item es { value, label } — guardamos value en el form.
+    onChange(item.value);
     setOpen(false);
     setHighlighted(-1);
-    // Devuelvo el foco al input para que el usuario siga si quiere.
     setTimeout(() => inputRef.current?.blur(), 0);
   };
 
@@ -98,26 +100,36 @@ const LocalidadInput = ({ value, onChange, placeholder = 'San Juan', backend }) 
           className="absolute left-0 right-0 mt-1 rounded-xl overflow-hidden z-20 shadow-lg"
           style={{ background: '#0F141B', border: '1px solid #1E2530' }}
         >
-          {suggestions.map((c, i) => (
-            <button
-              key={c}
-              type="button"
-              onMouseDown={(e) => e.preventDefault()} // que no roben el foco antes del pick
-              onClick={() => pick(c)}
-              onMouseEnter={() => setHighlighted(i)}
-              className="w-full text-left px-3 py-2.5 text-sm transition-colors flex items-center gap-2"
-              style={{
-                background: i === highlighted ? 'rgba(201,151,77,0.1)' : 'transparent',
-                color: i === highlighted ? '#C9974D' : '#E8EAF0',
-              }}
-            >
-              <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                   strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" style={{ color: '#6B7280' }}>
-                <path d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0zM15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              {c}
-            </button>
-          ))}
+          {suggestions.map((it, i) => {
+            // Si el label tiene formato "Ciudad, Provincia" lo split para
+            // mostrar la provincia con menos peso. Sino, lo dejamos plano.
+            const [cityPart, ...rest] = (it.label || '').split(',');
+            const province = rest.join(',').trim();
+            return (
+              <button
+                key={it.value}
+                type="button"
+                onMouseDown={(e) => e.preventDefault()} // que no roben el foco antes del pick
+                onClick={() => pick(it)}
+                onMouseEnter={() => setHighlighted(i)}
+                className="w-full text-left px-3 py-2.5 text-sm transition-colors flex items-center gap-2"
+                style={{
+                  background: i === highlighted ? 'rgba(201,151,77,0.1)' : 'transparent',
+                }}
+              >
+                <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                     strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" style={{ color: '#6B7280' }}>
+                  <path d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0zM15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span style={{ color: i === highlighted ? '#C9974D' : '#E8EAF0' }}>{cityPart}</span>
+                {province && (
+                  <span className="text-xs ml-auto pl-2 truncate" style={{ color: '#6B7280' }}>
+                    {province}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
