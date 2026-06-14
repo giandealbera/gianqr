@@ -1,13 +1,10 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import QrScanner from 'qr-scanner';
+import { Html5Qrcode } from 'html5-qrcode';
 import useWakeLock from '../../hooks/useWakeLock';
 
 const BACKEND = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
-// Cooldown bajado de 2500ms a 1200ms: con 2.5s entre scans, escanear una
-// fila larga (300 personas en la puerta) se sentia lento. 1.2s sigue
-// alcanzando para que no se re-dispare por accidente el mismo QR.
-const COOLDOWN_MS = 1200;
+const COOLDOWN_MS = 2500;
 
 // Patron de vibracion: corto = ok, doble largo = error. Sirve en la boca de
 // un boliche ruidoso donde el portero no escucha bien el toast.
@@ -32,7 +29,6 @@ const PublicScanner = () => {
   const [needsTap, setNeedsTap] = useState(false);
   const lastScan   = useRef(0);
   const scannerRef = useRef(null);
-  const videoRef   = useRef(null);
 
   // Cargar info del escáner (evento y tipo de entrada)
   useEffect(() => {
@@ -75,61 +71,55 @@ const PublicScanner = () => {
     } finally {
       setScanning(false);
       // Auto-reset después de 4 segundos para el siguiente escaneo
-      // Auto-reset bajado de 4s a 2s: el portero ve el resultado, asiente,
-      // necesita la camara lista para el proximo. 4s era una eternidad
-      // cuando habia fila.
-      setTimeout(() => setResult(null), 2000);
+      setTimeout(() => setResult(null), 4000);
     }
   }, [token]);
 
-  // Arranca la cámara usando qr-scanner (Nimiq), que renderiza sobre un
-  // <video> propio. Maneja bien playsinline/autoplay de iOS Safari — donde
-  // html5-qrcode dejaba la pantalla en negro.
+  // Arranca la cámara trasera con la API de bajo nivel Html5Qrcode (no el
+  // widget): sin botón "Request Camera Permission" en inglés ni selector.
+  // Si el navegador exige un toque del usuario para abrir la cámara, dejamos
+  // needsTap=true y mostramos un botón EN ESPAÑOL para reintentar.
   const startCamera = useCallback(async () => {
+    const html5 = scannerRef.current;
+    if (!html5) return;
     setCamError(null);
-    const video = videoRef.current;
-    if (!video) return;
-    if (!scannerRef.current) {
-      scannerRef.current = new QrScanner(
-        video,
-        (res) => handleDecoded(res.data),
-        {
-          preferredCamera: 'environment',
-          highlightScanRegion: false,
-          highlightCodeOutline: false,
-          maxScansPerSecond: 10,
-          returnDetailedScanResult: true,
-        }
-      );
-    }
+    const config = { fps: 10, qrbox: { width: 260, height: 260 } };
     try {
-      await scannerRef.current.start();
+      // 1) Intento directo con la cámara trasera (environment).
+      await html5.start({ facingMode: 'environment' }, config, handleDecoded, () => {});
       setNeedsTap(false);
-    } catch (e) {
-      // Permiso denegado, sin cámara, o el navegador exige un gesto del usuario.
-      const msg = String(e || '');
-      if (/not allowed|denied|permission/i.test(msg)) {
-        setCamError('Permiso de cámara denegado. Habilitalo en los ajustes del navegador.');
-      } else if (/no camera|not found/i.test(msg)) {
-        setCamError('No se detectó ninguna cámara.');
+    } catch(err) {
+      // Si ya estaba corriendo (eg: toque extra del usuario), la cámara
+      // funciona — solo ocultamos el botón sin reiniciar nada.
+      if (/already running/i.test(String(err))) { setNeedsTap(false); return; }
+      // 2) Fallback: algún device rechaza el constraint. Listamos cámaras y
+      //    elegimos la que parezca trasera (o la última, que suele serlo).
+      try {
+        const cams = await Html5Qrcode.getCameras();
+        if (!cams?.length) { setCamError('No se detectó ninguna cámara.'); setNeedsTap(true); return; }
+        const back = cams.find(c => /back|rear|tras|environment/i.test(c.label || '')) || cams[cams.length - 1];
+        await html5.start(back.id, config, handleDecoded, () => {});
+        setNeedsTap(false);
+      } catch {
+        // El navegador suele exigir un toque del usuario, o se denegó el permiso.
+        setNeedsTap(true);
       }
-      setNeedsTap(true);
     }
   }, [handleDecoded]);
 
   // Montar/desmontar el escáner cuando ya tenemos la info del evento.
   useEffect(() => {
     if (!info) return;
+    const html5 = new Html5Qrcode('qr-reader', { verbose: false });
+    scannerRef.current = html5;
     startCamera();
     return () => {
-      const sc = scannerRef.current;
       scannerRef.current = null;
-      if (sc) { try { sc.stop(); } catch {} try { sc.destroy(); } catch {} }
+      // stop() lanza throw sincrónico si no está corriendo — usar try/catch,
+      // no .catch(), que solo captura rechazos de promesas.
+      try { html5.stop().then(() => { try { html5.clear(); } catch {} }).catch(() => {}); } catch {}
     };
-  // startCamera es estable (deps: [handleDecoded]), solo montamos una vez
-  // cuando info carga.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [info]);
+  }, [info, startCamera]);
 
   const fmt = (d) => d ? new Date(d + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'long' }) : '';
   const ticket = result?.data?.ticket;
@@ -208,17 +198,11 @@ const PublicScanner = () => {
         )}
 
         {/* Cámara: SIEMPRE montada (aunque haya un resultado encima) para no
-            cortar el stream — si se desmonta, se pierde el video y re-pide
-            permiso. La ocultamos con display mientras se ve el cartel. */}
+            cortar el stream — si se desmonta, html5-qrcode pierde el video y
+            re-pide permiso. La ocultamos con display mientras se ve el cartel. */}
         <div className="card mb-4" style={{ display: result ? 'none' : 'block' }}>
           <p className="text-sm text-gray-400 text-center mb-4">Apuntá la cámara al QR de la entrada</p>
-          <video
-            ref={videoRef}
-            className="w-full rounded-xl bg-black"
-            style={{ aspectRatio: '1 / 1', objectFit: 'cover' }}
-            playsInline
-            muted
-          />
+          <div id="qr-reader" className="rounded-xl overflow-hidden" />
           {needsTap && (
             <button onClick={startCamera}
               className="mt-4 w-full py-3 rounded-xl bg-brand text-black font-semibold text-sm inline-flex items-center justify-center gap-2">

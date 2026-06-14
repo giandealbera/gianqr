@@ -387,6 +387,7 @@ async function runMigrations(queryFn, execFn) {
     event_id       TEXT NOT NULL,
     ticket_type_id TEXT NOT NULL,
     label          TEXT,
+    all_types      INTEGER DEFAULT 0,
     is_active      INTEGER DEFAULT 1,
     created_by     TEXT,
     created_at     DATETIME DEFAULT CURRENT_TIMESTAMP

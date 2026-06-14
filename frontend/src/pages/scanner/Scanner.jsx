@@ -1,6 +1,6 @@
 ﻿import { useEffect, useRef, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import QrScanner from 'qr-scanner';
+import { Html5Qrcode } from 'html5-qrcode';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import { useConfirm } from '../../context/ConfirmContext';
@@ -9,10 +9,7 @@ import { Icon } from '../../components/Icon';
 import { share } from '../../lib/share';
 import toast from 'react-hot-toast';
 
-// Cooldown bajado para que escanear filas largas sea fluido (lo mismo
-// hicimos en PublicScanner). 1.2s sigue alcanzando para que un mismo QR
-// no se dispare 2 veces por accidente.
-const COOLDOWN_MS = 1200;
+const COOLDOWN_MS = 2000;
 
 // Vibracion corta = ok, doble larga = error. Util en boliches ruidosos.
 const VIBRATE_OK  = [40];
@@ -37,7 +34,6 @@ const Scanner = () => {
   const [needsTap,     setNeedsTap]     = useState(false);
   const lastScan = useRef(0);
   const scannerRef = useRef(null);
-  const videoRef = useRef(null);
   // Espejo de typeSel en ref para leer el valor mas reciente dentro del
   // callback del scanner SIN remontar el componente cuando typeSel cambia.
   // Antes el useEffect dependia de [typeSel] y eso destruia/recreaba el
@@ -100,50 +96,41 @@ const Scanner = () => {
     }
   }, []);
 
-  // Arranca la cámara usando qr-scanner (Nimiq) sobre un <video> propio.
-  // Maneja bien playsinline/autoplay de iOS Safari — donde html5-qrcode
-  // dejaba la pantalla en negro.
+  // Arranca la cámara trasera con la API de bajo nivel (no el widget): sin
+  // botón "Request Camera Permission" en inglés ni selector. Si el navegador
+  // exige un toque, dejamos needsTap=true y mostramos un botón EN ESPAÑOL.
   const startCamera = useCallback(async () => {
+    const html5 = scannerRef.current;
+    if (!html5) return;
     setCamError(null);
-    const video = videoRef.current;
-    if (!video) return;
-    if (!scannerRef.current) {
-      scannerRef.current = new QrScanner(
-        video,
-        (res) => handleDecoded(res.data),
-        {
-          preferredCamera: 'environment',
-          highlightScanRegion: false,
-          highlightCodeOutline: false,
-          maxScansPerSecond: 10,
-          returnDetailedScanResult: true,
-        }
-      );
-    }
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
     try {
-      await scannerRef.current.start();
+      await html5.start({ facingMode: 'environment' }, config, handleDecoded, () => {});
       setNeedsTap(false);
-    } catch (e) {
-      const msg = String(e || '');
-      if (/not allowed|denied|permission/i.test(msg)) {
-        setCamError('Permiso de cámara denegado. Habilitalo en los ajustes del navegador.');
-      } else if (/no camera|not found/i.test(msg)) {
-        setCamError('No se detectó ninguna cámara.');
+    } catch(err) {
+      if (/already running/i.test(String(err))) { setNeedsTap(false); return; }
+      try {
+        const cams = await Html5Qrcode.getCameras();
+        if (!cams?.length) { setCamError('No se detectó ninguna cámara.'); setNeedsTap(true); return; }
+        const back = cams.find(c => /back|rear|tras|environment/i.test(c.label || '')) || cams[cams.length - 1];
+        await html5.start(back.id, config, handleDecoded, () => {});
+        setNeedsTap(false);
+      } catch {
+        setNeedsTap(true);
       }
-      setNeedsTap(true);
     }
   }, [handleDecoded]);
 
   // Montar el escáner UNA vez por vida del componente.
   useEffect(() => {
+    const html5 = new Html5Qrcode('qr-reader', { verbose: false });
+    scannerRef.current = html5;
     startCamera();
     return () => {
-      const sc = scannerRef.current;
       scannerRef.current = null;
-      if (sc) { try { sc.stop(); } catch {} try { sc.destroy(); } catch {} }
+      try { html5.stop().then(() => { try { html5.clear(); } catch {} }).catch(() => {}); } catch {}
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [startCamera]);
 
   const [tokens, setTokens] = useState([]);
   const [creatingLink, setCreatingLink] = useState(false);
@@ -349,13 +336,7 @@ const Scanner = () => {
           <div>
             <div className="card">
               <p className="text-sm text-gray-400 mb-4">Apunta la camara al QR de la entrada</p>
-              <video
-                ref={videoRef}
-                className="w-full rounded-lg bg-black"
-                style={{ aspectRatio: '1 / 1', objectFit: 'cover' }}
-                playsInline
-                muted
-              />
+              <div id="qr-reader" className="rounded-lg overflow-hidden" />
               {needsTap && (
                 <button onClick={startCamera}
                   className="btn-primary w-full mt-4 text-sm py-2.5 inline-flex items-center justify-center gap-2">
