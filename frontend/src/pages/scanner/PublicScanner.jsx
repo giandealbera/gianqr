@@ -89,6 +89,10 @@ const PublicScanner = () => {
     const html5 = scannerRef.current;
     if (!html5) return;
     setCamError(null);
+    // Si quedó en estado "scanning" de una sesión anterior, parar antes de
+    // intentar arrancar — de lo contrario html5.start() tira y el botón
+    // "Activar cámara" queda trabado para siempre.
+    try { await html5.stop(); } catch { /* no estaba corriendo, ok */ }
     // Config de decode optimizada para velocidad maxima:
     //  - fps 30: el motor procesa mas frames por segundo -> detecta antes.
     //  - disableFlip: no busca el QR espejado (pasada extra inutil aca).

@@ -106,6 +106,9 @@ const Scanner = () => {
     const html5 = scannerRef.current;
     if (!html5) return;
     setCamError(null);
+    // Parar primero si ya estaba corriendo, para evitar el bug donde
+    // html5.start() falla y el botón "Activar cámara" queda trabado.
+    try { await html5.stop(); } catch { /* no estaba corriendo, ok */ }
     // Config optimizada para velocidad — mismo razonamiento que
     // PublicScanner: fps 30, sin busqueda espejada, y detector nativo del
     // SO si esta disponible.
