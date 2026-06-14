@@ -81,47 +81,34 @@ const PublicScanner = () => {
     }
   }, [token]);
 
-  // Arranca la cámara trasera con la API de bajo nivel Html5Qrcode (no el
-  // widget): sin botón "Request Camera Permission" en inglés ni selector.
-  // Si el navegador exige un toque del usuario para abrir la cámara, dejamos
-  // needsTap=true y mostramos un botón EN ESPAÑOL para reintentar.
+  // Arranca la cámara. Siempre destruye la instancia anterior y crea una nueva
+  // para evitar que un estado interno roto (ej: start() falló en el primer
+  // intento sin gesto del usuario en iOS) impida futuros intentos.
   const startCamera = useCallback(async () => {
-    const html5 = scannerRef.current;
-    if (!html5) return;
     setCamError(null);
-    // Si quedó en estado "scanning" de una sesión anterior, parar antes de
-    // intentar arrancar — de lo contrario html5.start() tira y el botón
-    // "Activar cámara" queda trabado para siempre.
-    try { await html5.stop(); } catch { /* no estaba corriendo, ok */ }
-    // Config de decode optimizada para velocidad maxima:
-    //  - fps 30: el motor procesa mas frames por segundo -> detecta antes.
-    //  - disableFlip: no busca el QR espejado (pasada extra inutil aca).
-    //  - useBarCodeDetectorIfSupported: usa el detector NATIVO del SO
-    //    (hardware-accelerated) en Chrome Android / navegadores que lo
-    //    tienen. Es mucho mas rapido que el decoder JS.
+    if (scannerRef.current) {
+      const old = scannerRef.current;
+      scannerRef.current = null;
+      try { await old.stop(); } catch {}
+      try { old.clear(); } catch {}
+    }
+    const html5 = new Html5Qrcode('qr-reader', { verbose: false });
+    scannerRef.current = html5;
     const config = {
       fps: 30,
       qrbox: { width: 260, height: 260 },
       disableFlip: true,
       useBarCodeDetectorIfSupported: true,
     };
-    // Constraints de camara: forzamos autofocus continuo (clave en iPhone:
-    // si la camara no enfoca, jsQR nunca lee el QR por mas fps que haya) y
-    // pedimos 1280x720 — frames mas chicos = decode mas rapido, y a la
-    // distancia de la puerta el QR igual entra nitido. `advanced` es best-
-    // effort: si el device no soporta focusMode, lo ignora sin romper.
     const camConstraints = {
       facingMode: 'environment',
       width:  { ideal: 1280 },
       height: { ideal: 720 },
     };
     try {
-      // 1) Intento directo con la cámara trasera (environment) + constraints.
       await html5.start(camConstraints, config, handleDecoded, () => {});
       setNeedsTap(false);
     } catch {
-      // 2) Fallback: algún device rechaza el constraint. Listamos cámaras y
-      //    elegimos la que parezca trasera (o la última, que suele serlo).
       try {
         const cams = await Html5Qrcode.getCameras();
         if (!cams?.length) { setCamError('No se detectó ninguna cámara.'); setNeedsTap(true); return; }
@@ -129,7 +116,6 @@ const PublicScanner = () => {
         await html5.start(back.id, config, handleDecoded, () => {});
         setNeedsTap(false);
       } catch {
-        // El navegador suele exigir un toque del usuario, o se denegó el permiso.
         setNeedsTap(true);
       }
     }
@@ -138,14 +124,17 @@ const PublicScanner = () => {
   // Montar/desmontar el escáner cuando ya tenemos la info del evento.
   useEffect(() => {
     if (!info) return;
-    const html5 = new Html5Qrcode('qr-reader', { verbose: false });
-    scannerRef.current = html5;
     startCamera();
     return () => {
+      const html5 = scannerRef.current;
+      if (!html5) return;
       scannerRef.current = null;
       html5.stop().then(() => html5.clear()).catch(() => {});
     };
-  }, [info, startCamera]);
+  // startCamera es estable (deps: [handleDecoded] con []), solo queremos
+  // montar una vez cuando info carga.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [info]);
 
   const fmt = (d) => d ? new Date(d + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'long' }) : '';
   const ticket = result?.data?.ticket;

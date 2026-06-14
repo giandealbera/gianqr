@@ -99,27 +99,25 @@ const Scanner = () => {
     }
   }, []);
 
-  // Arranca la cámara trasera con la API de bajo nivel (no el widget): sin
-  // botón "Request Camera Permission" en inglés ni selector. Si el navegador
-  // exige un toque, dejamos needsTap=true y mostramos un botón EN ESPAÑOL.
+  // Arranca la cámara. Siempre destruye la instancia anterior y crea una nueva
+  // para evitar estados internos rotos (ej: iOS bloquea el primer start()
+  // sin gesto de usuario, dejando la instancia inutilizable para futuros intentos).
   const startCamera = useCallback(async () => {
-    const html5 = scannerRef.current;
-    if (!html5) return;
     setCamError(null);
-    // Parar primero si ya estaba corriendo, para evitar el bug donde
-    // html5.start() falla y el botón "Activar cámara" queda trabado.
-    try { await html5.stop(); } catch { /* no estaba corriendo, ok */ }
-    // Config optimizada para velocidad — mismo razonamiento que
-    // PublicScanner: fps 30, sin busqueda espejada, y detector nativo del
-    // SO si esta disponible.
+    if (scannerRef.current) {
+      const old = scannerRef.current;
+      scannerRef.current = null;
+      try { await old.stop(); } catch {}
+      try { old.clear(); } catch {}
+    }
+    const html5 = new Html5Qrcode('qr-reader', { verbose: false });
+    scannerRef.current = html5;
     const config = {
       fps: 30,
       qrbox: { width: 250, height: 250 },
       disableFlip: true,
       useBarCodeDetectorIfSupported: true,
     };
-    // Autofocus continuo + 720p: enfoca rapido (clave en iPhone) y procesa
-    // frames mas chicos. advanced es best-effort, no rompe si no se soporta.
     const camConstraints = {
       facingMode: 'environment',
       width:  { ideal: 1280 },
@@ -136,7 +134,6 @@ const Scanner = () => {
         await html5.start(back.id, config, handleDecoded, () => {});
         setNeedsTap(false);
       } catch {
-        // El navegador suele exigir un toque del usuario, o se denegó el permiso.
         setNeedsTap(true);
       }
     }
@@ -144,14 +141,15 @@ const Scanner = () => {
 
   // Montar el escáner UNA vez por vida del componente.
   useEffect(() => {
-    const html5 = new Html5Qrcode('qr-reader', { verbose: false });
-    scannerRef.current = html5;
     startCamera();
     return () => {
+      const html5 = scannerRef.current;
+      if (!html5) return;
       scannerRef.current = null;
       html5.stop().then(() => html5.clear()).catch(() => {});
     };
-  }, [startCamera]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [tokens, setTokens] = useState([]);
   const [creatingLink, setCreatingLink] = useState(false);
