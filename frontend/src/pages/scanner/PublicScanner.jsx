@@ -100,13 +100,10 @@ const PublicScanner = () => {
       disableFlip: true,
       useBarCodeDetectorIfSupported: true,
     };
-    const camConstraints = {
-      facingMode: 'environment',
-      width:  { ideal: 1280 },
-      height: { ideal: 720 },
-    };
+    // En iOS Safari, agregar width/height a facingMode hace que la cámara
+    // arranque pero muestre negro. Primer intento sin resolución fija.
     try {
-      await html5.start(camConstraints, config, handleDecoded, () => {});
+      await html5.start({ facingMode: 'environment' }, config, handleDecoded, () => {});
       setNeedsTap(false);
     } catch {
       try {

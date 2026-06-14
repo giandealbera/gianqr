@@ -118,13 +118,10 @@ const Scanner = () => {
       disableFlip: true,
       useBarCodeDetectorIfSupported: true,
     };
-    const camConstraints = {
-      facingMode: 'environment',
-      width:  { ideal: 1280 },
-      height: { ideal: 720 },
-    };
+    // En iOS Safari, width/height + facingMode causa pantalla negra.
+    // Primer intento sin resolución fija.
     try {
-      await html5.start(camConstraints, config, handleDecoded, () => {});
+      await html5.start({ facingMode: 'environment' }, config, handleDecoded, () => {});
       setNeedsTap(false);
     } catch {
       try {
