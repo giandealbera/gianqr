@@ -1,6 +1,7 @@
 import { useAuth } from '../context/AuthContext';
 import Sidebar from './Sidebar';
 import BottomNav from './BottomNav';
+import EventQuickReturn from './EventQuickReturn';
 
 const Layout = ({ children }) => {
   const { user } = useAuth();
@@ -39,6 +40,10 @@ const Layout = ({ children }) => {
 
         {children}
       </main>
+
+      {/* Acceso directo flotante al home del evento activo (solo mobile,
+          se auto-oculta cuando ya estas dentro del evento). */}
+      <EventQuickReturn />
 
       {/* Bottom nav mobile. safe-area-bottom ya esta dentro del componente. */}
       <div className="lg:hidden">

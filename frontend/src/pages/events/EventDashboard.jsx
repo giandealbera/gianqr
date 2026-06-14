@@ -5,6 +5,7 @@ import Layout from '../../components/Layout';
 import { useAuth } from '../../context/AuthContext';
 import { useConfirm } from '../../context/ConfirmContext';
 import useBodyScrollLock from '../../hooks/useBodyScrollLock';
+import { setActiveEvent } from '../../lib/activeEvent';
 import toast from 'react-hot-toast';
 
 const SvgIcon = ({ path, size = 'w-5 h-5' }) => (
@@ -55,6 +56,8 @@ const EventDashboard = () => {
         ]);
         setEvent(evRes.data);
         setStats(statsRes.data);
+        // Recordar este evento como "activo" para el acceso directo (FAB).
+        setActiveEvent(evRes.data.id, evRes.data.name);
       } catch {
         toast.error('Evento no encontrado');
         navigate('/eventos');
