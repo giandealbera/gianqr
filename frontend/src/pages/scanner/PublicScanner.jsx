@@ -94,14 +94,10 @@ const PublicScanner = () => {
     }
     const html5 = new Html5Qrcode('qr-reader', { verbose: false });
     scannerRef.current = html5;
-    const config = {
-      fps: 30,
-      qrbox: { width: 260, height: 260 },
-      disableFlip: true,
-      useBarCodeDetectorIfSupported: true,
-    };
-    // En iOS Safari, agregar width/height a facingMode hace que la cámara
-    // arranque pero muestre negro. Primer intento sin resolución fija.
+    // Config minima que funciona en iOS Safari. NO usar
+    // useBarCodeDetectorIfSupported: engancha un camino de render que deja la
+    // pantalla en negro en iPhone. fps 10 alcanza de sobra para la puerta.
+    const config = { fps: 10, qrbox: { width: 260, height: 260 } };
     try {
       await html5.start({ facingMode: 'environment' }, config, handleDecoded, () => {});
       setNeedsTap(false);

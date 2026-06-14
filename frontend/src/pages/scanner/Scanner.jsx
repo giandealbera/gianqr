@@ -112,14 +112,9 @@ const Scanner = () => {
     }
     const html5 = new Html5Qrcode('qr-reader', { verbose: false });
     scannerRef.current = html5;
-    const config = {
-      fps: 30,
-      qrbox: { width: 250, height: 250 },
-      disableFlip: true,
-      useBarCodeDetectorIfSupported: true,
-    };
-    // En iOS Safari, width/height + facingMode causa pantalla negra.
-    // Primer intento sin resolución fija.
+    // Config minima que funciona en iOS Safari. NO usar
+    // useBarCodeDetectorIfSupported: deja la pantalla negra en iPhone.
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
     try {
       await html5.start({ facingMode: 'environment' }, config, handleDecoded, () => {});
       setNeedsTap(false);
