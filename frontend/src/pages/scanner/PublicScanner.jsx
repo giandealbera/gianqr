@@ -89,19 +89,32 @@ const PublicScanner = () => {
     const html5 = scannerRef.current;
     if (!html5) return;
     setCamError(null);
-    // fps subido de 10 a 25: html5-qrcode toma mas frames por segundo y
-    // detecta el QR mas rapido. Cuesta algo mas de CPU pero los iPhones
-    // y Android medianamente modernos lo manejan sin problema.
-    // disableFlip: el motor no busca el QR invertido — saca otra pasada
-    // que no aporta nada en escaneos normales.
+    // Config de decode optimizada para velocidad maxima:
+    //  - fps 30: el motor procesa mas frames por segundo -> detecta antes.
+    //  - disableFlip: no busca el QR espejado (pasada extra inutil aca).
+    //  - useBarCodeDetectorIfSupported: usa el detector NATIVO del SO
+    //    (hardware-accelerated) en Chrome Android / navegadores que lo
+    //    tienen. Es mucho mas rapido que el decoder JS.
     const config = {
-      fps: 25,
+      fps: 30,
       qrbox: { width: 260, height: 260 },
       disableFlip: true,
+      useBarCodeDetectorIfSupported: true,
+    };
+    // Constraints de camara: forzamos autofocus continuo (clave en iPhone:
+    // si la camara no enfoca, jsQR nunca lee el QR por mas fps que haya) y
+    // pedimos 1280x720 — frames mas chicos = decode mas rapido, y a la
+    // distancia de la puerta el QR igual entra nitido. `advanced` es best-
+    // effort: si el device no soporta focusMode, lo ignora sin romper.
+    const camConstraints = {
+      facingMode: 'environment',
+      width:  { ideal: 1280 },
+      height: { ideal: 720 },
+      advanced: [{ focusMode: 'continuous' }],
     };
     try {
-      // 1) Intento directo con la cámara trasera (environment).
-      await html5.start({ facingMode: 'environment' }, config, handleDecoded, () => {});
+      // 1) Intento directo con la cámara trasera (environment) + constraints.
+      await html5.start(camConstraints, config, handleDecoded, () => {});
       setNeedsTap(false);
     } catch {
       // 2) Fallback: algún device rechaza el constraint. Listamos cámaras y

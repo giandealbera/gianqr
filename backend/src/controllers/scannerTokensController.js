@@ -213,14 +213,29 @@ const publicScan = async (req, res) => {
   if (!qr_code) return res.status(400).json({ error: 'qr_code requerido' });
 
   try {
-    const tokenResult = await db.query(
-      `SELECT st.*, tt.name AS ticket_type_name, e.name AS event_name, e.date AS event_date
-       FROM scanner_tokens st
-       JOIN events e ON e.id = st.event_id
-       LEFT JOIN ticket_types tt ON tt.id = st.ticket_type_id
-       WHERE st.token = ? AND st.is_active = 1`,
-      [token]
-    );
+    // La query del token y la del ticket NO dependen entre si (ambas solo
+    // del input). Las corremos en paralelo para ahorrar un round-trip a la
+    // base por cada escaneo — con fila en la puerta, suma.
+    const cleanCode = String(qr_code || '').toUpperCase().trim();
+    const [tokenResult, ticketResult] = await Promise.all([
+      db.query(
+        `SELECT st.*, tt.name AS ticket_type_name, e.name AS event_name, e.date AS event_date
+         FROM scanner_tokens st
+         JOIN events e ON e.id = st.event_id
+         LEFT JOIN ticket_types tt ON tt.id = st.ticket_type_id
+         WHERE st.token = ? AND st.is_active = 1`,
+        [token]
+      ),
+      db.query(
+        `SELECT t.*, tt.name AS tipo_entrada, e.name AS evento
+         FROM tickets t
+         JOIN ticket_types tt ON tt.id = t.ticket_type_id
+         JOIN events e ON e.id = t.event_id
+         WHERE t.qr_code = ?`,
+        [cleanCode]
+      ),
+    ]);
+
     if (!tokenResult.rows[0]) return res.status(403).json({ error: 'Link inválido o desactivado' });
 
     const scannerInfo = tokenResult.rows[0];
@@ -234,14 +249,6 @@ const publicScan = async (req, res) => {
       allowedIds = resolved.types.map(t => t.id);
     }
 
-    const ticketResult = await db.query(
-      `SELECT t.*, tt.name AS tipo_entrada, e.name AS evento
-       FROM tickets t
-       JOIN ticket_types tt ON tt.id = t.ticket_type_id
-       JOIN events e ON e.id = t.event_id
-       WHERE t.qr_code = ?`,
-      [String(qr_code || '').toUpperCase().trim()]
-    );
     const ticket = ticketResult.rows[0];
     if (!ticket) return res.status(404).json({ valid: false, error: 'QR no válido' });
 

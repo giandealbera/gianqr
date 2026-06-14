@@ -106,16 +106,25 @@ const Scanner = () => {
     const html5 = scannerRef.current;
     if (!html5) return;
     setCamError(null);
-    // fps 25 + disableFlip — mismo razonamiento que PublicScanner. Mas
-    // frames procesados por segundo = deteccion mas rapida del QR cuando
-    // el portero apunta a la entrada.
+    // Config optimizada para velocidad — mismo razonamiento que
+    // PublicScanner: fps 30, sin busqueda espejada, y detector nativo del
+    // SO si esta disponible.
     const config = {
-      fps: 25,
+      fps: 30,
       qrbox: { width: 250, height: 250 },
       disableFlip: true,
+      useBarCodeDetectorIfSupported: true,
+    };
+    // Autofocus continuo + 720p: enfoca rapido (clave en iPhone) y procesa
+    // frames mas chicos. advanced es best-effort, no rompe si no se soporta.
+    const camConstraints = {
+      facingMode: 'environment',
+      width:  { ideal: 1280 },
+      height: { ideal: 720 },
+      advanced: [{ focusMode: 'continuous' }],
     };
     try {
-      await html5.start({ facingMode: 'environment' }, config, handleDecoded, () => {});
+      await html5.start(camConstraints, config, handleDecoded, () => {});
       setNeedsTap(false);
     } catch {
       try {
