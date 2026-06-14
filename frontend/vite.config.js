@@ -76,7 +76,7 @@ export default defineConfig({
       output: {
         manualChunks: {
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'qr-vendor':    ['qrcode.react', 'qr-scanner'],
+          'qr-vendor':    ['qrcode.react', 'html5-qrcode'],
           'utils-vendor': ['axios', 'react-hot-toast'],
         },
       },
