@@ -1,6 +1,6 @@
 ﻿import { useEffect, useRef, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Html5Qrcode } from 'html5-qrcode';
+import QrScanner from 'qr-scanner';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import { useConfirm } from '../../context/ConfirmContext';
@@ -37,6 +37,7 @@ const Scanner = () => {
   const [needsTap,     setNeedsTap]     = useState(false);
   const lastScan = useRef(0);
   const scannerRef = useRef(null);
+  const videoRef = useRef(null);
   // Espejo de typeSel en ref para leer el valor mas reciente dentro del
   // callback del scanner SIN remontar el componente cuando typeSel cambia.
   // Antes el useEffect dependia de [typeSel] y eso destruia/recreaba el
@@ -99,35 +100,37 @@ const Scanner = () => {
     }
   }, []);
 
-  // Arranca la cámara. Siempre destruye la instancia anterior y crea una nueva
-  // para evitar estados internos rotos (ej: iOS bloquea el primer start()
-  // sin gesto de usuario, dejando la instancia inutilizable para futuros intentos).
+  // Arranca la cámara usando qr-scanner (Nimiq) sobre un <video> propio.
+  // Maneja bien playsinline/autoplay de iOS Safari — donde html5-qrcode
+  // dejaba la pantalla en negro.
   const startCamera = useCallback(async () => {
     setCamError(null);
-    if (scannerRef.current) {
-      const old = scannerRef.current;
-      scannerRef.current = null;
-      try { await old.stop(); } catch {}
-      try { old.clear(); } catch {}
+    const video = videoRef.current;
+    if (!video) return;
+    if (!scannerRef.current) {
+      scannerRef.current = new QrScanner(
+        video,
+        (res) => handleDecoded(res.data),
+        {
+          preferredCamera: 'environment',
+          highlightScanRegion: false,
+          highlightCodeOutline: false,
+          maxScansPerSecond: 10,
+          returnDetailedScanResult: true,
+        }
+      );
     }
-    const html5 = new Html5Qrcode('qr-reader', { verbose: false });
-    scannerRef.current = html5;
-    // Config minima que funciona en iOS Safari. NO usar
-    // useBarCodeDetectorIfSupported: deja la pantalla negra en iPhone.
-    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
     try {
-      await html5.start({ facingMode: 'environment' }, config, handleDecoded, () => {});
+      await scannerRef.current.start();
       setNeedsTap(false);
-    } catch {
-      try {
-        const cams = await Html5Qrcode.getCameras();
-        if (!cams?.length) { setCamError('No se detectó ninguna cámara.'); setNeedsTap(true); return; }
-        const back = cams.find(c => /back|rear|tras|environment/i.test(c.label || '')) || cams[cams.length - 1];
-        await html5.start(back.id, config, handleDecoded, () => {});
-        setNeedsTap(false);
-      } catch {
-        setNeedsTap(true);
+    } catch (e) {
+      const msg = String(e || '');
+      if (/not allowed|denied|permission/i.test(msg)) {
+        setCamError('Permiso de cámara denegado. Habilitalo en los ajustes del navegador.');
+      } else if (/no camera|not found/i.test(msg)) {
+        setCamError('No se detectó ninguna cámara.');
       }
+      setNeedsTap(true);
     }
   }, [handleDecoded]);
 
@@ -135,10 +138,9 @@ const Scanner = () => {
   useEffect(() => {
     startCamera();
     return () => {
-      const html5 = scannerRef.current;
-      if (!html5) return;
+      const sc = scannerRef.current;
       scannerRef.current = null;
-      html5.stop().then(() => html5.clear()).catch(() => {});
+      if (sc) { try { sc.stop(); } catch {} try { sc.destroy(); } catch {} }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -347,7 +349,13 @@ const Scanner = () => {
           <div>
             <div className="card">
               <p className="text-sm text-gray-400 mb-4">Apunta la camara al QR de la entrada</p>
-              <div id="qr-reader" className="rounded-lg overflow-hidden" />
+              <video
+                ref={videoRef}
+                className="w-full rounded-lg bg-black"
+                style={{ aspectRatio: '1 / 1', objectFit: 'cover' }}
+                playsInline
+                muted
+              />
               {needsTap && (
                 <button onClick={startCamera}
                   className="btn-primary w-full mt-4 text-sm py-2.5 inline-flex items-center justify-center gap-2">
