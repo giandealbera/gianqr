@@ -110,7 +110,6 @@ const PublicScanner = () => {
       facingMode: 'environment',
       width:  { ideal: 1280 },
       height: { ideal: 720 },
-      advanced: [{ focusMode: 'continuous' }],
     };
     try {
       // 1) Intento directo con la cámara trasera (environment) + constraints.

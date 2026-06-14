@@ -121,7 +121,6 @@ const Scanner = () => {
       facingMode: 'environment',
       width:  { ideal: 1280 },
       height: { ideal: 720 },
-      advanced: [{ focusMode: 'continuous' }],
     };
     try {
       await html5.start(camConstraints, config, handleDecoded, () => {});
