@@ -1,0 +1,747 @@
+/**
+ * E2E test de TODAS las funciones del backend contra un servidor local
+ * con base SQLite temporal (no toca la base de desarrollo).
+ *
+ * Uso:
+ *   1) Levantar el server de prueba:
+ *        PORT=4100 DB_PATH=<tmp>/gianqr-e2e.sqlite NODE_ENV=development node server.js
+ *   2) Correr:
+ *        E2E_URL=http://127.0.0.1:4100/api E2E_DB=<tmp>/gianqr-e2e.sqlite node scripts/e2e-test.js
+ *
+ * El script imprime PASS/FAIL por check y sale con codigo 1 si algo fallo.
+ */
+const path = require('path');
+const { authenticator } = require('otplib');
+authenticator.options = { step: 30, window: 1 };
+
+const BASE = process.env.E2E_URL || 'http://127.0.0.1:4100/api';
+const DB_FILE = process.env.E2E_DB || path.join(__dirname, '../tmp-e2e/gianqr-e2e.sqlite');
+
+const ADMIN_EMAIL = 'gianfrancodealbera@gmail.com';
+const ADMIN_PASS  = '43955952Gd';
+
+// ---------------------------------------------------------------------------
+// Infra de test
+// ---------------------------------------------------------------------------
+const results = [];
+let failures = 0;
+
+function record(name, ok, detail) {
+  results.push({ name, ok, detail });
+  if (!ok) failures++;
+  console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${ok ? '' : '  ->  ' + detail}`);
+}
+
+async function req(method, url, { token, body } = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${BASE}${url}`, {
+    method,
+    headers,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  let data = null;
+  try { data = await res.json(); } catch { /* respuesta sin JSON */ }
+  return { status: res.status, data };
+}
+
+function check(name, cond, detail) {
+  record(name, !!cond, detail || 'condicion falsa');
+}
+
+// Acceso directo a la base de prueba para verificar estado interno
+// (payments.method, normalizacion, reset_token).
+let dbh = null;
+async function dbGet(sql, params = []) {
+  if (!dbh) {
+    const sqlite3 = require('sqlite3');
+    const { open } = require('sqlite');
+    dbh = await open({ filename: DB_FILE, driver: sqlite3.Database });
+  }
+  return dbh.get(sql, params);
+}
+
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+// ---------------------------------------------------------------------------
+// Suite
+// ---------------------------------------------------------------------------
+(async () => {
+  // ---------- Salud ----------
+  {
+    const r = await req('GET', '/health');
+    check('health: GET /health', r.status === 200 && r.data?.status === 'ok', JSON.stringify(r));
+  }
+
+  // ---------- Auth admin ----------
+  let admin;
+  {
+    const bad = await req('POST', '/auth/login', { body: { email: ADMIN_EMAIL, password: 'incorrecta123' } });
+    check('auth: login con password mala -> 401', bad.status === 401, `status=${bad.status}`);
+
+    const r = await req('POST', '/auth/login', { body: { email: ADMIN_EMAIL, password: ADMIN_PASS } });
+    check('auth: login admin', r.status === 200 && r.data?.token, JSON.stringify(r.data));
+    admin = r.data?.token;
+
+    const me = await req('GET', '/auth/me', { token: admin });
+    check('auth: GET /me admin', me.status === 200 && me.data?.role === 'admin', JSON.stringify(me.data));
+
+    const noTok = await req('GET', '/auth/me');
+    check('auth: /me sin token -> 401', noTok.status === 401, `status=${noTok.status}`);
+
+    const badTok = await req('GET', '/auth/me', { token: 'basura.invalida.xxx' });
+    check('auth: /me token invalido -> 403', badTok.status === 403, `status=${badTok.status}`);
+  }
+
+  // ---------- Zonas ----------
+  let zonaId;
+  {
+    const c = await req('POST', '/zonas', { token: admin, body: { name: 'Zona Test' } });
+    check('zonas: crear', c.status === 201 || c.status === 200, JSON.stringify(c));
+    zonaId = c.data?.id;
+
+    const l = await req('GET', '/zonas', { token: admin });
+    check('zonas: listar', l.status === 200 && Array.isArray(l.data) && l.data.some(z => z.id === zonaId), JSON.stringify(l.data));
+
+    const u = await req('PUT', `/zonas/${zonaId}`, { token: admin, body: { name: 'Zona Test 2' } });
+    check('zonas: actualizar', u.status === 200, JSON.stringify(u));
+  }
+
+  // ---------- Proveedores ----------
+  let provId;
+  {
+    const c = await req('POST', '/proveedores', { token: admin, body: { nombre: 'Prov', apellido: 'Uno', alias_cbu: 'alias.cbu' } });
+    check('proveedores: crear', c.status === 201 || c.status === 200, JSON.stringify(c));
+    provId = c.data?.id;
+
+    const u = await req('PUT', `/proveedores/${provId}`, { token: admin, body: { nombre: 'Prov2' } });
+    check('proveedores: actualizar', u.status === 200, JSON.stringify(u));
+
+    const l = await req('GET', '/proveedores', { token: admin });
+    check('proveedores: listar', l.status === 200 && Array.isArray(l.data), JSON.stringify(l.status));
+
+    const d = await req('DELETE', `/proveedores/${provId}`, { token: admin });
+    check('proveedores: borrar', d.status === 200, JSON.stringify(d));
+  }
+
+  // ---------- Usuarios: owner + staff ----------
+  let ownerId, ownerTok, jefeId, jefeTok, vendId, vendCode, jefeCode;
+  {
+    const c = await req('POST', '/users', {
+      token: admin,
+      body: { name: 'Olga', apellido: 'Owner', email: 'owner@test.com', password: 'clave12345', role: 'owner', celular: '11 5555-0001' },
+    });
+    check('users: admin crea owner', c.status === 201, JSON.stringify(c.data));
+    ownerId = c.data?.id;
+
+    // Login owner: viene con must_change_password=1
+    const lo = await req('POST', '/auth/login', { body: { email: 'owner@test.com', password: 'clave12345' } });
+    check('users: login owner', lo.status === 200 && lo.data?.user?.must_change_password === true, JSON.stringify(lo.data?.user));
+    ownerTok = lo.data?.token;
+
+    // Esperar a que cambie el segundo: el iat del JWT es en segundos y el
+    // middleware invalida solo tokens con iat ESTRICTAMENTE anterior al
+    // cambio de clave. Si login y cambio caen en el mismo segundo, el
+    // token viejo sobrevive (tradeoff correcto para no matar el token
+    // nuevo emitido justo despues del cambio).
+    await sleep(1100);
+
+    // Cambio de clave sin currentPassword (permitido por must_change_password)
+    const cp = await req('POST', '/auth/change-password', { token: ownerTok, body: { newPassword: 'claveOwner1' } });
+    check('users: owner setea su clave (must_change)', cp.status === 200, JSON.stringify(cp));
+
+    // El token viejo del owner quedo invalidado por password_changed_at
+    const oldMe = await req('GET', '/auth/me', { token: ownerTok });
+    check('auth: token previo al cambio de clave -> 403', oldMe.status === 403, `status=${oldMe.status}`);
+
+    const lo2 = await req('POST', '/auth/login', { body: { email: 'owner@test.com', password: 'claveOwner1' } });
+    check('users: re-login owner con clave nueva', lo2.status === 200, JSON.stringify(lo2.status));
+    ownerTok = lo2.data?.token;
+
+    // Owner crea jefe y vendedor
+    const cj = await req('POST', '/users', {
+      token: ownerTok,
+      body: { name: 'Juan', apellido: 'Jefe', email: 'jefe@test.com', password: 'clave12345', role: 'jefe_publicas', zona_id: zonaId },
+    });
+    check('users: owner crea jefe_publicas', cj.status === 201 && cj.data?.promo_code, JSON.stringify(cj.data));
+    jefeId = cj.data?.id;
+    jefeCode = cj.data?.promo_code;
+
+    const cv = await req('POST', '/users', {
+      token: ownerTok,
+      body: { name: 'Vicky', apellido: 'Vende', email: 'vend@test.com', password: 'clave12345', role: 'vendedor', celular: '+54 9 11 5555-0002' },
+    });
+    check('users: owner crea vendedor', cv.status === 201 && cv.data?.promo_code, JSON.stringify(cv.data));
+    vendId = cv.data?.id;
+    vendCode = cv.data?.promo_code;
+
+    // Owner no puede crear otro owner
+    const cx = await req('POST', '/users', {
+      token: ownerTok,
+      body: { name: 'X', email: 'x@test.com', password: 'clave12345', role: 'owner' },
+    });
+    check('users: owner NO puede crear owner -> 403', cx.status === 403, `status=${cx.status}`);
+
+    // Listados con scope
+    const la = await req('GET', '/users', { token: admin });
+    check('users: admin lista SUS owners', la.status === 200 && la.data.some(u => u.id === ownerId) && !la.data.some(u => u.id === jefeId), JSON.stringify(la.data?.map(u => u.role)));
+
+    const lo3 = await req('GET', '/users', { token: ownerTok });
+    check('users: owner lista SU staff', lo3.status === 200 && lo3.data.some(u => u.id === jefeId) && lo3.data.some(u => u.id === vendId), JSON.stringify(lo3.data?.length));
+
+    // Jefe entra con su clave (must_change) y arma equipo
+    const lj = await req('POST', '/auth/login', { body: { email: 'jefe@test.com', password: 'clave12345' } });
+    jefeTok = lj.data?.token;
+    check('users: login jefe', lj.status === 200, JSON.stringify(lj.status));
+
+    const tm = await req('POST', '/users/team', {
+      token: jefeTok,
+      body: { name: 'Tito', apellido: 'Team', email: 'tito@test.com', password: 'clave12345' },
+    });
+    check('team: jefe crea vendedor de equipo', tm.status === 201 && tm.data?.magic_token, JSON.stringify(tm.data));
+    const titoMagic = tm.data?.magic_token;
+
+    const myTeam = await req('GET', '/users/my-team', { token: jefeTok });
+    check('team: jefe lista su equipo', myTeam.status === 200 && myTeam.data?.some?.(m => m.email === 'tito@test.com'), JSON.stringify(myTeam.data));
+
+    // Magic login del vendedor de equipo: una sola vez
+    const m1 = await req('GET', `/auth/magic/${titoMagic}`);
+    check('magic: primer uso loguea', m1.status === 200 && m1.data?.token, JSON.stringify(m1.status));
+    const m2 = await req('GET', `/auth/magic/${titoMagic}`);
+    check('magic: segundo uso -> 404', m2.status === 404, `status=${m2.status}`);
+  }
+
+  // ---------- Eventos ----------
+  let eventId, ttGeneralId, ttVipId, otherEventId, otherTtId;
+  {
+    const now = new Date();
+    const in30d = new Date(now.getTime() + 30 * 86400000);
+    const evBody = {
+      name: 'Fiesta Test', description: 'evento e2e',
+      date: in30d.toISOString().slice(0, 10), start_time: '23:30', end_time: '06:00',
+      sale_start_at: new Date(now.getTime() - 3600000).toISOString(),
+      sale_end_at: in30d.toISOString(),
+    };
+    const c = await req('POST', '/events', { token: ownerTok, body: { ...evBody, ticket_types: [ { name: 'General', price: 5000, total_quota: 20 }, { name: 'VIP', price: 10000, total_quota: 5 } ] } });
+    check('events: owner crea evento con tipos', c.status === 201 && c.data?.id, JSON.stringify(c.data));
+    eventId = c.data?.id;
+
+    const tts = await req('GET', `/events/${eventId}/ticket-types`, { token: ownerTok });
+    check('events: listar ticket-types', tts.status === 200 && tts.data?.length === 2, JSON.stringify(tts.data));
+    ttGeneralId = tts.data?.find(t => t.name === 'General')?.id;
+    ttVipId     = tts.data?.find(t => t.name === 'VIP')?.id;
+
+    // Admin (arbol del owner) puede ver el evento
+    const g = await req('GET', `/events/${eventId}`, { token: admin });
+    check('events: admin del arbol ve el evento', g.status === 200, `status=${g.status}`);
+
+    // Evento de OTRO admin (fuera del arbol) para tests anti cross-tenant
+    const c2 = await req('POST', '/events', { token: admin, body: { ...evBody, name: 'Evento Admin', ticket_types: [{ name: 'Unica', price: 1000, total_quota: 10 }] } });
+    check('events: admin crea evento propio', c2.status === 201, JSON.stringify(c2.status));
+    otherEventId = c2.data?.id;
+    const tts2 = await req('GET', `/events/${otherEventId}/ticket-types`, { token: admin });
+    otherTtId = tts2.data?.[0]?.id;
+
+    // Owner NO ve el evento del admin
+    const gx = await req('GET', `/events/${otherEventId}`, { token: ownerTok });
+    check('events: owner NO ve evento ajeno -> 403', gx.status === 403, `status=${gx.status}`);
+
+    // Update de evento y de ticket type
+    const u = await req('PUT', `/events/${eventId}`, { token: ownerTok, body: { description: 'editado' } });
+    check('events: update', u.status === 200, JSON.stringify(u.status));
+
+    const ut = await req('PUT', `/events/${eventId}/ticket-types/${ttGeneralId}`, { token: ownerTok, body: { add_quota: 5, price: 5500 } });
+    check('events: update ticket-type (cupo+precio)', ut.status === 200 && Number(ut.data?.total_quota) === 25 && Number(ut.data?.price) === 5500, JSON.stringify(ut.data));
+
+    const tg = await req('PATCH', `/events/${eventId}/ticket-types/${ttVipId}/toggle`, { token: ownerTok });
+    check('events: toggle ticket-type', tg.status === 200, JSON.stringify(tg.status));
+    const tg2 = await req('PATCH', `/events/${eventId}/ticket-types/${ttVipId}/toggle`, { token: ownerTok });
+    check('events: re-toggle ticket-type', tg2.status === 200, JSON.stringify(tg2.status));
+
+    // Owners del evento (solo admin)
+    const ow = await req('GET', `/events/${eventId}/owners`, { token: admin });
+    check('events: admin lista owners', ow.status === 200 && ow.data?.some?.(o => o.user_id === ownerId || o.id === ownerId), JSON.stringify(ow.data));
+  }
+
+  // ---------- Sellers por tipo ----------
+  {
+    const s = await req('PUT', `/events/${eventId}/ticket-types/${ttVipId}/sellers`, { token: ownerTok, body: { user_ids: [jefeId] } });
+    check('sellers: restringir VIP al jefe', s.status === 200, JSON.stringify(s));
+
+    const g = await req('GET', `/events/${eventId}/ticket-types/${ttVipId}/sellers`, { token: ownerTok });
+    check('sellers: listar autorizados', g.status === 200 && g.data?.length === 1 && g.data[0].user_id === jefeId, JSON.stringify(g.data));
+
+    // Vendedor (no autorizado) intenta vender VIP por link publico -> 403
+    const pv = await req('POST', `/public/tickets/${vendCode}`, {
+      body: { event_id: eventId, ticket_type_id: ttVipId, payment_method: 'efectivo', attendees: [{ buyer_name: 'No', buyer_apellido: 'Puede' }] },
+    });
+    check('sellers: vendedor no autorizado -> 403', pv.status === 403, `status=${pv.status}`);
+
+    // Jefe autorizado si puede
+    const pj = await req('POST', `/public/tickets/${jefeCode}`, {
+      body: { event_id: eventId, ticket_type_id: ttVipId, payment_method: 'efectivo', attendees: [{ buyer_name: 'Vip', buyer_apellido: 'Uno' }] },
+    });
+    check('sellers: jefe autorizado vende VIP', pj.status === 201 && pj.data?.tickets?.length === 1, JSON.stringify(pj.data));
+
+    // Abrir de nuevo (lista vacia = todos)
+    const s2 = await req('PUT', `/events/${eventId}/ticket-types/${ttVipId}/sellers`, { token: ownerTok, body: { user_ids: [] } });
+    check('sellers: reabrir a todos', s2.status === 200, JSON.stringify(s2.status));
+  }
+
+  // ---------- Venta manual ----------
+  let manualTicketId, manualTicket2Id;
+  {
+    const c = await req('POST', '/tickets', {
+      token: admin,
+      body: { event_id: eventId, ticket_type_id: ttGeneralId, buyer_name: 'Mano', buyer_apellido: 'Uno', payment_method: 'efectivo', buyer_localidad: 'firmat' },
+    });
+    check('tickets: venta manual efectivo', c.status === 201 && c.data?.qr_code, JSON.stringify(c.data?.id));
+    manualTicketId = c.data?.id;
+
+    // Fix: localidad normalizada al guardar
+    const row = await dbGet('SELECT buyer_localidad FROM tickets WHERE id = ?', [manualTicketId]);
+    check('tickets: localidad normalizada (firmat -> Firmat)', row?.buyer_localidad === 'Firmat', JSON.stringify(row));
+
+    // Fix: payments.method respeta el metodo real
+    const c2 = await req('POST', '/tickets', {
+      token: admin,
+      body: { event_id: eventId, ticket_type_id: ttGeneralId, buyer_name: 'Mano', buyer_apellido: 'Dos', payment_method: 'transferencia' },
+    });
+    check('tickets: venta manual transferencia', c2.status === 201, JSON.stringify(c2.status));
+    manualTicket2Id = c2.data?.id;
+    const pay = await dbGet('SELECT method FROM payments WHERE ticket_id = ?', [manualTicket2Id]);
+    check('tickets: payments.method = transferencia (fix)', pay?.method === 'transferencia', JSON.stringify(pay));
+
+    // Metodo invalido
+    const bad = await req('POST', '/tickets', {
+      token: admin,
+      body: { event_id: eventId, ticket_type_id: ttGeneralId, buyer_name: 'X', payment_method: 'cripto' },
+    });
+    check('tickets: metodo invalido -> 400', bad.status === 400, `status=${bad.status}`);
+
+    // amount_paid siempre el precio canonico
+    const t = await req('GET', `/tickets/${manualTicketId}`, { token: admin });
+    check('tickets: getOne con precio canonico', t.status === 200 && Number(t.data?.amount_paid) === 5500, JSON.stringify(t.data?.amount_paid));
+
+    const qr = await req('GET', `/tickets/${manualTicketId}/qr`, { token: admin });
+    check('tickets: getQR', qr.status === 200 && qr.data?.qr_image?.startsWith('data:image'), JSON.stringify(qr.status));
+
+    const all = await req('GET', `/tickets?event_id=${eventId}`, { token: admin });
+    check('tickets: getAll por evento', all.status === 200 && all.data?.length >= 3, JSON.stringify(all.data?.length));
+
+    // Owner ajeno no accede al ticket (IDOR)
+    const tk2 = await req('GET', `/tickets?event_id=${otherEventId}`, { token: ownerTok });
+    check('tickets: owner ajeno -> 403 (anti-IDOR)', tk2.status === 403, `status=${tk2.status}`);
+  }
+
+  // ---------- Pre-sell + completar reserva ----------
+  let preIds = [];
+  {
+    const p = await req('POST', '/tickets/pre-sell', {
+      token: admin,
+      body: { event_id: eventId, ticket_type_id: ttGeneralId, qty: 3, payment_method: 'efectivo' },
+    });
+    check('pre-sell: reservar 3', p.status === 201 && p.data?.tickets?.length === 3, JSON.stringify(p.data));
+    preIds = p.data?.tickets || [];
+
+    const info = await req('GET', `/public/tickets-info?ids=${preIds.join(',')}`);
+    check('pre-sell: tickets-info pendientes', info.status === 200 && info.data?.ticket_ids?.length === 3, JSON.stringify(info.data));
+
+    // Completar 2 de 3
+    const comp = await req('POST', '/public/tickets-complete/CASA', {
+      body: {
+        ticket_ids: preIds.slice(0, 2),
+        attendees: [
+          { buyer_name: 'Res', buyer_apellido: 'Uno', buyer_localidad: 'venado tuerto' },
+          { buyer_name: 'Res', buyer_apellido: 'Dos' },
+        ],
+      },
+    });
+    check('pre-sell: completar 2 de 3', comp.status === 200 && comp.data?.tickets?.length === 2, JSON.stringify(comp.data));
+
+    // Estado mixto: info devuelve solo el pendiente
+    const info2 = await req('GET', `/public/tickets-info?ids=${preIds.join(',')}`);
+    check('pre-sell: estado mixto devuelve 1 pendiente', info2.status === 200 && info2.data?.ticket_ids?.length === 1 && info2.data?.completed_count === 2, JSON.stringify(info2.data));
+
+    // Completar el ultimo
+    const comp2 = await req('POST', '/public/tickets-complete/CASA', {
+      body: { ticket_ids: [info2.data.ticket_ids[0]], attendees: [{ buyer_name: 'Res', buyer_apellido: 'Tres' }] },
+    });
+    check('pre-sell: completar el ultimo', comp2.status === 200, JSON.stringify(comp2.status));
+
+    // Todos completos -> tickets-info 410 ALREADY_COMPLETED
+    const info3 = await req('GET', `/public/tickets-info?ids=${preIds.join(',')}`);
+    check('pre-sell: todo completo -> 410', info3.status === 410 && info3.data?.code === 'ALREADY_COMPLETED', JSON.stringify(info3.data));
+  }
+
+  // ---------- Compra publica ----------
+  let pubTickets = [];
+  {
+    const promo = await req('GET', `/public/promotor/${vendCode.toLowerCase()}`);
+    check('public: info promotor (case-insensitive)', promo.status === 200 && promo.data?.promo_code === vendCode, JSON.stringify(promo.data));
+
+    const evs = await req('GET', '/public/events');
+    check('public: eventos activos con cupo', evs.status === 200 && evs.data?.some?.(e => e.id === eventId), JSON.stringify(evs.data?.length));
+
+    const buy = await req('POST', `/public/tickets/${vendCode}`, {
+      body: {
+        event_id: eventId, ticket_type_id: ttGeneralId, payment_method: 'transferencia',
+        attendees: [
+          { buyer_name: 'Compra', buyer_apellido: 'Uno', buyer_edad: '25', buyer_localidad: 'rosario' },
+          { buyer_name: 'Compra', buyer_apellido: 'Dos', buyer_email: 'dos@mail.com' },
+        ],
+      },
+    });
+    check('public: compra 2 entradas por link', buy.status === 201 && buy.data?.tickets?.length === 2, JSON.stringify(buy.data));
+    pubTickets = buy.data?.tickets || [];
+
+    // Sin cupo: pedir mas de lo disponible en VIP (quota 5, 1 vendida)
+    const noQ = await req('POST', `/public/tickets/${vendCode}`, {
+      body: {
+        event_id: eventId, ticket_type_id: ttVipId, payment_method: 'efectivo',
+        attendees: Array.from({ length: 5 }, (_, i) => ({ buyer_name: 'Q', buyer_apellido: `N${i}` })),
+      },
+    });
+    check('public: oversell -> 409', noQ.status === 409, `status=${noQ.status}`);
+
+    // Codigo inexistente
+    const nf = await req('POST', '/public/tickets/NOEXISTE99', {
+      body: { event_id: eventId, ticket_type_id: ttGeneralId, attendees: [{ buyer_name: 'A', buyer_apellido: 'B' }] },
+    });
+    check('public: codigo invalido -> 404', nf.status === 404, `status=${nf.status}`);
+
+    // Recover por nombre+apellido
+    const rec = await req('POST', `/public/recover/${vendCode}`, { body: { nombre: 'compra', apellido: 'uno' } });
+    check('public: recover encuentra el QR', rec.status === 200 && rec.data?.tickets?.length === 1, JSON.stringify(rec.data));
+
+    // Recover de ticket con email guardado exige email
+    const rec2 = await req('POST', `/public/recover/${vendCode}`, { body: { nombre: 'Compra', apellido: 'Dos' } });
+    check('public: recover sin email no revela ticket con email', rec2.status === 200 && rec2.data?.tickets?.length === 0, JSON.stringify(rec2.data));
+    const rec3 = await req('POST', `/public/recover/${vendCode}`, { body: { nombre: 'Compra', apellido: 'Dos', email: 'dos@mail.com' } });
+    check('public: recover con email correcto', rec3.status === 200 && rec3.data?.tickets?.length === 1, JSON.stringify(rec3.data));
+
+    // Autocomplete localidades
+    const loc = await req('GET', '/public/localidades?q=ros');
+    check('public: localidades sugiere Rosario', loc.status === 200 && loc.data?.items?.some?.(i => i.value.startsWith('Rosario')), JSON.stringify(loc.data));
+  }
+
+  // ---------- Ventana de venta ----------
+  {
+    const stop = await req('POST', `/events/${eventId}/stop-sales`, { token: ownerTok });
+    check('saleWindow: stop-sales', stop.status === 200, JSON.stringify(stop.status));
+
+    const buy = await req('POST', `/public/tickets/${vendCode}`, {
+      body: { event_id: eventId, ticket_type_id: ttGeneralId, payment_method: 'efectivo', attendees: [{ buyer_name: 'Cerrado', buyer_apellido: 'X' }] },
+    });
+    check('saleWindow: compra con venta cortada -> 400', buy.status === 400, `status=${buy.status}`);
+
+    const resume = await req('POST', `/events/${eventId}/resume-sales`, { token: ownerTok });
+    check('saleWindow: resume-sales', resume.status === 200, JSON.stringify(resume.status));
+  }
+
+  // ---------- Cortesias ----------
+  let cortesiaTicket;
+  {
+    const c = await req('POST', '/cortesias', {
+      token: ownerTok,
+      body: { event_id: eventId, ticket_type_id: ttGeneralId, attendees: [{ buyer_name: 'Gratis', buyer_apellido: 'Uno' }] },
+    });
+    check('cortesias: owner emite 1', c.status === 201 && c.data?.tickets?.length === 1, JSON.stringify(c.data));
+    cortesiaTicket = c.data?.tickets?.[0];
+
+    const row = await dbGet('SELECT payment_method, amount_paid, status FROM tickets WHERE id = ?', [cortesiaTicket?.id]);
+    check('cortesias: metodo=cortesia, monto=0, pagado', row?.payment_method === 'cortesia' && Number(row?.amount_paid) === 0 && row?.status === 'pagado', JSON.stringify(row));
+
+    // Owner no puede emitir para evento ajeno
+    const cx = await req('POST', '/cortesias', {
+      token: ownerTok,
+      body: { event_id: otherEventId, ticket_type_id: otherTtId, attendees: [{ buyer_name: 'No', buyer_apellido: 'Va' }] },
+    });
+    check('cortesias: evento ajeno -> 403', cx.status === 403, `status=${cx.status}`);
+  }
+
+  // ---------- Escaneo admin ----------
+  {
+    const qr = pubTickets[0]?.qr_code;
+    const s1 = await req('POST', '/tickets/scan', { token: admin, body: { qr_code: qr } });
+    check('scan admin: entrada valida', s1.status === 200 && s1.data?.valid === true, JSON.stringify(s1.data));
+
+    const s2 = await req('POST', '/tickets/scan', { token: admin, body: { qr_code: qr } });
+    check('scan admin: re-escaneo -> 409', s2.status === 409 && s2.data?.valid === false, JSON.stringify(s2.status));
+
+    const s3 = await req('POST', '/tickets/scan', { token: admin, body: { qr_code: 'GIANQR-NOEXISTE' } });
+    check('scan admin: QR inexistente -> 404', s3.status === 404, `status=${s3.status}`);
+
+    // Filtro por tipo: escanear un General con filtro VIP -> 403
+    const s4 = await req('POST', '/tickets/scan', { token: admin, body: { qr_code: pubTickets[1]?.qr_code, ticket_type_id: ttVipId } });
+    check('scan admin: tipo incorrecto -> 403', s4.status === 403, `status=${s4.status}`);
+
+    // Owner no puede usar el scan admin
+    const s5 = await req('POST', '/tickets/scan', { token: ownerTok, body: { qr_code: pubTickets[1]?.qr_code } });
+    check('scan admin: owner -> 403 (solo admin)', s5.status === 403, `status=${s5.status}`);
+  }
+
+  // ---------- Scanner tokens + escaneo publico ----------
+  {
+    const c = await req('POST', '/scanner-tokens', { token: ownerTok, body: { event_id: eventId, all_types: true, label: 'Puerta 1' } });
+    check('scanner: owner crea link todos-los-tipos', c.status === 201 && c.data?.token, JSON.stringify(c.data));
+    const tok = c.data?.token;
+
+    const info = await req('GET', `/scan/${tok}`);
+    check('scanner: info publica del link', info.status === 200 && info.data?.event_name === 'Fiesta Test', JSON.stringify(info.data));
+
+    const s1 = await req('POST', `/scan/${tok}`, { body: { qr_code: pubTickets[1]?.qr_code } });
+    check('scanner publico: entrada valida', s1.status === 200 && s1.data?.valid === true, JSON.stringify(s1.data));
+
+    const s2 = await req('POST', `/scan/${tok}`, { body: { qr_code: pubTickets[1]?.qr_code } });
+    check('scanner publico: re-escaneo -> 409', s2.status === 409, `status=${s2.status}`);
+
+    // Link de tipo restringido: solo VIP
+    const cv = await req('POST', '/scanner-tokens', { token: ownerTok, body: { event_id: eventId, ticket_type_ids: [ttVipId], label: 'Puerta VIP' } });
+    const tokVip = cv.data?.token;
+    const s3 = await req('POST', `/scan/${tokVip}`, { body: { qr_code: cortesiaTicket?.qr_code } });
+    check('scanner publico: tipo no aceptado -> 400', s3.status === 400, `status=${s3.status}`);
+
+    // Ticket de otro evento
+    const s4 = await req('POST', `/scan/${tok}`, { body: { qr_code: 'GIANQR-XXXXXXXX' } });
+    check('scanner publico: QR inexistente -> 404', s4.status === 404, `status=${s4.status}`);
+
+    // Listado + scope: owner ve los suyos, admin del arbol tambien
+    const l = await req('GET', `/scanner-tokens?event_id=${eventId}`, { token: ownerTok });
+    check('scanner: owner lista sus links', l.status === 200 && l.data?.length >= 2, JSON.stringify(l.data?.length));
+    const la = await req('GET', `/scanner-tokens?event_id=${eventId}`, { token: admin });
+    check('scanner: admin del arbol lista links (scope nuevo)', la.status === 200, `status=${la.status}`);
+
+    // Desactivar link
+    const d = await req('DELETE', `/scanner-tokens/${cv.data?.id}`, { token: ownerTok });
+    check('scanner: desactivar link', d.status === 200, JSON.stringify(d.status));
+    const s5 = await req('POST', `/scan/${tokVip}`, { body: { qr_code: cortesiaTicket?.qr_code } });
+    check('scanner: link desactivado -> 403', s5.status === 403, `status=${s5.status}`);
+  }
+
+  // ---------- Rendiciones ----------
+  {
+    const l = await req('GET', '/rendiciones', { token: ownerTok });
+    check('rendiciones: listado publicas', l.status === 200, `status=${l.status}`);
+
+    // Detalle del vendedor con ventas
+    const vendPromo = await dbGet('SELECT id FROM promotors WHERE user_id = ?', [vendId]);
+    const det = await req('GET', `/rendiciones/${vendPromo?.id}`, { token: ownerTok });
+    check('rendiciones: detalle de publica', det.status === 200, `status=${det.status}`);
+
+    const pago = await req('POST', '/rendiciones', { token: ownerTok, body: { promotor_id: vendPromo?.id, amount: 5000, note: 'rinde e2e', event_id: eventId } });
+    check('rendiciones: registrar pago', pago.status === 201 || pago.status === 200, JSON.stringify(pago.data));
+    const pagoId = pago.data?.id;
+
+    const del = await req('DELETE', `/rendiciones/${pagoId}`, { token: ownerTok });
+    check('rendiciones: eliminar pago', del.status === 200, JSON.stringify(del.status));
+  }
+
+  // ---------- Reportes ----------
+  {
+    const r = await req('GET', '/payments/report', { token: admin });
+    check('reportes: payments report', r.status === 200, `status=${r.status}`);
+
+    const m = await req('GET', '/payments/monthly-overview', { token: ownerTok });
+    check('reportes: monthly overview owner', m.status === 200, `status=${m.status}`);
+
+    const st = await req('GET', `/events/${eventId}/stats`, { token: ownerTok });
+    check('reportes: stats del evento', st.status === 200, `status=${st.status}`);
+
+    const bs = await req('GET', `/events/${eventId}/buyer-stats`, { token: ownerTok });
+    check('reportes: buyer-stats demograficas', bs.status === 200, `status=${bs.status}`);
+
+    const h = await req('GET', '/events/history', { token: ownerTok });
+    check('reportes: historial de eventos', h.status === 200, `status=${h.status}`);
+
+    const ex = await req('GET', `/events/${eventId}/export-data`, { token: ownerTok });
+    check('reportes: export-data owner', ex.status === 200, `status=${ex.status}`);
+
+    const exAdmin = await req('GET', `/events/${eventId}/export-data`, { token: admin });
+    check('reportes: export-data admin -> 403 (solo owner)', exAdmin.status === 403, `status=${exAdmin.status}`);
+
+    const ps = await req('GET', '/users/promoter-sales', { token: ownerTok });
+    check('reportes: promoter-sales', ps.status === 200, `status=${ps.status}`);
+
+    const ms = await req('GET', '/users/my-sales', { token: jefeTok });
+    check('reportes: my-sales jefe', ms.status === 200, `status=${ms.status}`);
+  }
+
+  // ---------- Audit log ----------
+  {
+    const r = await req('GET', '/audit-log?limit=50', { token: admin });
+    const rows = r.data?.rows || r.data || [];
+    check('audit: listado con eventos', r.status === 200 && rows.length > 0, JSON.stringify(r.status));
+  }
+
+  // ---------- Borrar ticket libera cupo ----------
+  {
+    const before = await dbGet('SELECT sold_count FROM ticket_types WHERE id = ?', [ttGeneralId]);
+    const d = await req('DELETE', `/tickets/${manualTicket2Id}`, { token: ownerTok });
+    check('tickets: owner borra ticket', d.status === 200, JSON.stringify(d.status));
+    const after = await dbGet('SELECT sold_count FROM ticket_types WHERE id = ?', [ttGeneralId]);
+    check('tickets: sold_count liberado al borrar', after?.sold_count === before?.sold_count - 1, `antes=${before?.sold_count} despues=${after?.sold_count}`);
+  }
+
+  // ---------- Sesiones ----------
+  {
+    const l = await req('GET', '/sessions', { token: ownerTok });
+    check('sessions: listar con is_current', l.status === 200 && l.data?.rows?.some?.(s => s.is_current), JSON.stringify(l.data?.rows?.length));
+
+    // Logout revoca la sesion actual (mejora nueva)
+    const lg = await req('POST', '/sessions/logout', { token: ownerTok });
+    check('sessions: logout server-side', lg.status === 200, JSON.stringify(lg));
+    const me = await req('GET', '/auth/me', { token: ownerTok });
+    check('sessions: token post-logout -> 403 revocado', me.status === 403, `status=${me.status}`);
+
+    const re = await req('POST', '/auth/login', { body: { email: 'owner@test.com', password: 'claveOwner1' } });
+    ownerTok = re.data?.token;
+    check('sessions: re-login post-logout', re.status === 200, `status=${re.status}`);
+
+    // revoke-others
+    const extra = await req('POST', '/auth/login', { body: { email: 'owner@test.com', password: 'claveOwner1' } });
+    const extraTok = extra.data?.token;
+    const ro = await req('POST', '/sessions/revoke-others', { token: ownerTok });
+    check('sessions: revoke-others', ro.status === 200, JSON.stringify(ro.status));
+    const meExtra = await req('GET', '/auth/me', { token: extraTok });
+    check('sessions: la otra sesion quedo revocada', meExtra.status === 403, `status=${meExtra.status}`);
+    const meCur = await req('GET', '/auth/me', { token: ownerTok });
+    check('sessions: la actual sigue viva', meCur.status === 200, `status=${meCur.status}`);
+  }
+
+  // ---------- Recupero de contraseña ----------
+  {
+    // Por email: el mail no sale (sin SMTP) pero el token queda en la base.
+    const f = await req('POST', '/auth/forgot-password', { body: { email: 'vend@test.com' } });
+    check('forgot: respuesta generica', f.status === 200, JSON.stringify(f.data));
+    const row = await dbGet('SELECT reset_token FROM users WHERE email = ?', ['vend@test.com']);
+    check('forgot: reset_token generado', !!row?.reset_token, JSON.stringify(row));
+
+    const rp = await req('POST', '/auth/reset-password', { body: { token: row?.reset_token, password: 'nuevaClave9' } });
+    check('forgot: reset con token valido', rp.status === 200, JSON.stringify(rp.data));
+
+    const rl = await req('POST', '/auth/login', { body: { email: 'vend@test.com', password: 'nuevaClave9' } });
+    check('forgot: login con clave nueva', rl.status === 200, `status=${rl.status}`);
+
+    const rp2 = await req('POST', '/auth/reset-password', { body: { token: row?.reset_token, password: 'otraClave99' } });
+    check('forgot: token de reset es de un solo uso', rp2.status === 400, `status=${rp2.status}`);
+
+    // Por celular+apellido (vendedora Vicky Vende, cel +54 9 11 5555-0002)
+    const fp = await req('POST', '/auth/forgot-password-phone', { body: { celular: '5491155550002', apellido: 'vende' } });
+    check('forgot-phone: matchea celular normalizado + apellido', fp.status === 200 && fp.data?.ok === true && fp.data?.magic_path, JSON.stringify(fp.data));
+    const magicTok = fp.data?.magic_path?.split('/').pop();
+    const ml = await req('GET', `/auth/magic/${magicTok}`);
+    check('forgot-phone: magic login funciona', ml.status === 200 && ml.data?.token, `status=${ml.status}`);
+
+    const fpBad = await req('POST', '/auth/forgot-password-phone', { body: { celular: '5491155550002', apellido: 'otro' } });
+    check('forgot-phone: apellido incorrecto -> generico', fpBad.status === 200 && fpBad.data?.ok === false, JSON.stringify(fpBad.data));
+  }
+
+  // ---------- 2FA ----------
+  {
+    const setup = await req('GET', '/auth/2fa/setup', { token: ownerTok });
+    check('2fa: setup devuelve secreto y QR', setup.status === 200 && setup.data?.secret && setup.data?.qr_data_url, JSON.stringify(setup.status));
+    const secret = setup.data?.secret;
+
+    const badEnable = await req('POST', '/auth/2fa/enable', { token: ownerTok, body: { token: '000000' } });
+    check('2fa: enable con codigo malo -> 401', badEnable.status === 401, `status=${badEnable.status}`);
+
+    const code = authenticator.generate(secret);
+    const en = await req('POST', '/auth/2fa/enable', { token: ownerTok, body: { token: code } });
+    check('2fa: enable con TOTP valido', en.status === 200 && en.data?.recovery_codes?.length === 10, JSON.stringify(en.status));
+    const recovery = en.data?.recovery_codes || [];
+
+    // Login ahora pide 2FA
+    const lg = await req('POST', '/auth/login', { body: { email: 'owner@test.com', password: 'claveOwner1' } });
+    check('2fa: login devuelve needs_2fa', lg.status === 200 && lg.data?.needs_2fa === true && lg.data?.partial_token, JSON.stringify(lg.data));
+
+    const ver = await req('POST', '/auth/2fa/verify', { body: { partial_token: lg.data?.partial_token, code: authenticator.generate(secret) } });
+    check('2fa: verify con TOTP emite JWT', ver.status === 200 && ver.data?.token, `status=${ver.status}`);
+    ownerTok = ver.data?.token;
+
+    // Login + verify con recovery code
+    const lg2 = await req('POST', '/auth/login', { body: { email: 'owner@test.com', password: 'claveOwner1' } });
+    const ver2 = await req('POST', '/auth/2fa/verify', { body: { partial_token: lg2.data?.partial_token, code: recovery[0] } });
+    check('2fa: verify con recovery code', ver2.status === 200 && ver2.data?.token, `status=${ver2.status}`);
+    const ver3 = await req('POST', '/auth/2fa/verify', { body: { partial_token: lg2.data?.partial_token, code: recovery[0] } });
+    check('2fa: recovery code es de un solo uso', ver3.status === 401, `status=${ver3.status}`);
+
+    const st = await req('GET', '/auth/2fa/status', { token: ownerTok });
+    check('2fa: status enabled', st.status === 200 && st.data?.enabled === true, JSON.stringify(st.data));
+
+    const dis = await req('POST', '/auth/2fa/disable', { token: ownerTok, body: { password: 'claveOwner1', token: authenticator.generate(secret) } });
+    check('2fa: disable con password+TOTP', dis.status === 200, JSON.stringify(dis.data));
+
+    const lg3 = await req('POST', '/auth/login', { body: { email: 'owner@test.com', password: 'claveOwner1' } });
+    check('2fa: login sin 2FA tras disable', lg3.status === 200 && lg3.data?.token && !lg3.data?.needs_2fa, JSON.stringify(lg3.status));
+    ownerTok = lg3.data?.token;
+  }
+
+  // ---------- Clonar y resetear evento ----------
+  {
+    const in60d = new Date(Date.now() + 60 * 86400000);
+    const cl = await req('POST', `/events/${eventId}/clone`, {
+      token: ownerTok,
+      body: {
+        name: 'Fiesta Test (clon)',
+        date: in60d.toISOString().slice(0, 10),
+        start_time: '23:30',
+        sale_start_at: new Date().toISOString(),
+        sale_end_at: in60d.toISOString(),
+      },
+    });
+    check('events: clonar evento', (cl.status === 201 || cl.status === 200) && cl.data?.id, JSON.stringify(cl.data));
+    const cloneId = cl.data?.id;
+
+    const rs = await req('POST', `/events/${cloneId}/reset`, { token: ownerTok });
+    check('events: reset del clon', rs.status === 200, JSON.stringify(rs.data));
+  }
+
+  // ---------- Gestion de usuarios (final) ----------
+  {
+    const up = await req('PUT', `/users/${vendId}`, { token: ownerTok, body: { name: 'Victoria' } });
+    check('users: update datos', up.status === 200, JSON.stringify(up.status));
+
+    const cm = await req('PATCH', `/users/${vendId}/commission`, { token: ownerTok, body: { commission: 900 } });
+    check('users: update comision', cm.status === 200, JSON.stringify(cm.status));
+
+    const mg = await req('POST', `/users/${vendId}/magic-link`, { token: ownerTok });
+    check('users: owner genera magic link', mg.status === 200 && mg.data?.magic_token, JSON.stringify(mg.status));
+
+    const de = await req('DELETE', `/users/${vendId}`, { token: ownerTok });
+    check('users: desactivar vendedor', de.status === 200, JSON.stringify(de.status));
+
+    const dl = await req('POST', '/auth/login', { body: { email: 'vend@test.com', password: 'nuevaClave9' } });
+    check('users: login de desactivado -> 401', dl.status === 401, `status=${dl.status}`);
+
+    // La venta publica del desactivado tambien queda bloqueada
+    const pb = await req('POST', `/public/tickets/${vendCode}`, {
+      body: { event_id: eventId, ticket_type_id: ttGeneralId, payment_method: 'efectivo', attendees: [{ buyer_name: 'Z', buyer_apellido: 'Z' }] },
+    });
+    check('users: link publico de desactivado -> 404', pb.status === 404, `status=${pb.status}`);
+
+    // Safeguard: admin no puede auto-borrarse (hard)
+    const meR = await req('GET', '/auth/me', { token: admin });
+    const hd = await req('DELETE', `/users/${meR.data?.id}/hard`, { token: admin });
+    check('users: admin no puede hard-borrarse', hd.status === 400 || hd.status === 403, `status=${hd.status}`);
+  }
+
+  // ---------- Push ----------
+  {
+    const pk = await req('GET', '/push/public-key');
+    check('push: public key expuesta', pk.status === 200, JSON.stringify(pk.data));
+  }
+
+  // ---------- Resumen ----------
+  console.log('\n' + '='.repeat(60));
+  console.log(`TOTAL: ${results.length} checks — ${results.length - failures} PASS, ${failures} FAIL`);
+  if (failures > 0) {
+    console.log('\nFallas:');
+    for (const r of results.filter(x => !x.ok)) console.log(`  - ${r.name}: ${r.detail}`);
+  }
+  if (dbh) await dbh.close();
+  process.exit(failures > 0 ? 1 : 0);
+})().catch(err => {
+  console.error('ERROR FATAL del runner:', err);
+  process.exit(1);
+});

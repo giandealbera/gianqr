@@ -285,13 +285,25 @@ const update = async (req, res) => {
   if (flyer_url && !sanitizeFlyerUrl(flyer_url))
     return res.status(400).json({ error: 'flyer_url debe ser una URL http(s) válida' });
   try {
-    await db.query(
-      `UPDATE events SET name=?, description=?, date=?, start_time=?,
-       end_time=?, flyer_url=?, is_active=?,
-       sale_start_at=?, sale_end_at=? WHERE id=?`,
-      [name, description, date, start_time, end_time, sanitizeFlyerUrl(flyer_url), is_active ? 1 : 0,
-       sale_start_at || null, sale_end_at || null, id]
-    );
+    // SET dinamico: solo se actualizan los campos enviados. Antes un update
+    // parcial (ej. solo description) pisaba name con NULL (violaba NOT NULL
+    // -> 500) y ademas desactivaba el evento (is_active undefined -> 0).
+    const updates = [];
+    const params = [];
+    if (name !== undefined)         { updates.push('name = ?');         params.push(name); }
+    if (description !== undefined)  { updates.push('description = ?');  params.push(description); }
+    if (date !== undefined)         { updates.push('date = ?');         params.push(date); }
+    if (start_time !== undefined)   { updates.push('start_time = ?');   params.push(start_time); }
+    if (end_time !== undefined)     { updates.push('end_time = ?');     params.push(end_time); }
+    if (flyer_url !== undefined)    { updates.push('flyer_url = ?');    params.push(sanitizeFlyerUrl(flyer_url)); }
+    if (is_active !== undefined)    { updates.push('is_active = ?');    params.push(is_active ? 1 : 0); }
+    if (sale_start_at !== undefined){ updates.push('sale_start_at = ?');params.push(sale_start_at || null); }
+    if (sale_end_at !== undefined)  { updates.push('sale_end_at = ?');  params.push(sale_end_at || null); }
+    if (updates.length === 0)
+      return res.status(400).json({ error: 'Nada para actualizar' });
+
+    params.push(id);
+    await db.query(`UPDATE events SET ${updates.join(', ')} WHERE id = ?`, params);
     const result = await db.query('SELECT * FROM events WHERE id = ?', [id]);
     res.json(result.rows[0]);
   } catch (err) {

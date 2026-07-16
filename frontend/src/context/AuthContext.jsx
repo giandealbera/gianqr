@@ -41,6 +41,16 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const logout = useCallback(() => {
+    // Revocar la sesion en el servidor (fire-and-forget: si falla, el token
+    // local igual se borra y la sesion muere en su exp natural). Header
+    // explicito: el interceptor lee localStorage en un microtask y para ese
+    // momento el token ya fue borrado.
+    const token = localStorage.getItem('gianqr_token');
+    if (token) {
+      api.post('/sessions/logout', null, {
+        headers: { Authorization: `Bearer ${token}` },
+      }).catch(() => {});
+    }
     localStorage.removeItem('gianqr_token');
     setUser(null);
   }, []);

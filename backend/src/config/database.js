@@ -359,8 +359,6 @@ async function runMigrations(queryFn, execFn) {
     // Reset de contraseña: token random + expiracion. Se invalida tras un uso.
     'ALTER TABLE users ADD COLUMN reset_token TEXT',
     'ALTER TABLE users ADD COLUMN reset_token_expires DATETIME',
-    // Link de portero que valida TODOS los tipos del evento (1 = todos).
-    'ALTER TABLE scanner_tokens ADD COLUMN all_types INTEGER DEFAULT 0',
   ];
   for (const sql of incrementals) {
     await tryMigrate(sql.slice(0, 60), sql);
@@ -392,6 +390,14 @@ async function runMigrations(queryFn, execFn) {
     created_by     TEXT,
     created_at     DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
+  // Link de portero que valida TODOS los tipos del evento (1 = todos).
+  // El ALTER va DESPUES del CREATE: en bases nuevas la columna ya viene en
+  // el CREATE (el ALTER cae en "duplicate column", esperado); en bases
+  // viejas creadas sin la columna, este ALTER la agrega. Antes estaba en
+  // el array de incrementales (que corre ANTES del CREATE) y en una base
+  // fresca fallaba con "no such table" -> la tabla quedaba sin all_types
+  // y crear links de portero rompia con 500.
+  await tryMigrate('migration', 'ALTER TABLE scanner_tokens ADD COLUMN all_types INTEGER DEFAULT 0');
 
   // Un link de portero puede validar VARIOS tipos (o todos). all_types=1 acepta
   // cualquier tipo del evento; si hay filas en scanner_token_types, valida solo

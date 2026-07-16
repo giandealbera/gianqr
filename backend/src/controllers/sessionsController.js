@@ -66,4 +66,22 @@ const revokeOthers = async (req, res) => {
   }
 };
 
-module.exports = { list, revoke, revokeOthers };
+// POST /api/sessions/logout — revoca la sesion ACTUAL (jti del token).
+// Lo llama el frontend al desloguear, asi el JWT no sigue siendo valido
+// hasta su exp natural si alguien lo copio de localStorage.
+// Tokens legacy sin jti: no hay sesion que revocar, respondemos ok igual
+// (el cliente borra el token local y listo).
+const logout = async (req, res) => {
+  try {
+    if (req.user.jti) {
+      await revokeSession(req.user.jti);
+      logAudit(req, 'SESSION_LOGOUT', { resourceType: 'session', resourceId: req.user.jti });
+    }
+    res.json({ message: 'Sesión cerrada' });
+  } catch (err) {
+    console.error('sessions logout error:', err);
+    res.status(500).json({ error: 'Error al cerrar sesión' });
+  }
+};
+
+module.exports = { list, revoke, revokeOthers, logout };

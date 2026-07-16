@@ -1,9 +1,11 @@
 const { v4: uuidv4 } = require('uuid');
 const db = require('../config/database');
+const { adminCanAccessEvent } = require('../utils/scope');
 
-// Helper: ¿el usuario es dueño del evento? Admin pasa siempre.
+// Helper: ¿el usuario es dueño del evento? Admin solo dentro de SU arbol
+// (anti cross-tenant, mismo criterio que ticketsController).
 async function canManageEvent(user, event_id) {
-  if (user.role === 'admin') return true;
+  if (user.role === 'admin') return adminCanAccessEvent(user.id, event_id);
   if (user.role === 'owner') {
     const r = await db.query('SELECT 1 FROM event_owners WHERE event_id = ? AND user_id = ?', [event_id, user.id]);
     return r.rows.length > 0;

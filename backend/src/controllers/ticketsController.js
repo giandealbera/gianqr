@@ -2,6 +2,7 @@ const { v4: uuidv4 } = require('uuid');
 const QRCode = require('qrcode');
 const db = require('../config/database');
 const { checkSaleWindow } = require('../utils/saleWindow');
+const { normalizeCity } = require('../utils/normalize');
 const { logAudit } = require('../utils/auditLog');
 const { sendPush } = require('./pushController');
 
@@ -86,7 +87,7 @@ const create = async (req, res) => {
             qr_code, payment_method, payment_ref, amount_paid, status, promotor_id, sold_by)
          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [ticketId, event_id, ticket_type_id, buyer_name, buyer_apellido || null,
-         buyer_email || '', buyer_edad || null, buyer_localidad || null,
+         buyer_email || '', buyer_edad || null, normalizeCity(buyer_localidad) || null,
          code, payment_method, payment_ref || null,
          price, status, promotorId, req.user?.id || null]
       );
@@ -95,7 +96,7 @@ const create = async (req, res) => {
         await conn.execute(
           `INSERT INTO payments (id, ticket_id, method, amount, status, external_id)
            VALUES (?,?,?,?,?,?)`,
-          [uuidv4(), ticketId, 'efectivo', price, 'aprobado', payment_ref || null]
+          [uuidv4(), ticketId, payment_method, price, 'aprobado', payment_ref || null]
         );
         await conn.execute(
           'UPDATE ticket_types SET sold_count = sold_count + 1 WHERE id = ?',

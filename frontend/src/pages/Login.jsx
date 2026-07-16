@@ -159,7 +159,7 @@ const Login = () => {
                 required
                 autoFocus
                 autoComplete="one-time-code"
-                inputMode="numeric" enterKeyHint="done"
+                inputMode="numeric"
                 pattern="[0-9 ]*"
                 enterKeyHint="go"
                 className="input text-center text-lg font-mono tracking-widest"
