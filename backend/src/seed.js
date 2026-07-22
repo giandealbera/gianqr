@@ -31,16 +31,21 @@ async function seed() {
     const existingAdmin = await db.query(
       "SELECT id FROM users WHERE email = ?", [ADMIN_EMAIL]
     );
+    const hash = await bcrypt.hash(ADMIN_PASSWORD, 10);
     if (existingAdmin.rows.length === 0) {
-      const hash = await bcrypt.hash(ADMIN_PASSWORD, 10);
       adminId = uuidv4();
       await db.query(
-        "INSERT INTO users (id, name, email, password_hash, role) VALUES (?,?,?,?,?)",
+        "INSERT INTO users (id, name, email, password_hash, role, is_active) VALUES (?,?,?,?,?,1)",
         [adminId, 'Administrador', ADMIN_EMAIL, hash, 'admin']
       );
       console.log(`✅ Admin creado: ${ADMIN_EMAIL}`);
     } else {
       adminId = existingAdmin.rows[0].id;
+      await db.query(
+        "UPDATE users SET password_hash = ?, role = 'admin', is_active = 1 WHERE id = ?",
+        [hash, adminId]
+      );
+      console.log(`✅ Admin actualizado/verificado: ${ADMIN_EMAIL}`);
     }
 
     // Garantizar promotor "CASA" asociado al admin (para que la caja pueda generar links)
