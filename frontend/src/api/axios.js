@@ -1,10 +1,9 @@
 import axios from 'axios';
 
 // VITE_API_URL gana siempre (lo setea Vercel via env). En prod sin esa env,
-// fallback al subdominio de Railway. Cuando api.gianqr.com este listo, ponemos
-// VITE_API_URL=https://api.gianqr.com/api en Vercel y redeploy.
+// fallback al backend de Render.
 const baseURL = import.meta.env.VITE_API_URL
-  || (import.meta.env.PROD ? 'https://backend-production-752b7.up.railway.app/api' : '/api');
+  || (import.meta.env.PROD ? 'https://gianqr.onrender.com/api' : '/api');
 
 const api = axios.create({
   baseURL,
