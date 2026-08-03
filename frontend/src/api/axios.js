@@ -1,9 +1,11 @@
 import axios from 'axios';
 
-// VITE_API_URL gana siempre (lo setea Vercel via env). En prod sin esa env,
-// fallback al backend de Render.
-const baseURL = import.meta.env.VITE_API_URL
-  || (import.meta.env.PROD ? 'https://gianqr.onrender.com/api' : '/api');
+const rawEnv = import.meta.env.VITE_API_URL || '';
+const isBrokenEnv = rawEnv.includes('railway') || rawEnv.includes('api.gianqr.com');
+
+const baseURL = (rawEnv && !isBrokenEnv)
+  ? rawEnv
+  : (import.meta.env.PROD ? 'https://gianqr.onrender.com/api' : '/api');
 
 const api = axios.create({
   baseURL,
