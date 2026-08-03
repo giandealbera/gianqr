@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
@@ -62,30 +62,32 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-dvh flex items-center justify-center px-4" style={{ background: 'linear-gradient(160deg, #07090E 0%, #0D1117 50%, #0A0F18 100%)' }}>
+    <div className="min-h-dvh flex items-center justify-center px-4" style={{ background: '#111312' }}>
       <div className="w-full max-w-sm">
 
         {/* Logo */}
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4"
-               style={{ background: 'linear-gradient(135deg, #C9974D, #A87B35)', boxShadow: '0 0 40px rgba(201,151,77,0.2)' }}>
-            <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-lg mb-3"
+               style={{ background: '#171A19', border: '1px solid #2B312E' }}>
+            <svg className="w-7 h-7" style={{ color: '#5C6E5D' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
             </svg>
           </div>
-          <h1 className="text-3xl font-black tracking-tight" style={{ color: '#C9974D' }}>GianQR</h1>
-          <p className="text-sm mt-1" style={{ color: '#4A5568' }}>Sistema de Entradas</p>
+          <h1 className="text-3xl font-bold tracking-tight font-heading" style={{ color: '#E1E5E2' }}>
+            Gian<span style={{ color: '#788C79' }}>QR</span>
+          </h1>
+          <p className="text-xs mt-1" style={{ color: '#8C948D' }}>Sistema de Entradas</p>
         </div>
 
         {/* Paso 1: email + password. Paso 2 (2FA): codigo de Authenticator. */}
         {!tfaState ? (
           <form
             onSubmit={handleSubmit}
-            className="rounded-2xl p-6 space-y-5"
-            style={{ background: '#0D1117', border: '1px solid #1E2530' }}
+            className="card space-y-5"
+            style={{ background: '#171A19', border: '1px solid #2B312E' }}
           >
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: '#6B7280' }}>Email</label>
+              <label className="block text-xs font-medium uppercase tracking-wider mb-2" style={{ color: '#8C948D' }}>Email</label>
               <input
                 type="email"
                 required
@@ -102,7 +104,7 @@ const Login = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: '#6B7280' }}>Contraseña</label>
+              <label className="block text-xs font-medium uppercase tracking-wider mb-2" style={{ color: '#8C948D' }}>Contraseña</label>
               <input
                 type="password"
                 required
@@ -118,19 +120,18 @@ const Login = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 rounded-xl font-bold tracking-wider text-sm transition-all duration-150 disabled:opacity-40"
-              style={{ background: 'linear-gradient(135deg, #C9974D, #A87B35)', color: '#fff', boxShadow: '0 4px 24px rgba(201,151,77,0.25)' }}
+              className="btn-primary w-full py-3 text-sm font-semibold tracking-wide"
             >
               {loading ? 'Ingresando...' : 'Ingresar'}
             </button>
 
-            <div className="text-center pt-2">
+            <div className="text-center pt-1">
               <Link
                 to="/olvide-password"
                 className="text-xs hover:underline transition-colors"
-                style={{ color: '#6B7280' }}
-                onMouseEnter={e => e.target.style.color = '#C9974D'}
-                onMouseLeave={e => e.target.style.color = '#6B7280'}
+                style={{ color: '#8C948D' }}
+                onMouseEnter={e => e.target.style.color = '#E1E5E2'}
+                onMouseLeave={e => e.target.style.color = '#8C948D'}
               >
                 Olvidé mi contraseña
               </Link>
@@ -139,19 +140,19 @@ const Login = () => {
         ) : (
           <form
             onSubmit={handleTfaSubmit}
-            className="rounded-2xl p-6 space-y-5"
-            style={{ background: '#0D1117', border: '1px solid #1E2530' }}
+            className="card space-y-5"
+            style={{ background: '#171A19', border: '1px solid #2B312E' }}
           >
             <div className="text-center">
               <p className="text-2xl mb-2">🔐</p>
-              <p className="text-sm font-semibold">Verificación en dos pasos</p>
-              <p className="text-xs mt-1" style={{ color: '#6B7280' }}>
+              <p className="text-sm font-semibold font-heading">Verificación en dos pasos</p>
+              <p className="text-xs mt-1" style={{ color: '#8C948D' }}>
                 Ingresá el código de 6 dígitos de tu app de autenticación.
               </p>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: '#6B7280' }}>
+              <label className="block text-xs font-medium uppercase tracking-wider mb-2" style={{ color: '#8C948D' }}>
                 Código
               </label>
               <input
@@ -168,7 +169,7 @@ const Login = () => {
                 value={tfaCode}
                 onChange={e => setTfaCode(e.target.value)}
               />
-              <p className="text-[10px] mt-2 text-center" style={{ color: '#4B5563' }}>
+              <p className="text-[10px] mt-2 text-center" style={{ color: '#5B635E' }}>
                 Si perdiste el dispositivo, podés usar uno de tus códigos de recuperación (formato XXXX-XXXX).
               </p>
             </div>
@@ -176,8 +177,7 @@ const Login = () => {
             <button
               type="submit"
               disabled={loading || !tfaCode}
-              className="w-full py-3 rounded-xl font-bold tracking-wider text-sm transition-all duration-150 disabled:opacity-40"
-              style={{ background: 'linear-gradient(135deg, #C9974D, #A87B35)', color: '#fff', boxShadow: '0 4px 24px rgba(201,151,77,0.25)' }}
+              className="btn-primary w-full py-3 text-sm font-semibold tracking-wide"
             >
               {loading ? 'Verificando...' : 'Verificar'}
             </button>
@@ -185,14 +185,14 @@ const Login = () => {
             <button
               type="button"
               onClick={cancelTfa}
-              className="w-full text-xs underline" style={{ color: '#6B7280' }}
+              className="w-full text-xs underline" style={{ color: '#8C948D' }}
             >
               Volver al login
             </button>
           </form>
         )}
 
-        <p className="text-center text-xs mt-6" style={{ color: '#2D3748' }}>GianQR v1.0</p>
+        <p className="text-center text-xs mt-6" style={{ color: '#3A413D' }}>GianQR v1.0</p>
       </div>
     </div>
   );

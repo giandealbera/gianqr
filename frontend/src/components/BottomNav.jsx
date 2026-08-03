@@ -99,7 +99,7 @@ const BottomNav = () => {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 safe-area-bottom safe-area-x select-none"
-         style={{ background: 'rgba(13,17,23,0.97)', borderTop: '1px solid #1E2530', backdropFilter: 'blur(12px)' }}>
+         style={{ background: 'rgba(23,26,25,0.98)', borderTop: '1px solid #2B312E', backdropFilter: 'blur(12px)' }}>
       <div className="flex items-center justify-around px-1 py-1">
         {items.map(item => {
           const isActive = activeTo === item.to;
@@ -110,16 +110,15 @@ const BottomNav = () => {
               onClick={handleNavClick(item.to)}
               onTouchStart={() => prefetch(item.to)}
               onMouseEnter={() => prefetch(item.to)}
-              className="relative flex flex-col items-center gap-0.5 px-3 py-2 rounded-lg text-xs font-medium min-w-[56px]"
-              style={{ color: isActive ? '#C9974D' : '#4B5568', WebkitTapHighlightColor: 'transparent' }}
+              className="relative flex flex-col items-center gap-0.5 px-3 py-2 rounded-md text-xs font-medium min-w-[56px]"
+              style={{ color: isActive ? '#E1E5E2' : '#8C948D', WebkitTapHighlightColor: 'transparent' }}
             >
-              {/* Pill detrás del item activo. layoutId hace que se deslice
-                  fluido entre items al cambiar de tab. */}
+              {/* Pill detrás del item activo */}
               {isActive && (
                 <motion.span
                   layoutId="bottomNavPill"
-                  className="absolute inset-0 rounded-lg -z-0"
-                  style={{ background: 'rgba(201,151,77,0.10)' }}
+                  className="absolute inset-0 rounded-md -z-0"
+                  style={{ background: '#202422' }}
                   transition={{ type: 'spring', stiffness: 420, damping: 32 }}
                 />
               )}
@@ -135,7 +134,7 @@ const BottomNav = () => {
                 <motion.span
                   layoutId="bottomNavBar"
                   className="absolute -top-px left-1/2 -translate-x-1/2 w-6 h-0.5 rounded-full"
-                  style={{ background: '#C9974D' }}
+                  style={{ background: '#5C6E5D' }}
                   transition={{ type: 'spring', stiffness: 420, damping: 32 }}
                 />
               )}

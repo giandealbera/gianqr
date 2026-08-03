@@ -1,123 +1,78 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-  /*
-   * Reset/normalize de quirks de iOS Safari.
-   * - text-size-adjust: 100% evita el "auto inflate" del texto cuando el
-   *   usuario rota a landscape o cuando Safari intenta "ayudarte".
-   * - min-height: -webkit-fill-available + 100dvh hace que el viewport
-   *   considere la barra de URL dinamica de iOS. Sin esto, los layouts
-   *   con min-h-screen quedan tapados por la barra al hacer scroll.
-   */
   html {
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
-    /* iOS safari URL bar: 100vh incluye su altura ("salta" al scrollear).
-       100dvh respeta el viewport visible REAL. Fallback a -webkit-fill-available
-       para iOS < 15.4. */
     height: 100%;
-    /* overscroll-behavior: none mata el "pull-to-refresh" del browser cuando
-       el usuario tira hacia abajo desde el top de la pagina. En una PWA de
-       caja/escaneo eso recargaba la app sin aviso y se perdia el contexto
-       (filtros, link generado en pantalla, etc.). */
     overscroll-behavior: none;
   }
   body {
-    background-color: #07090E;
-    color: #E8EAF0;
+    background-color: #111312;
+    color: #E1E5E2;
     font-family: 'Inter', system-ui, sans-serif;
-    /* Bloquea el long-press text-selection en chrome de UI (botones, nav,
-       headers). El usuario puede igual seleccionar texto en contenido
-       (clase .selectable, o cualquier input/textarea/p de texto largo). */
     -webkit-user-select: none;
     user-select: none;
     -webkit-touch-callout: none;
     -webkit-tap-highlight-color: transparent;
-    /* touch-action: manipulation desactiva el doble-tap-zoom de iOS Safari
-       (que el meta viewport user-scalable=no no llega a tapar en standalone
-       PWA). Mantiene scroll vertical/horizontal y pan — solo bloquea el
-       zoom por gesto, que es lo que renegaba el usuario. */
     touch-action: manipulation;
     overscroll-behavior-y: contain;
-    /* Anti-bounce en algunos contextos. Comentamos: la app si necesita
-       scroll, no lo bloqueamos a nivel body. */
   }
 
-  /* Override del autofill amarillo de Safari (chrome tambien). Sin esto
-     los inputs autofilleados se ven con fondo amarillo brillante encima
-     del tema oscuro — feo. */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Space Grotesk', 'Inter', sans-serif;
+    letter-spacing: -0.02em;
+  }
+
   input:-webkit-autofill,
   input:-webkit-autofill:hover,
   input:-webkit-autofill:focus,
   textarea:-webkit-autofill,
   select:-webkit-autofill {
-    -webkit-box-shadow: 0 0 0 1000px #161B24 inset !important;
-    -webkit-text-fill-color: #F1F5F9 !important;
-    caret-color: #C9974D;
+    -webkit-box-shadow: 0 0 0 1000px #171A19 inset !important;
+    -webkit-text-fill-color: #E1E5E2 !important;
+    caret-color: #5C6E5D;
     transition: background-color 5000s ease-in-out 0s;
   }
 
-  /* iOS aplica un border-radius y un padding interno a los inputs y
-     buttons por defecto. Reset para que respeten lo que Tailwind dice. */
   input, textarea, select, button {
     -webkit-appearance: none;
     appearance: none;
-    border-radius: 0; /* Tailwind aplica el correcto despues */
+    border-radius: 0;
   }
 
-  /* Restauramos seleccion de texto en campos editables y contenido textual
-     real (parrafos, codigos QR copiables, etc). El bloqueo global del
-     body se aplica a botones/nav/headers, no a esto. */
   input, textarea, [contenteditable], .selectable, code, pre {
     -webkit-user-select: text;
     user-select: text;
     -webkit-touch-callout: default;
   }
 
-  /* Selects nativos en iOS: la flechita nativa desaparece con
-     appearance:none, sumamos una propia (svg inline en CSS). */
   select {
-    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238C948D' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
     background-repeat: no-repeat;
     background-position: right 0.75rem center;
     padding-right: 2rem !important;
   }
 
-  /* type=date/time/datetime-local: iOS los renderiza como pickers
-     nativos. Forzamos altura igual al resto de inputs para que no
-     queden mas chiquitos. */
   input[type="date"],
   input[type="time"],
   input[type="datetime-local"] {
     min-height: 44px;
   }
 
-  /*
-   * Safe-area utilities.
-   * iPhones con notch / Dynamic Island / home indicator tienen 4 insets:
-   *   safe-area-inset-top   (notch, ~47px en iPhone 14 Pro)
-   *   safe-area-inset-bottom (home indicator, ~34px)
-   *   safe-area-inset-left/right (rotacion landscape)
-   * Estos utilities los aplican a padding. SUM al padding existente.
-   */
   .safe-area-top    { padding-top:    env(safe-area-inset-top, 0); }
   .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom, 0); }
   .safe-area-x {
     padding-left:  env(safe-area-inset-left, 0);
     padding-right: env(safe-area-inset-right, 0);
   }
-  /* Para containers fixed: combina padding + el inset. */
   .pt-safe { padding-top: max(env(safe-area-inset-top, 0), 0.5rem); }
   .pb-safe { padding-bottom: max(env(safe-area-inset-bottom, 0), 0.5rem); }
 
-  /* Respeta la preferencia de "reduce motion" del SO (iOS/macOS:
-     Ajustes → Accesibilidad → Movimiento). Apagamos las transiciones y
-     animaciones globales para gente que se marea con el slide horizontal
-     de las rutas. framer-motion ya respeta esta preferencia internamente. */
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
       animation-duration:   0.01ms !important;
@@ -129,62 +84,55 @@
 }
 
 @layer components {
-  /* min-h-[44px] cumple el touch target minimo de iOS (44pt).
-     En desktop pasa desapercibido. */
   .btn-primary {
-    @apply bg-brand text-white font-semibold px-4 py-2 rounded-lg
-           hover:bg-brand-dark transition-all duration-150
-           active:scale-[0.97]
+    background-color: #5C6E5D;
+    color: #F1F4F2;
+    border: 1px solid #6E826F;
+    @apply font-semibold px-4 py-2.5 rounded-md
+           hover:bg-[#475748] transition-all duration-150
+           active:scale-[0.98]
            disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100
            tracking-wide text-sm min-h-[44px] sm:min-h-0;
-    /* touch-action: manipulation saca el delay de 300ms que Safari aplicaba
-       para detectar double-tap-to-zoom. En 2025 ya casi no aplica pero no
-       cuesta nada poner el hint explicito. */
-    touch-action: manipulation;
-    /* Cursor pointer falta en algunos browsers cuando appearance:none */
-    cursor: pointer;
-  }
-  .btn-secondary {
-    background-color: #1E2530;
-    color: #E2E8F0;
-    @apply font-semibold px-4 py-2 rounded-lg transition-all duration-150
-           active:scale-[0.97]
-           disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100
-           tracking-wide text-sm border min-h-[44px] sm:min-h-0;
-    border-color: #263040;
     touch-action: manipulation;
     cursor: pointer;
   }
-  .btn-secondary:hover { background-color: #263040; }
 
-  /* text-base (16px) en mobile evita el auto-zoom que Safari aplica
-     cuando el input tiene font-size < 16px. En sm+ usamos text-sm para
-     mantener la densidad visual del desktop. */
-  .input {
-    background-color: #161B24;
-    border: 1px solid #1E2530;
-    color: #F1F5F9;
-    @apply rounded-lg px-3 py-2.5 w-full focus:outline-none text-base sm:text-sm transition-colors duration-150 min-h-[44px] sm:min-h-0;
-    placeholder-color: #4B5563;
+  .btn-secondary {
+    background-color: #202422;
+    color: #D5DBD7;
+    border: 1px solid #2B312E;
+    @apply font-semibold px-4 py-2.5 rounded-md transition-all duration-150
+           hover:bg-[#2A302D] hover:border-[#38403C]
+           active:scale-[0.98]
+           disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100
+           tracking-wide text-sm min-h-[44px] sm:min-h-0;
+    touch-action: manipulation;
+    cursor: pointer;
   }
-  .input:focus { border-color: #C9974D; box-shadow: 0 0 0 1px #C9974D33; }
-  .input::placeholder { color: #4B5563; }
+
+  .input {
+    background-color: #171A19;
+    border: 1px solid #2B312E;
+    color: #E1E5E2;
+    @apply rounded-md px-3 py-2.5 w-full focus:outline-none text-base sm:text-sm transition-colors duration-150 min-h-[44px] sm:min-h-0;
+  }
+  .input:focus { border-color: #5C6E5D; box-shadow: 0 0 0 1px #5C6E5D55; }
+  .input::placeholder { color: #5B635E; }
+
   .card {
-    background-color: #0D1117;
-    border: 1px solid #1E2530;
-    border-radius: 0.75rem;
+    background-color: #171A19;
+    border: 1px solid #2B312E;
+    border-radius: 0.5rem;
     padding: 1.25rem;
   }
-  .badge-pagado    { @apply bg-emerald-950/60 text-emerald-400 text-xs px-2 py-0.5 rounded font-medium border border-emerald-900/60; }
-  .badge-pendiente { @apply bg-amber-950/60 text-amber-400 text-xs px-2 py-0.5 rounded font-medium border border-amber-900/60; }
-  .badge-usado     { @apply bg-blue-950/60 text-blue-400 text-xs px-2 py-0.5 rounded font-medium border border-blue-900/60; }
-  .badge-cancelado { @apply bg-red-950/60 text-red-400 text-xs px-2 py-0.5 rounded font-medium border border-red-900/60; }
 
-  .surface-row { background-color: #161B24; border-radius: 0.5rem; }
+  .badge-pagado    { background-color: #1C2920; color: #78B884; font-size: 0.75rem; padding: 0.125rem 0.5rem; border-radius: 0.25rem; font-weight: 500; border: 1px solid #2A4232; }
+  .badge-pendiente { background-color: #2B261D; color: #D4B475; font-size: 0.75rem; padding: 0.125rem 0.5rem; border-radius: 0.25rem; font-weight: 500; border: 1px solid #42392A; }
+  .badge-usado     { background-color: #1D242D; color: #7DA2D4; font-size: 0.75rem; padding: 0.125rem 0.5rem; border-radius: 0.25rem; font-weight: 500; border: 1px solid #293749; }
+  .badge-cancelado { background-color: #2B1D1E; color: #D47779; font-size: 0.75rem; padding: 0.125rem 0.5rem; border-radius: 0.25rem; font-weight: 500; border: 1px solid #45292B; }
 
-  /* Fade-in suave para reemplazar a un skeleton: las listas que aparecen
-     tras la carga inicial entran con esta animacion para no sentirse un
-     "pop" duro. Se usa via class="fade-in" en el contenedor de la lista. */
+  .surface-row { background-color: #202422; border-radius: 0.375rem; border: 1px solid #2B312E; }
+
   .fade-in {
     animation: fadeIn 220ms cubic-bezier(0.4, 0, 0.2, 1);
   }
@@ -195,11 +143,8 @@
 }
 
 @layer utilities {
-  /* min-h-screen reemplazado a nivel app por min-h-dvh donde lo usamos:
-     reemplazamos lugares clave a 100dvh para que el header sticky no
-     quede tapado por la barra de URL de iOS Safari. */
   .min-h-dvh {
-    min-height: 100vh;          /* fallback */
+    min-height: 100vh;
     min-height: 100dvh;
     min-height: -webkit-fill-available;
   }
@@ -217,10 +162,6 @@
     to   { opacity: 1; transform: translateY(0); }
   }
 
-  /* Tap feedback global: cualquier elemento clickeable se hunde sutilmente
-     al tocarlo. Da sensacion de boton fisico en mobile sin requerir JS por
-     cada componente. Aplica solo en pointer-coarse (touch) — en desktop
-     mantenemos solo hover. */
   @media (pointer: coarse) {
     button:not(:disabled):active,
     a:active,
@@ -228,17 +169,13 @@
     .card:active,
     .btn-primary:active,
     .btn-secondary:active {
-      transform: scale(0.97);
+      transform: scale(0.98);
       transition: transform 60ms ease-out;
     }
   }
 
-  /* Listas scrolleables que no propagan el bounce/pull-to-refresh al body.
-     Aplicar con className="overscroll-contain" en contenedores con overflow. */
   .overscroll-contain { overscroll-behavior: contain; }
 
-  /* Honoramos prefers-reduced-motion: si el sistema lo pide, aplanamos las
-     animaciones de framer-motion y las propias. */
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
       animation-duration: 0.01ms !important;

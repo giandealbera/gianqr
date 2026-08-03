@@ -56,30 +56,30 @@ const Sidebar = () => {
   const items = navItems[user?.role] || [];
 
   return (
-    <aside className="w-56 min-h-dvh flex flex-col" style={{ background: '#0D1117', borderRight: '1px solid #1E2530' }}>
+    <aside className="w-56 min-h-dvh flex flex-col" style={{ background: '#171A19', borderRight: '1px solid #2B312E' }}>
       {/* Logo */}
-      <div className="px-6 py-5" style={{ borderBottom: '1px solid #1E2530' }}>
-        <span className="text-lg font-black tracking-tight" style={{ color: '#C9974D' }}>GianQR</span>
-        <p className="text-xs mt-0.5" style={{ color: '#374151' }}>Sistema de Entradas</p>
+      <div className="px-6 py-5" style={{ borderBottom: '1px solid #2B312E' }}>
+        <span className="text-xl font-bold tracking-tight font-heading" style={{ color: '#E1E5E2' }}>Gian<span style={{ color: '#788C79' }}>QR</span></span>
+        <p className="text-xs mt-0.5" style={{ color: '#8C948D' }}>Sistema de Entradas</p>
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5">
+      <nav className="flex-1 px-3 py-4 space-y-1">
         {items.map(item => (
           <NavLink
             key={item.to}
             to={item.to}
             end={item.to === '/admin'}
             className={({ isActive }) =>
-              `flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 ${
+              `flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-all duration-150 ${
                 isActive
                   ? 'text-white'
-                  : 'hover:text-gray-100'
+                  : 'hover:text-gray-200'
               }`
             }
             style={({ isActive }) => isActive
-              ? { background: 'linear-gradient(135deg, rgba(201,151,77,0.15), rgba(168,123,53,0.1))', color: '#C9974D', borderLeft: '2px solid #C9974D', paddingLeft: '10px' }
-              : { color: '#6B7280' }
+              ? { background: '#202422', color: '#F1F4F2', borderLeft: '3px solid #5C6E5D', paddingLeft: '9px' }
+              : { color: '#8C948D' }
             }
           >
             {item.label}
@@ -88,17 +88,17 @@ const Sidebar = () => {
       </nav>
 
       {/* User */}
-      <div className="px-4 py-4" style={{ borderTop: '1px solid #1E2530' }}>
-        <div className="text-sm font-semibold text-gray-200">{user?.name}</div>
-        <div className="text-xs mt-0.5" style={{ color: '#4B5563' }}>{ROLE_LABELS[user?.role] || user?.role}</div>
+      <div className="px-4 py-4" style={{ borderTop: '1px solid #2B312E' }}>
+        <div className="text-sm font-semibold" style={{ color: '#E1E5E2' }}>{user?.name}</div>
+        <div className="text-xs mt-0.5" style={{ color: '#8C948D' }}>{ROLE_LABELS[user?.role] || user?.role}</div>
         <button
           onClick={() => { logout(); navigate('/login'); }}
           className="mt-3 text-xs transition-colors"
-          style={{ color: '#7F1D1D' }}
+          style={{ color: '#D47779' }}
           onMouseEnter={e => e.target.style.color = '#EF4444'}
-          onMouseLeave={e => e.target.style.color = '#7F1D1D'}
+          onMouseLeave={e => e.target.style.color = '#D47779'}
         >
-          Cerrar sesion
+          Cerrar sesión
         </button>
       </div>
     </aside>

@@ -1,25 +1,19 @@
 <!DOCTYPE html>
-<html lang="es" style="background:#07090E;">
+<html lang="es" style="background:#111312;">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <!-- viewport-fit=cover habilita env(safe-area-inset-*) en iPhones con notch.
-         Sin esto, el contenido no se mete debajo del notch ni respeta la
-         barra de home indicator.
-         maximum-scale=1 + user-scalable=no: la app esta pensada como un
-         PWA tipo nativa. El zoom accidental (doble-tap, pinch involuntario al
-         scrollear) molestaba al usar la app — bloquearlo da una experiencia
-         estable. iOS Safari ignora user-scalable=no fuera de standalone,
-         pero touch-action en CSS termina de tapar el doble-tap-zoom. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>GianQR — Sistema de Entradas</title>
     <meta name="description" content="Sistema de venta y control de entradas con QR para eventos" />
     <link rel="manifest" href="/manifest.json" />
-    <meta name="theme-color" content="#07090E" />
-    <!-- color-scheme: dark le avisa al SO que la app es modo oscuro. Evita
-         el flash blanco al abrir la PWA desde el home screen en iOS, y hace
-         que los controles nativos (scrollbar, picker) se vean dark. -->
+    <meta name="theme-color" content="#111312" />
     <meta name="color-scheme" content="dark" />
+
+    <!-- Google Fonts: Space Grotesk + Inter + JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 
     <!-- Apple PWA. apple-mobile-web-app-capable=yes hace que cuando el user
          agrega la app al home screen, se abra en standalone (sin barra de

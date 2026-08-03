@@ -165,29 +165,18 @@ const EventDashboard = () => {
 
             {/* Event Header Card */}
             <div style={{
-              background: 'linear-gradient(135deg, #0D1117 0%, #111827 100%)',
-              border: '1px solid #1E2530',
-              borderRadius: '1rem',
+              background: '#171A19',
+              border: '1px solid #2B312E',
+              borderRadius: '0.5rem',
               padding: '1.5rem',
               position: 'relative',
               overflow: 'hidden',
             }}>
-              {/* Ambient glow */}
-              <div style={{
-                position: 'absolute', top: '-40px', right: '-40px',
-                width: '160px', height: '160px',
-                borderRadius: '50%',
-                background: isActive
-                  ? 'radial-gradient(circle, rgba(52,211,153,0.07) 0%, transparent 70%)'
-                  : 'radial-gradient(circle, rgba(107,114,128,0.06) 0%, transparent 70%)',
-                pointerEvents: 'none',
-              }} />
-
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
-                  <h1 className="text-xl font-bold text-white leading-tight truncate">{event.name}</h1>
+                  <h1 className="text-xl font-bold font-heading text-[#E1E5E2] leading-tight truncate">{event.name}</h1>
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2">
-                    <span className="flex items-center gap-1.5 text-sm text-gray-400">
+                    <span className="flex items-center gap-1.5 text-sm" style={{ color: '#8C948D' }}>
                       <SvgIcon path={ICONS.calendar} size="w-3.5 h-3.5" />
                       {new Date(event.date + 'T12:00:00').toLocaleDateString('es-AR', {
                         weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
@@ -200,35 +189,35 @@ const EventDashboard = () => {
                 {/* Status badge + corte venta */}
                 <div className="flex items-center gap-2 shrink-0">
                   {salesStopped && (
-                    <div className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border bg-red-950/50 text-red-300 border-red-800/50">
+                    <div className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded"
+                         style={{ background: '#2B1D1E', color: '#D47779', border: '1px solid #45292B' }}>
                       <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
                       </svg>
                       Venta cortada
                     </div>
                   )}
-                  <div className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border ${
-                    isActive
-                      ? 'bg-emerald-950/50 text-emerald-400 border-emerald-800/50'
-                      : 'bg-gray-800/50 text-gray-400 border-gray-700/50'
-                  }`}>
+                  <div className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded"
+                       style={isActive
+                         ? { background: '#1C2920', color: '#78B884', border: '1px solid #2A4232' }
+                         : { background: '#202422', color: '#8C948D', border: '1px solid #2B312E' }}>
                     {isActive && (
                       <span className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#78B884] opacity-60" />
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-[#78B884]" />
                       </span>
                     )}
                     {isActive ? 'Activo' : 'Finalizado'}
                   </div>
                   {canManageSales && (
                     salesStopped ? (
-                      <button onClick={resumeSales} className="btn-secondary text-xs py-1.5 px-3" title="Volver a abrir la venta">
+                      <button onClick={resumeSales} className="btn-secondary text-xs py-1 px-2.5" title="Volver a abrir la venta">
                         Reanudar venta
                       </button>
                     ) : (
                       <button onClick={stopSales}
-                        className="text-xs py-1.5 px-3 rounded-lg font-semibold border transition-colors"
-                        style={{ background: 'rgba(185,28,28,0.12)', color: '#FCA5A5', borderColor: 'rgba(185,28,28,0.4)' }}
+                        className="text-xs py-1 px-2.5 rounded font-medium border transition-colors"
+                        style={{ background: '#2B1D1E', color: '#D47779', borderColor: '#45292B' }}
                         title="Sold out o querés cortar — el evento sigue accesible para rendir">
                         Cortar venta
                       </button>
@@ -242,19 +231,19 @@ const EventDashboard = () => {
             {canSeeStats && (
             <div className="grid grid-cols-3 gap-3">
               {[
-                { label: 'Vendidas',   value: totalSold, color: '#C9974D', bg: 'rgba(201,151,77,0.08)',  border: 'rgba(201,151,77,0.2)'  },
-                { label: 'Ingresaron', value: totalUsed, color: '#60A5FA', bg: 'rgba(96,165,250,0.08)',  border: 'rgba(96,165,250,0.2)'  },
-                { label: 'Pendientes', value: totalPend, color: '#FBBF24', bg: 'rgba(251,191,36,0.08)',  border: 'rgba(251,191,36,0.2)'  },
+                { label: 'Vendidas',   value: totalSold, color: '#B59E7D', bg: '#202422', border: '#2B312E' },
+                { label: 'Ingresaron', value: totalUsed, color: '#78B884', bg: '#1C2920', border: '#2A4232' },
+                { label: 'Pendientes', value: totalPend, color: '#D4B475', bg: '#2B261D', border: '#42392A' },
               ].map(({ label, value, color, bg, border }) => (
                 <div key={label} style={{
                   background: bg,
                   border: `1px solid ${border}`,
-                  borderRadius: '0.875rem',
+                  borderRadius: '0.5rem',
                   padding: '1rem',
                   textAlign: 'center',
                 }}>
-                  <p className="text-3xl font-black" style={{ color }}>{value}</p>
-                  <p className="text-[10px] uppercase tracking-widest mt-1.5" style={{ color: 'rgba(156,163,175,0.8)' }}>{label}</p>
+                  <p className="text-3xl font-bold font-mono" style={{ color }}>{value}</p>
+                  <p className="text-[10px] uppercase tracking-wider mt-1.5" style={{ color: '#8C948D' }}>{label}</p>
                 </div>
               ))}
             </div>
