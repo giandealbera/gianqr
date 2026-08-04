@@ -236,25 +236,22 @@ const PublicBuy = () => {
   const typeLocked    = (isReserved || !!presetTypeId)  && !!selectedType;
 
   if (loading) return (
-    <div className="min-h-dvh flex items-center justify-center" style={{ background: '#07090E' }}>
-      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-brand" />
+    <div className="min-h-dvh flex items-center justify-center" style={{ background: '#111312' }}>
+      <div className="animate-spin rounded-full h-8 w-8 border-t-2" style={{ borderColor: '#788C79' }} />
     </div>
   );
 
   if (error) return (
-    <div className="min-h-dvh flex items-center justify-center px-4" style={{ background: '#07090E' }}>
+    <div className="min-h-dvh flex items-center justify-center px-4" style={{ background: '#111312' }}>
       <div className="text-center space-y-4 max-w-sm">
-        <p className="text-4xl font-black text-brand">GianQR</p>
-        <p className="text-red-400">{error}</p>
-        {/* Para CASA (link de caja ya completado) ofrecemos recuperar el QR */}
-        {isReserved && (
-          <button
-            onClick={() => setRecoverOpen(true)}
-            className="btn-primary px-6 py-2 text-sm"
-          >
-            Recuperar mi QR
-          </button>
-        )}
+        <p className="text-3xl font-bold font-heading text-white select-none">Gian<span style={{ color: '#788C79' }}>QR</span></p>
+        <p className="text-red-400 text-sm">{error}</p>
+        <button
+          onClick={() => { setError(null); setRecoverOpen(true); }}
+          className="btn-primary px-6 py-2.5 text-sm font-semibold"
+        >
+          🔍 Buscar / Recuperar mi QR
+        </button>
       </div>
     </div>
   );
@@ -263,12 +260,12 @@ const PublicBuy = () => {
   const isLast    = personNum >= presetQty;
 
   return (
-    <div className="min-h-dvh py-8 px-4" style={{ background: '#07090E' }}>
+    <div className="min-h-dvh py-8 px-4" style={{ background: '#111312' }}>
       <div className="max-w-md mx-auto">
 
         <div className="text-center mb-6">
-          <p className="text-3xl font-black tracking-tight" style={{ color: '#C9974D' }}>GianQR</p>
-          <p className="text-sm mt-1" style={{ color: '#4B5568' }}>Registro de entrada</p>
+          <p className="text-3xl font-bold font-heading text-white select-none">Gian<span style={{ color: '#788C79' }}>QR</span></p>
+          <p className="text-xs mt-1" style={{ color: '#8C948D' }}>Registro y emisión de entrada</p>
         </div>
 
         {/* Aviso cuando se retoma a mitad de camino: el link traia N entradas

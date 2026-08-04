@@ -401,7 +401,7 @@ const recoverTickets = async (req, res) => {
     const emailNorm = (email || '').trim().toLowerCase();
     const emailWhere = emailNorm
       ? `AND (COALESCE(t.buyer_email,'') = '' OR LOWER(TRIM(t.buyer_email)) = ?)`
-      : `AND COALESCE(t.buyer_email,'') = ''`;
+      : ``;
     const emailParam = emailNorm ? [emailNorm] : [];
 
     // CASA es el "promotor virtual" de la caja interna. Antes los tickets
