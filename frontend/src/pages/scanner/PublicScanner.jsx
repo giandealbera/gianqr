@@ -41,20 +41,30 @@ const PublicScanner = () => {
       .catch(() => setError('No se pudo conectar al servidor'));
   }, [token]);
 
+  const lastScannedCode = useRef('');
+  const lastScannedTime = useRef(0);
+
   // Qué hacer cuando se lee un QR. Estable (solo depende del token).
   const handleDecoded = useCallback(async (decodedText) => {
-    const now = Date.now();
-    if (now - lastScan.current < COOLDOWN_MS) return;
-    lastScan.current = now;
-
     let qr_code = decodedText;
     try {
       const parsed = JSON.parse(decodedText);
       qr_code = parsed.code || decodedText;
     } catch { /* plain text */ }
 
+    const cleanCode = String(qr_code || '').toUpperCase().trim();
+    const now = Date.now();
+
+    // Si es el MISMO código QR leído dentro de los 15 segundos: ignorar en silencio.
+    // Evita que la cámara re-escanee el mismo celular del cliente tras marcarlo como usado.
+    if (cleanCode === lastScannedCode.current && (now - lastScannedTime.current < 15000)) {
+      return;
+    }
+
+    lastScannedCode.current = cleanCode;
+    lastScannedTime.current = now;
+
     setScanning(true);
-    setResult(null);
     try {
       const res = await fetch(`${BACKEND}/scan/${token}`, {
         method: 'POST',
@@ -70,8 +80,6 @@ const PublicScanner = () => {
       setResult({ ok: false, data: { error: 'Error de conexión' } });
     } finally {
       setScanning(false);
-      // Auto-reset después de 4 segundos para el siguiente escaneo
-      setTimeout(() => setResult(null), 4000);
     }
   }, [token]);
 
@@ -190,9 +198,9 @@ const PublicScanner = () => {
                 )}
               </div>
             )}
-            <button onClick={() => setResult(null)}
-              className="mt-4 w-full py-2.5 rounded-xl bg-gray-700 hover:bg-gray-600 text-sm font-medium transition-colors">
-              Siguiente escaneo
+            <button onClick={() => { lastScannedCode.current = ''; setResult(null); }}
+              className="mt-4 w-full py-3 rounded-xl bg-brand text-black font-semibold text-sm hover:opacity-90 transition-opacity">
+              ➡️ Escanear siguiente entrada
             </button>
           </div>
         )}

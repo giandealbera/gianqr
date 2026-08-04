@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Html5Qrcode } from 'html5-qrcode';
 import api from '../../api/axios';
@@ -65,17 +65,27 @@ const Scanner = () => {
     setSearchParams(p, { replace: true });
   }, [eventSel, typeSel]);
 
+  const lastScannedCode = useRef('');
+  const lastScannedTime = useRef(0);
+
   // Qué hacer cuando se lee un QR. Estable: lee typeSel del ref, no de deps.
   const handleDecoded = useCallback(async (decodedText) => {
-    const now = Date.now();
-    if (now - lastScan.current < COOLDOWN_MS) return;
-    lastScan.current = now;
-
     let qr_code = decodedText;
     try {
       const parsed = JSON.parse(decodedText);
       qr_code = parsed.code || decodedText;
     } catch { /* plain text */ }
+
+    const cleanCode = String(qr_code || '').toUpperCase().trim();
+    const now = Date.now();
+
+    // Si es el MISMO código QR leído dentro de los 15 segundos: ignorar en silencio.
+    if (cleanCode === lastScannedCode.current && (now - lastScannedTime.current < 15000)) {
+      return;
+    }
+
+    lastScannedCode.current = cleanCode;
+    lastScannedTime.current = now;
 
     setScanning(true);
     try {
