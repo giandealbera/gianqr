@@ -1,14 +1,8 @@
 import axios from 'axios';
-
-const rawEnv = import.meta.env.VITE_API_URL || '';
-const isBrokenEnv = rawEnv.includes('railway') || rawEnv.includes('api.gianqr.com');
-
-const baseURL = (rawEnv && !isBrokenEnv)
-  ? rawEnv
-  : (import.meta.env.PROD ? 'https://gianqr.onrender.com/api' : '/api');
+import { BACKEND_URL } from './config';
 
 const api = axios.create({
-  baseURL,
+  baseURL: BACKEND_URL,
   headers: { 'Content-Type': 'application/json' },
 });
 

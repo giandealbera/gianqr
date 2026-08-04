@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-
-const BACKEND = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+import { BACKEND_URL as BACKEND } from '../api/config';
 
 // Espejo del roleRedirect de Login.jsx para que un admin/owner que abre un
 // magic link no termine en /promotor (que no tiene acceso) sin acceso.

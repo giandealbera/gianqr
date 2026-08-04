@@ -208,17 +208,24 @@ const getScannerInfo = async (req, res) => {
   }
 };
 
-// POST /api/scan/:token — escanear QR (público, sin auth)
 const publicScan = async (req, res) => {
   const { token } = req.params;
   const { qr_code } = req.body;
   if (!qr_code) return res.status(400).json({ error: 'qr_code requerido' });
 
   try {
-    // La query del token y la del ticket NO dependen entre si (ambas solo
-    // del input). Las corremos en paralelo para ahorrar un round-trip a la
-    // base por cada escaneo — con fila en la puerta, suma.
-    const cleanCode = String(qr_code || '').toUpperCase().trim();
+    let rawCode = qr_code;
+    if (typeof rawCode === 'string' && rawCode.trim().startsWith('{')) {
+      try {
+        const parsed = JSON.parse(rawCode);
+        if (parsed && (parsed.code || parsed.qr_code)) {
+          rawCode = parsed.code || parsed.qr_code;
+        }
+      } catch { /* string simple */ }
+    } else if (typeof rawCode === 'object' && rawCode !== null) {
+      rawCode = rawCode.code || rawCode.qr_code || JSON.stringify(rawCode);
+    }
+    const cleanCode = String(rawCode || '').toUpperCase().trim();
     const [tokenResult, ticketResult] = await Promise.all([
       db.query(
         `SELECT st.*, tt.name AS ticket_type_name, e.name AS event_name, e.date AS event_date

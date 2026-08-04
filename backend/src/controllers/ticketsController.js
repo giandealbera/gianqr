@@ -299,12 +299,25 @@ const scan = async (req, res) => {
   if (!qr_code) return res.status(400).json({ error: 'qr_code requerido' });
 
   try {
+    let rawCode = qr_code;
+    if (typeof rawCode === 'string' && rawCode.trim().startsWith('{')) {
+      try {
+        const parsed = JSON.parse(rawCode);
+        if (parsed && (parsed.code || parsed.qr_code)) {
+          rawCode = parsed.code || parsed.qr_code;
+        }
+      } catch { /* string simple */ }
+    } else if (typeof rawCode === 'object' && rawCode !== null) {
+      rawCode = rawCode.code || rawCode.qr_code || JSON.stringify(rawCode);
+    }
+    const cleanCode = String(rawCode || '').toUpperCase().trim();
+
     const result = await db.query(
       `SELECT t.*, tt.name AS tipo_entrada, e.name AS evento, e.date, e.start_time
        FROM tickets t
        JOIN ticket_types tt ON tt.id = t.ticket_type_id
        JOIN events e ON e.id = t.event_id
-       WHERE t.qr_code = ?`, [String(qr_code || '').toUpperCase().trim()]
+       WHERE t.qr_code = ?`, [cleanCode]
     );
 
     const ticket = result.rows[0];

@@ -1,10 +1,9 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { downloadTicketsPdf } from '../../utils/downloadTicketsPdf';
 import LocalidadInput from '../../components/LocalidadInput';
-
-const BACKEND = (import.meta.env.VITE_API_URL || 'http://localhost:4000/api');
+import { BACKEND_URL as BACKEND } from '../../api/config';
 
 const emptyForm = () => ({
   buyer_name: '', buyer_apellido: '',

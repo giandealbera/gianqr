@@ -2,8 +2,8 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { Html5Qrcode } from 'html5-qrcode';
 import useWakeLock from '../../hooks/useWakeLock';
+import { BACKEND_URL as BACKEND } from '../../api/config';
 
-const BACKEND = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
 const COOLDOWN_MS = 2500;
 
 // Patron de vibracion: corto = ok, doble largo = error. Sirve en la boca de
