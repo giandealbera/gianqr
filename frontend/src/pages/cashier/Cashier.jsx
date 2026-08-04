@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../api/axios';
@@ -220,19 +220,41 @@ const Cashier = () => {
                 (El comprador carga sus datos y verá su propio QR)
               </p>
 
-              <div className="rounded-lg p-3 break-all font-mono text-xs selectable"
-                   style={{ background: '#161B24', border: '1px solid #1E2530', color: '#C9974D' }}>
-                {generatedLink}
+              <a
+                href={generatedLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block rounded-lg p-3 break-all font-mono text-xs hover:underline"
+                style={{ background: '#202422', border: '1px solid #2B312E', color: '#788C79' }}
+              >
+                {generatedLink} ↗
+              </a>
+
+              <div className="grid grid-cols-2 gap-2">
+                <a
+                  href={generatedLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-primary py-3 inline-flex items-center justify-center gap-2 text-center text-sm font-semibold"
+                >
+                  🔗 Abrir link
+                </a>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(generatedLink);
+                    toast.success('Link copiado al portapapeles');
+                  }}
+                  className="btn-secondary py-3 text-sm font-semibold"
+                >
+                  📋 Copiar link
+                </button>
               </div>
 
-              <button onClick={shareLink} className="btn-primary w-full py-3 inline-flex items-center justify-center gap-2">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 12V4m0 0L8 8m4-4l4 4" />
-                </svg>
-                Compartir link
+              <button onClick={shareLink} className="w-full py-2.5 rounded-md text-sm font-medium transition-colors" style={{ background: '#202422', border: '1px solid #2B312E', color: '#E1E5E2' }}>
+                Compartir por WhatsApp / App
               </button>
 
-              <button onClick={() => setGeneratedLink('')} className="btn-secondary w-full py-2.5">
+              <button onClick={() => setGeneratedLink('')} className="btn-secondary w-full py-2.5 text-xs">
                 + Generar otro link
               </button>
 

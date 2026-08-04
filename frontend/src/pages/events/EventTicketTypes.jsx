@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
@@ -439,18 +439,37 @@ const EventTicketTypes = () => {
             </h2>
             <div className="space-y-2">
               {tokens.map(t => (
-                <div key={t.id} className="card py-3 flex items-center gap-3">
+                <div key={t.id} className="card py-3 flex items-center gap-3" style={{ background: '#171A19', border: '1px solid #2B312E' }}>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">{t.type_names || t.ticket_type_name}</p>
-                    <p className="text-xs text-gray-500 font-mono truncate">{FRONTEND}/scan/{t.token}</p>
+                    <p className="text-sm font-medium" style={{ color: '#E1E5E2' }}>{t.type_names || t.ticket_type_name}</p>
+                    <a
+                      href={`${FRONTEND}/scan/${t.token}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-mono truncate block hover:underline"
+                      style={{ color: '#788C79' }}
+                    >
+                      {FRONTEND}/scan/{t.token} ↗
+                    </a>
                   </div>
                   <div className="flex gap-2 shrink-0">
+                    <a
+                      href={`${FRONTEND}/scan/${t.token}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs px-3 py-1.5 rounded-md font-medium text-center"
+                      style={{ background: '#788C79', color: '#111312' }}
+                    >
+                      Abrir
+                    </a>
                     <button onClick={() => shareLink(t.token)}
-                      className="text-xs px-3 py-1.5 rounded-lg bg-brand/20 text-brand hover:bg-brand/30 transition-colors">
+                      className="text-xs px-3 py-1.5 rounded-md text-white transition-colors"
+                      style={{ background: '#202422', border: '1px solid #2B312E' }}>
                       Compartir
                     </button>
                     <button onClick={() => revokeToken(t.id)}
-                      className="text-xs px-3 py-1.5 rounded-lg border border-red-800 text-red-400 hover:border-red-600 transition-colors">
+                      className="text-xs px-3 py-1.5 rounded-md transition-colors"
+                      style={{ background: '#2B1D1E', border: '1px solid #45292B', color: '#D47779' }}>
                       Revocar
                     </button>
                   </div>
