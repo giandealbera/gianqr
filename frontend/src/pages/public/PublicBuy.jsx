@@ -71,13 +71,12 @@ const PublicBuy = () => {
         fetch(`${BACKEND}/public/events`).then(r => r.json()),
       ])
         .then(([info, evs]) => {
+          if (info.body?.status === 'completed' && Array.isArray(info.body.tickets)) {
+            setCreatedAll(info.body.tickets);
+            setMode('done');
+            return;
+          }
           if (info.body?.error) {
-            // Si el link ya fue usado, ofrecer recuperar con nombre+apellido.
-            if (info.body.code === 'ALREADY_COMPLETED') {
-              setError(info.body.error);
-              setRecoverOpen(true);
-              return;
-            }
             setError(info.body.error || 'Link invalido o ya utilizado.');
             return;
           }

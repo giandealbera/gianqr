@@ -265,10 +265,20 @@ const getReservedTickets = async (req, res) => {
 
     const alreadyCompleted = rows.every(r => r.payment_ref !== 'RESERVADO');
     if (alreadyCompleted) {
-      return res.status(410).json({
-        error: 'Estas entradas ya fueron cargadas. Si perdiste tu QR podes recuperarlo con nombre y apellido.',
-        code: 'ALREADY_COMPLETED',
+      return res.json({
+        status: 'completed',
         event_id: rows[0].event_id,
+        tickets: rows.map(r => ({
+          id: r.id,
+          qr_code: r.qr_code,
+          buyer_name: r.buyer_name,
+          buyer_apellido: r.buyer_apellido,
+          amount_paid: r.amount_paid,
+          payment_method: r.payment_method,
+          tipo_entrada: r.tipo_entrada,
+          evento: rows[0].evento_name,
+          event_date: rows[0].evento_date,
+        })),
       });
     }
 
