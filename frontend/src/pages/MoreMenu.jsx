@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import Layout from '../components/Layout';
 
 const SvgIcon = ({ path }) => (
-  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6}>
+  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6}>
     <path strokeLinecap="round" strokeLinejoin="round" d={path} />
   </svg>
 );
@@ -21,14 +21,15 @@ const ICONS = {
 const MenuItem = ({ iconKey, label, desc, onClick }) => (
   <button
     onClick={onClick}
-    className="w-full card flex items-center gap-4 hover:border-gray-700 transition-all active:scale-[0.98] text-left"
+    className="w-full card flex items-center gap-4 hover:border-[#38403C] transition-all active:scale-[0.98] text-left"
+    style={{ background: '#171A19', border: '1px solid #2B312E' }}
   >
-    <span style={{ color: '#C9974D' }}><SvgIcon path={ICONS[iconKey]} /></span>
+    <span style={{ color: '#788C79' }}><SvgIcon path={ICONS[iconKey]} /></span>
     <div className="flex-1 min-w-0">
-      <p className="font-medium text-sm text-white">{label}</p>
-      {desc && <p className="text-xs text-gray-500 mt-0.5">{desc}</p>}
+      <p className="font-medium text-sm font-heading" style={{ color: '#E1E5E2' }}>{label}</p>
+      {desc && <p className="text-xs mt-0.5" style={{ color: '#8C948D' }}>{desc}</p>}
     </div>
-    <span className="text-gray-600">›</span>
+    <span style={{ color: '#5B635E' }}>›</span>
   </button>
 );
 
@@ -41,7 +42,6 @@ const MoreMenu = () => {
     navigate('/login');
   };
 
-  // Etiqueta de rol mas presentable que el slug ("jefe_publicas" → "Jefe de públicas").
   const ROLE_DISPLAY = {
     admin:         'Administrador',
     owner:         'Dueño',
@@ -52,19 +52,19 @@ const MoreMenu = () => {
   return (
     <Layout>
       <div className="px-4 lg:px-8 py-6 max-w-2xl mx-auto">
-        <h1 className="text-xl font-semibold tracking-tight mb-6">Más opciones</h1>
+        <h1 className="text-xl font-bold font-heading tracking-tight mb-6" style={{ color: '#E1E5E2' }}>Más opciones</h1>
 
         {/* Profile card */}
-        <div className="card flex items-center gap-4 mb-6">
-          <div className="w-12 h-12 rounded-full flex items-center justify-center text-base font-semibold"
-               style={{ background: 'rgba(201,151,77,0.12)', color: '#C9974D', border: '1px solid rgba(201,151,77,0.25)' }}>
+        <div className="card flex items-center gap-4 mb-6" style={{ background: '#171A19', border: '1px solid #2B312E' }}>
+          <div className="w-12 h-12 rounded-md flex items-center justify-center text-base font-semibold"
+               style={{ background: '#202422', color: '#E1E5E2', border: '1px solid #2B312E' }}>
             {user?.name?.charAt(0)?.toUpperCase()}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="font-semibold text-white truncate">{user?.name}</p>
-            <p className="text-xs text-gray-500 truncate">{user?.email}</p>
-            <span className="inline-block text-[10px] uppercase tracking-wider mt-1 px-1.5 py-0.5 rounded font-medium"
-                  style={{ background: 'rgba(201,151,77,0.10)', color: '#C9974D' }}>
+            <p className="font-semibold truncate" style={{ color: '#E1E5E2' }}>{user?.name}</p>
+            <p className="text-xs truncate" style={{ color: '#8C948D' }}>{user?.email}</p>
+            <span className="inline-block text-[10px] uppercase tracking-wider mt-1 px-2 py-0.5 rounded font-medium"
+                  style={{ background: '#202422', color: '#B59E7D', border: '1px solid #2B312E' }}>
               {ROLE_DISPLAY[user?.role] || user?.role}
             </span>
           </div>
@@ -96,7 +96,7 @@ const MoreMenu = () => {
             </>
           )}
 
-          <div className="pt-4 border-t border-gray-800 mt-4">
+          <div className="pt-4 border-t mt-4" style={{ borderColor: '#2B312E' }}>
             <MenuItem iconKey="users" label="Configuración" desc="Cambiar tu contraseña y ver tus datos" onClick={() => navigate('/configuracion')} />
             <MenuItem iconKey="info"  label="Verificación en dos pasos" desc="Activar 2FA para proteger tu cuenta" onClick={() => navigate('/configuracion/2fa')} />
             <MenuItem iconKey="info"  label="Sesiones activas" desc="Dispositivos donde estás logueado" onClick={() => navigate('/configuracion/sesiones')} />
@@ -107,7 +107,8 @@ const MoreMenu = () => {
         {/* Logout */}
         <button
           onClick={handleLogout}
-          className="w-full mt-8 py-3 rounded-xl border border-red-900/50 text-red-400 font-medium hover:bg-red-900/20 transition-colors active:scale-[0.98]"
+          className="w-full mt-8 py-3 rounded-md font-medium text-sm transition-colors active:scale-[0.98]"
+          style={{ background: '#2B1D1E', border: '1px solid #45292B', color: '#D47779' }}
         >
           Cerrar sesión
         </button>

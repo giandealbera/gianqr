@@ -10,28 +10,23 @@ const Layout = ({ children }) => {
     // min-h-dvh respeta el viewport real de iOS Safari (que cambia cuando
     // muestra/oculta la barra de URL). Antes con min-h-dvh el header
     // quedaba tapado al hacer scroll hacia abajo.
-    <div className="flex min-h-dvh bg-gray-950">
+    <div className="flex min-h-dvh" style={{ background: '#111312' }}>
       {/* Sidebar desktop */}
       <div className="hidden lg:block">
         <Sidebar />
       </div>
 
-      {/* Main content. pb-24 deja espacio para el BottomNav fijo + safe-area
-          en iPhones con home indicator. */}
+      {/* Main content. pb-24 deja espacio para el BottomNav fijo + safe-area */}
       <main className="flex-1 pb-24 lg:pb-0">
-        {/* Header mobile sticky. Sumamos pt-safe para que el contenido
-            del header (logo, nombre) no quede debajo del notch / Dynamic
-            Island en iPhones con safe-area-inset-top.
-            Usamos `top-0` + sticky para que se quede pegado durante el
-            scroll, y el padding-top maneja el inset. */}
-        <header className="lg:hidden sticky top-0 z-30 bg-gray-950/85 backdrop-blur-lg border-b border-gray-800/50 pt-safe">
+        {/* Header mobile sticky */}
+        <header className="lg:hidden sticky top-0 z-30 backdrop-blur-lg pt-safe" style={{ background: 'rgba(23,26,25,0.98)', borderBottom: '1px solid #2B312E' }}>
           <div className="px-4 py-3 flex items-center justify-between safe-area-x">
             <div>
-              <span className="text-xl font-black text-brand select-none">GianQR</span>
+              <span className="text-xl font-bold font-heading select-none" style={{ color: '#E1E5E2' }}>Gian<span style={{ color: '#788C79' }}>QR</span></span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-400 truncate max-w-[120px]">{user?.name}</span>
-              <div className="w-8 h-8 rounded-full bg-brand/20 flex items-center justify-center text-brand text-sm font-bold shrink-0">
+              <span className="text-sm truncate max-w-[120px]" style={{ color: '#8C948D' }}>{user?.name}</span>
+              <div className="w-8 h-8 rounded-md flex items-center justify-center text-sm font-semibold shrink-0" style={{ background: '#202422', border: '1px solid #2B312E', color: '#E1E5E2' }}>
                 {user?.name?.charAt(0)?.toUpperCase()}
               </div>
             </div>

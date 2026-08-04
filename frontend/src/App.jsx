@@ -60,11 +60,11 @@ const PageLoader = () => (
       initial={{ scaleX: 0, opacity: 0.8 }}
       animate={{ scaleX: 0.92, opacity: 1 }}
       transition={{ duration: 1.6, ease: [0.16, 1, 0.3, 1] }}
-      style={{ transformOrigin: '0% 50%', background: '#C9974D' }}
+      style={{ transformOrigin: '0% 50%', background: '#5C6E5D' }}
       className="fixed top-0 left-0 right-0 h-0.5 z-[60]"
     />
-    <div className="flex items-center justify-center h-dvh bg-gray-950">
-      <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-brand" />
+    <div className="flex items-center justify-center h-dvh" style={{ background: '#111312' }}>
+      <div className="animate-spin rounded-full h-10 w-10 border-t-2" style={{ borderColor: '#5C6E5D' }} />
     </div>
   </>
 );
