@@ -6,7 +6,7 @@ import LocalidadInput from '../../components/LocalidadInput';
 import { BACKEND_URL as BACKEND } from '../../api/config';
 
 const emptyForm = () => ({
-  buyer_name: '', buyer_apellido: '',
+  buyer_name: '', buyer_apellido: '', buyer_dni: '',
   buyer_edad: '', buyer_localidad: '', buyer_email: '',
 });
 
@@ -365,6 +365,15 @@ const PublicBuy = () => {
                     onChange={e => setForm(f => ({ ...f, buyer_apellido: e.target.value }))} />
                 </div>
               </div>
+              <div>
+                <label className="text-sm text-gray-400 block mb-1">DNI / Documento *</label>
+                <input className="input" required placeholder="12345678" value={form.buyer_dni}
+                  inputMode="numeric" pattern="[0-9]*" enterKeyHint="next"
+                  onChange={e => setForm(f => ({ ...f, buyer_dni: e.target.value }))} />
+                <p className="text-[11px] mt-1" style={{ color: '#8C948D' }}>
+                  El DNI es tu clave de seguridad privada para poder consultar y recuperar tus QRs.
+                </p>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-sm text-gray-400 block mb-1">Edad</label>
@@ -523,25 +532,24 @@ const PublicBuy = () => {
 
             {!recoveredList ? (
               <form onSubmit={doRecover} className="space-y-3">
-                <p className="text-xs" style={{ color: '#6B7280' }}>
-                  Cargá los mismos datos que usaste al comprar. Si pusiste email, ingresalo también.
+                <p className="text-xs" style={{ color: '#8C948D' }}>
+                  Por seguridad, cargá tu Nombre, Apellido y DNI exactos para recuperar tus entradas:
                 </p>
-                <input className="input" required placeholder="Nombre"
+                <input className="input" required placeholder="Nombre *"
                        autoComplete="given-name" autoCapitalize="words" enterKeyHint="next"
                        value={recoverForm.nombre}
                        onChange={e => setRecoverForm(f => ({ ...f, nombre: e.target.value }))} />
-                <input className="input" required placeholder="Apellido"
+                <input className="input" required placeholder="Apellido *"
                        autoComplete="family-name" autoCapitalize="words" enterKeyHint="next"
                        value={recoverForm.apellido}
                        onChange={e => setRecoverForm(f => ({ ...f, apellido: e.target.value }))} />
-                <input type="email" className="input" placeholder="Email (si lo cargaste al comprar)"
-                       autoComplete="email" inputMode="email" autoCapitalize="off" spellCheck="false"
-                       enterKeyHint="search"
-                       value={recoverForm.email}
-                       onChange={e => setRecoverForm(f => ({ ...f, email: e.target.value }))} />
+                <input className="input" required placeholder="DNI / Documento *"
+                       inputMode="numeric" pattern="[0-9]*" enterKeyHint="search"
+                       value={recoverForm.dni || ''}
+                       onChange={e => setRecoverForm(f => ({ ...f, dni: e.target.value }))} />
                 {recoverError && <p className="text-sm text-red-400">{recoverError}</p>}
-                <button type="submit" disabled={recovering} className="btn-primary w-full">
-                  {recovering ? 'Buscando...' : 'Buscar mis QRs'}
+                <button type="submit" disabled={recovering} className="btn-primary w-full py-3 font-semibold">
+                  {recovering ? 'Verificando DNI...' : '🔒 Recuperar mis QRs'}
                 </button>
               </form>
             ) : (

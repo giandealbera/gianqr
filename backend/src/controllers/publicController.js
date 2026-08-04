@@ -175,12 +175,12 @@ const createPublicTicket = async (req, res) => {
         const qrCode   = `GIANQR-${ticketId.substring(0, 8).toUpperCase()}`;
         await conn.execute(
           `INSERT INTO tickets
-             (id, ticket_type_id, event_id, buyer_name, buyer_apellido, buyer_edad, buyer_localidad, buyer_email,
+             (id, ticket_type_id, event_id, buyer_name, buyer_apellido, buyer_dni, buyer_edad, buyer_localidad, buyer_email,
               qr_code, payment_method, payment_ref, amount_paid, status, promotor_id)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-          [ticketId, ticket_type_id, event_id, a.buyer_name, a.buyer_apellido,
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          [ticketId, ticket_type_id, event_id, a.buyer_name, a.buyer_apellido, a.buyer_dni || null,
            a.buyer_edad || null, normalizeCity(a.buyer_localidad) || null, a.buyer_email || '',
-           qrCode, validMethod, isCortesia ? 'CORTESIA' : '', finalPrice, 'pagado', promotor.id]
+           qrCode, validMethod, null, finalPrice, 'pagado', promotor.id]
         );
         created.push({
           id: ticketId, qr_code: qrCode,
@@ -357,11 +357,11 @@ const completeReservedTickets = async (req, res) => {
         const a = attendees[i];
         await conn.execute(
           `UPDATE tickets
-              SET buyer_name = ?, buyer_apellido = ?,
+              SET buyer_name = ?, buyer_apellido = ?, buyer_dni = ?,
                   buyer_edad = ?, buyer_localidad = ?, buyer_email = ?,
                   payment_ref = ''
             WHERE id = ? AND payment_ref = 'RESERVADO'`,
-          [a.buyer_name, a.buyer_apellido,
+          [a.buyer_name, a.buyer_apellido, a.buyer_dni || null,
            a.buyer_edad || null, normalizeCity(a.buyer_localidad) || null, a.buyer_email || '',
            tid]
         );
@@ -383,31 +383,19 @@ const completeReservedTickets = async (req, res) => {
   }
 };
 
-// POST /api/public/recover/:code — comprador busca sus tickets por nombre+apellido+(email)
+// POST /api/public/recover/:code — comprador busca sus tickets por nombre + apellido + DNI
 const recoverTickets = async (req, res) => {
-  // Normalizo: /recover/CASA == /recover/casa.
   const code = (req.params.code || '').toUpperCase();
-  const { nombre, apellido, email } = req.body;
+  const { nombre, apellido, dni } = req.body;
 
-  if (!nombre || !apellido)
-    return res.status(400).json({ error: 'Cargá nombre y apellido para recuperar tus entradas' });
+  if (!nombre || !apellido || !dni)
+    return res.status(400).json({ error: 'Cargá tu nombre, apellido y DNI para recuperar tus entradas' });
+
+  const cleanDni = String(dni || '').replace(/\D/g, '');
+  if (!cleanDni || cleanDni.length < 6)
+    return res.status(400).json({ error: 'Ingresá un DNI válido (mínimo 6 dígitos)' });
 
   try {
-    // Filtro de email: si el comprador puso email al comprar, lo exigimos
-    // aca tambien. Esto endurece el endpoint contra enumeracion por
-    // nombre+apellido: cualquier ticket con email guardado pide email
-    // para revelar el QR. Tickets sin email (campo opcional) caen al
-    // matcheo solo por nombre/apellido.
-    const emailNorm = (email || '').trim().toLowerCase();
-    const emailWhere = emailNorm
-      ? `AND (COALESCE(t.buyer_email,'') = '' OR LOWER(TRIM(t.buyer_email)) = ?)`
-      : ``;
-    const emailParam = emailNorm ? [emailNorm] : [];
-
-    // CASA es el "promotor virtual" de la caja interna. Antes los tickets
-    // de caja tenian promotor_id NULL pero ahora apuntan al promotor CASA
-    // (porque admin SI tiene fila en promotors). Hay que aceptar ambos:
-    // promotor_id de CASA o NULL.
     let promotorWhere;
     let params;
     if (code === 'CASA') {
@@ -416,16 +404,16 @@ const recoverTickets = async (req, res) => {
       promotorWhere = casaId
         ? '(t.promotor_id IS NULL OR t.promotor_id = ?)'
         : 't.promotor_id IS NULL';
-      params = casaId ? [casaId, nombre, apellido, ...emailParam] : [nombre, apellido, ...emailParam];
+      params = casaId ? [casaId, nombre, apellido, cleanDni] : [nombre, apellido, cleanDni];
     } else {
       const promo = await db.query('SELECT id FROM promotors WHERE UPPER(promo_code) = UPPER(?)', [code]);
       if (!promo.rows[0]) return res.status(404).json({ error: 'Link invalido' });
       promotorWhere = 't.promotor_id = ?';
-      params = [promo.rows[0].id, nombre, apellido, ...emailParam];
+      params = [promo.rows[0].id, nombre, apellido, cleanDni];
     }
 
     const result = await db.query(
-      `SELECT t.id, t.qr_code, t.buyer_name, t.buyer_apellido, t.amount_paid, t.created_at, t.status,
+      `SELECT t.id, t.qr_code, t.buyer_name, t.buyer_apellido, t.buyer_dni, t.amount_paid, t.created_at, t.status,
               tt.name AS tipo_entrada, e.name AS evento, e.date AS event_date
        FROM tickets t
        JOIN ticket_types tt ON tt.id = t.ticket_type_id
@@ -433,7 +421,7 @@ const recoverTickets = async (req, res) => {
        WHERE ${promotorWhere}
          AND LOWER(TRIM(t.buyer_name))     = LOWER(TRIM(?))
          AND LOWER(TRIM(t.buyer_apellido)) = LOWER(TRIM(?))
-         ${emailWhere}
+         AND REPLACE(REPLACE(COALESCE(t.buyer_dni, ''), '.', ''), ' ', '') = ?
          AND t.status IN ('pagado','usado')
        ORDER BY t.created_at DESC
        LIMIT 20`,
@@ -443,7 +431,7 @@ const recoverTickets = async (req, res) => {
     res.json({ tickets: result.rows });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Error al buscar entradas' });
+    res.status(500).json({ error: 'Error al recuperar entradas' });
   }
 };
 
