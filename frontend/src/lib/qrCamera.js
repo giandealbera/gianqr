@@ -125,9 +125,74 @@ let instanciaViva = null;
 // medias, stop() tambien tira.
 export async function destroyQrScanner(html5) {
   if (!html5) return;
-  if (html5 === instanciaViva) instanciaViva = null;
+  if (html5 === instanciaViva) { instanciaViva = null; videoVivo = null; dejarDeVigilar(); }
   try { await html5.stop(); } catch { /* no estaba corriendo */ }
   try { html5.clear(); } catch { /* nada que limpiar */ }
+}
+
+function contenedor(elementId) {
+  return typeof document === 'undefined' ? null : document.getElementById(elementId);
+}
+
+// Vacia el contenedor del escaner. Ojo: hay que llamarlo antes de CADA
+// intento, no una sola vez. Si un intento deja su <video> puesto (stop() y
+// clear() tiran cuando la instancia quedo a medias, y ahi el elemento
+// sobrevive) y el intento siguiente arranca bien, quedan los dos apilados
+// dentro del mismo div: la camara "se ve doble".
+function limpiarContenedor(elementId) {
+  const host = contenedor(elementId);
+  if (host) host.innerHTML = '';
+}
+
+// El <video> de la instancia que arranco bien. Es la referencia para saber
+// cual conservar: un resto tardio puede aparecer DESPUES del bueno, asi que
+// "quedarse con el ultimo" elegiria el equivocado.
+let videoVivo = null;
+
+/**
+ * Deja UN solo preview en el contenedor: elimina todo <video> que no sea el
+ * de la instancia activa, cortandole las pistas para que ademas libere la
+ * camara. Devuelve cuantos elimino.
+ */
+function dejarUnSoloPreview(elementId) {
+  const host = contenedor(elementId);
+  if (!host) return 0;
+  const videos = [...host.querySelectorAll('video')];
+  if (videos.length <= 1) return 0;
+
+  let eliminados = 0;
+  for (const v of videos) {
+    // Sin referencia conocida conservamos el primero, que es el que la
+    // libreria monto para el escaner en curso.
+    if (v === (videoVivo || videos[0])) continue;
+    try { v.srcObject?.getTracks?.().forEach(t => t.stop()); } catch { /* ya cortado */ }
+    try { v.remove(); } catch { /* ya no estaba */ }
+    eliminados++;
+  }
+  return eliminados;
+}
+
+// Vigilante del contenedor. Un intento fallido puede insertar su <video>
+// DESPUES de que su promesa rechazo, ya con el escaner andando: ese resto
+// tardio es el que dejaba el preview duplicado. Adivinar cuando pasa con un
+// setTimeout es fragil, asi que escuchamos el DOM y lo sacamos apenas
+// aparece, sin importar cuanto tarde.
+let vigilante = null;
+
+function dejarDeVigilar() {
+  try { vigilante?.disconnect(); } catch { /* ya desconectado */ }
+  vigilante = null;
+}
+
+function vigilarPreviewsDuplicados(elementId) {
+  dejarDeVigilar();
+  if (typeof MutationObserver === 'undefined') return;
+  const host = contenedor(elementId);
+  if (!host) return;
+  vigilante = new MutationObserver(() => {
+    if (host.querySelectorAll('video').length > 1) dejarUnSoloPreview(elementId);
+  });
+  vigilante.observe(host, { childList: true });
 }
 
 // Errores donde reintentar con otra configuracion no cambia nada: el problema
@@ -157,12 +222,6 @@ export async function startQrCamera({ elementId, onDecoded }) {
   // stream, y esa es la que hace que queden "dos camaras activas".
   await destroyQrScanner(instanciaViva);
 
-  // Y dejamos el contenedor vacio, por si sobrevivio algun <video> suelto.
-  if (typeof document !== 'undefined') {
-    const host = document.getElementById(elementId);
-    if (host) host.innerHTML = '';
-  }
-
   // [fuente de video, config]. `null` = enumerar camaras y elegir la trasera.
   const intentos = [
     [HD_REAR,                       SCAN_CONFIG],
@@ -174,6 +233,9 @@ export async function startQrCamera({ elementId, onDecoded }) {
   let lastErr = null;
 
   for (const [fuente, config] of intentos) {
+    // Antes de CADA intento, no solo del primero: si el anterior dejo su
+    // <video> colgado, sin esto el intento que funcione lo apila abajo.
+    limpiarContenedor(elementId);
     const html5 = createQrScanner(elementId);
     try {
       let src = fuente;
@@ -189,6 +251,11 @@ export async function startQrCamera({ elementId, onDecoded }) {
       }
       await html5.start(src, config, onDecoded, () => {});
       instanciaViva = html5;
+      // Este es el preview bueno: lo marcamos ANTES de barrer, para no
+      // confundirlo con un resto que aparezca despues.
+      videoVivo = contenedor(elementId)?.querySelector('video') || null;
+      dejarUnSoloPreview(elementId);
+      vigilarPreviewsDuplicados(elementId);
       await tryContinuousFocus(html5);
       return { ok: true, scanner: html5 };
     } catch (err) {
