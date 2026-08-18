@@ -215,17 +215,24 @@ const publicScan = async (req, res) => {
 
   try {
     let rawCode = qr_code;
+    let rawId = null;
+
     if (typeof rawCode === 'string' && rawCode.trim().startsWith('{')) {
       try {
         const parsed = JSON.parse(rawCode);
-        if (parsed && (parsed.code || parsed.qr_code)) {
-          rawCode = parsed.code || parsed.qr_code;
+        if (parsed && typeof parsed === 'object') {
+          rawCode = parsed.code || parsed.qr_code || parsed.id || rawCode;
+          rawId = parsed.ticket_id || parsed.id || null;
         }
       } catch { /* string simple */ }
     } else if (typeof rawCode === 'object' && rawCode !== null) {
-      rawCode = rawCode.code || rawCode.qr_code || JSON.stringify(rawCode);
+      rawId = rawCode.ticket_id || rawCode.id || null;
+      rawCode = rawCode.code || rawCode.qr_code || rawCode.id || JSON.stringify(rawCode);
     }
+
     const cleanCode = String(rawCode || '').toUpperCase().trim();
+    const cleanId = rawId ? String(rawId).trim() : cleanCode;
+
     const [tokenResult, ticketResult] = await Promise.all([
       db.query(
         `SELECT st.*, tt.name AS ticket_type_name, e.name AS event_name, e.date AS event_date
@@ -240,8 +247,8 @@ const publicScan = async (req, res) => {
          FROM tickets t
          JOIN ticket_types tt ON tt.id = t.ticket_type_id
          JOIN events e ON e.id = t.event_id
-         WHERE t.qr_code = ?`,
-        [cleanCode]
+         WHERE UPPER(TRIM(t.qr_code)) = UPPER(TRIM(?)) OR t.id = ?`,
+        [cleanCode, cleanId]
       ),
     ]);
 

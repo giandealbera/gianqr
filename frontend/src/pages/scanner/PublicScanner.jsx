@@ -180,20 +180,24 @@ const PublicScanner = () => {
                   : <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />}
               </svg>
             </div>
-            <h2 className={`text-2xl font-black mb-2 ${result.ok ? 'text-green-400' : 'text-red-400'}`}>
-              {result.ok ? 'VÁLIDA' : 'INVÁLIDA'}
-            </h2>
-            {result.data?.error && (
-              <p className="text-red-300 text-sm mb-3">{result.data.error}</p>
-            )}
-            {ticket && (
-              <div className="mt-3 space-y-1.5 text-sm text-left bg-gray-900/50 rounded-xl p-4">
-                <p><span className="text-gray-400">Nombre:</span> <strong>{ticket.buyer_name} {ticket.buyer_apellido || ''}</strong></p>
-                <p><span className="text-gray-400">Tipo:</span> {ticket.tipo_entrada}</p>
-                {result.ok && <p className="text-green-400 text-xs mt-2">Entrada marcada como utilizada</p>}
-                {!result.ok && ticket.status === 'usado' && ticket.scanned_at && (
-                  <p className="text-red-300 text-xs mt-2">
-                    Escaneada el {new Date(ticket.scanned_at).toLocaleString('es-AR')}
+            {result.ok ? (
+              <div className="my-2">
+                <h2 className="text-3xl font-black text-green-400 mb-2 tracking-tight">VÁLIDA</h2>
+                {ticket && (
+                  <p className="text-xl font-bold text-white">
+                    {ticket.buyer_name} {ticket.buyer_apellido || ''}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div>
+                <h2 className="text-2xl font-black text-red-400 mb-2">ENTRADA INVÁLIDA</h2>
+                {result.data?.error && (
+                  <p className="text-red-300 text-base font-medium mb-2">{result.data.error}</p>
+                )}
+                {ticket && ticket.status === 'usado' && ticket.scanned_at && (
+                  <p className="text-xs text-gray-400 mt-2">
+                    Escaneada previamente el {new Date(ticket.scanned_at).toLocaleString('es-AR')}
                   </p>
                 )}
               </div>

@@ -370,33 +370,25 @@ const Scanner = () => {
                 <div className={`text-4xl font-black text-center mb-3 ${result.ok ? 'text-green-400' : 'text-red-400'}`}>
                   {result.ok ? 'OK' : 'NO'}
                 </div>
-                <h2 className={`text-lg font-bold text-center mb-4 ${result.ok ? 'text-green-400' : 'text-red-400'}`}>
-                  {result.ok ? 'ENTRADA VÁLIDA' : 'ENTRADA INVÁLIDA'}
-                </h2>
-
-                {result.data?.error && (
-                  <p className="text-center text-red-300 mb-4 text-sm">{result.data.error}</p>
-                )}
-
-                {ticket && (
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between border-b border-gray-800 pb-2">
-                      <span className="text-gray-400">Nombre</span>
-                      <span className="font-medium">{ticket.buyer_name} {ticket.buyer_apellido}</span>
-                    </div>
-                    <div className="flex justify-between border-b border-gray-800 pb-2">
-                      <span className="text-gray-400">Evento</span>
-                      <span>{ticket.evento}</span>
-                    </div>
-                    <div className="flex justify-between border-b border-gray-800 pb-2">
-                      <span className="text-gray-400">Tipo</span>
-                      <span>{ticket.tipo_entrada}</span>
-                    </div>
-                    {ticket.scanned_at && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Escaneado</span>
-                        <span>{new Date(ticket.scanned_at).toLocaleTimeString('es-AR')}</span>
-                      </div>
+                {result.ok ? (
+                  <div className="text-center my-3 space-y-2">
+                    <h2 className="text-3xl font-black text-green-400">VÁLIDA</h2>
+                    {ticket && (
+                      <p className="text-xl font-bold text-white">
+                        {ticket.buyer_name} {ticket.buyer_apellido || ''}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center my-3 space-y-2">
+                    <h2 className="text-xl font-bold text-red-400">ENTRADA INVÁLIDA</h2>
+                    {result.data?.error && (
+                      <p className="text-red-300 text-sm font-medium">{result.data.error}</p>
+                    )}
+                    {ticket && ticket.status === 'usado' && ticket.scanned_at && (
+                      <p className="text-xs text-gray-400">
+                        Escaneada previamente el {new Date(ticket.scanned_at).toLocaleString('es-AR')}
+                      </p>
                     )}
                   </div>
                 )}
