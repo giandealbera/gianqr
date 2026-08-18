@@ -113,9 +113,24 @@ const Scanner = () => {
     const html5 = scannerRef.current;
     if (!html5) return;
     setCamError(null);
-    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+    const config = {
+      fps: 30,
+      qrbox: (viewWidth, viewHeight) => {
+        const minEdge = Math.min(viewWidth, viewHeight);
+        const size = Math.floor(minEdge * 0.85);
+        return { width: Math.max(size, 240), height: Math.max(size, 240) };
+      },
+      aspectRatio: 1.0,
+      disableFlip: false,
+    };
+    const cameraConstraints = {
+      facingMode: 'environment',
+      width: { ideal: 1280 },
+      height: { ideal: 720 },
+      focusMode: 'continuous',
+    };
     try {
-      await html5.start({ facingMode: 'environment' }, config, handleDecoded, () => {});
+      await html5.start(cameraConstraints, config, handleDecoded, () => {});
       setNeedsTap(false);
     } catch(err) {
       if (/already running/i.test(String(err))) { setNeedsTap(false); return; }

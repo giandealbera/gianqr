@@ -91,10 +91,25 @@ const PublicScanner = () => {
     const html5 = scannerRef.current;
     if (!html5) return;
     setCamError(null);
-    const config = { fps: 10, qrbox: { width: 260, height: 260 } };
+    const config = {
+      fps: 30,
+      qrbox: (viewWidth, viewHeight) => {
+        const minEdge = Math.min(viewWidth, viewHeight);
+        const size = Math.floor(minEdge * 0.85);
+        return { width: Math.max(size, 240), height: Math.max(size, 240) };
+      },
+      aspectRatio: 1.0,
+      disableFlip: false,
+    };
+    const cameraConstraints = {
+      facingMode: 'environment',
+      width: { ideal: 1280 },
+      height: { ideal: 720 },
+      focusMode: 'continuous',
+    };
     try {
-      // 1) Intento directo con la cámara trasera (environment).
-      await html5.start({ facingMode: 'environment' }, config, handleDecoded, () => {});
+      // 1) Intento directo con la cámara trasera (environment) a alta velocidad.
+      await html5.start(cameraConstraints, config, handleDecoded, () => {});
       setNeedsTap(false);
     } catch(err) {
       // Si ya estaba corriendo (eg: toque extra del usuario), la cámara

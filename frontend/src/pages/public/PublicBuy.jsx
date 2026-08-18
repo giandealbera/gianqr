@@ -3,6 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { downloadTicketsPdf } from '../../utils/downloadTicketsPdf';
 import LocalidadInput from '../../components/LocalidadInput';
+import useWakeLock from '../../hooks/useWakeLock';
 import { BACKEND_URL as BACKEND } from '../../api/config';
 
 const emptyForm = () => ({
@@ -13,6 +14,8 @@ const emptyForm = () => ({
 const PublicBuy = () => {
   const { code }       = useParams();
   const [searchParams] = useSearchParams();
+
+  const [zoomQr, setZoomQr] = useState(null);
 
   // Modo "reservado": link generado desde /caja con entradas ya vendidas
   // (?tickets=ID1,ID2). El comprador solo carga nombre/apellido.
@@ -58,6 +61,9 @@ const PublicBuy = () => {
 
   // Recuperar QRs perdidos
   const [recoverOpen,    setRecoverOpen]    = useState(false);
+
+  // Mantiene la pantalla encendida (Screen Wake Lock) sin apagarse ni atenuarse al mostrar la entrada
+  useWakeLock(mode === 'qr' || mode === 'done' || recoverOpen || !!zoomQr);
   const [recoverForm,    setRecoverForm]    = useState({ nombre: '', apellido: '', email: '' });
   const [recovering,     setRecovering]     = useState(false);
   const [recoveredList,  setRecoveredList]  = useState(null);
@@ -430,7 +436,7 @@ const PublicBuy = () => {
               </p>
             </div>
 
-            <div className="flex justify-center p-4 bg-white rounded-xl">
+            <div className="flex justify-center p-4 bg-white rounded-xl cursor-pointer" onClick={() => setZoomQr(currentTicket)}>
               <QRCodeSVG
                 value={JSON.stringify({ code: currentTicket.qr_code, ticket_id: currentTicket.id })}
                 size={220} bgColor="#ffffff" fgColor="#000000"
@@ -438,6 +444,15 @@ const PublicBuy = () => {
             </div>
 
             <p className="font-mono text-xs" style={{ color: '#4B5563' }}>{currentTicket.qr_code}</p>
+
+            <button
+              type="button"
+              onClick={() => setZoomQr(currentTicket)}
+              className="w-full py-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all"
+              style={{ background: 'rgba(201,151,77,0.15)', color: '#C9974D', border: '1px solid rgba(201,151,77,0.4)' }}
+            >
+              ☀️ Agrandar QR (Brillo Máximo)
+            </button>
 
             <div className="rounded-lg p-3" style={{ background: 'rgba(201,151,77,0.08)', border: '1px solid rgba(201,151,77,0.3)' }}>
               <p className="text-sm font-semibold" style={{ color: '#C9974D' }}>
@@ -484,13 +499,22 @@ const PublicBuy = () => {
                   QR N° {i + 1}
                 </p>
                 <p className="font-semibold text-sm">{t.buyer_name} {t.buyer_apellido}</p>
-                <div id={`qr-pdf-${t.id}`} className="flex justify-center p-2 bg-white rounded-lg">
+                <div id={`qr-pdf-${t.id}`} className="flex justify-center p-2 bg-white rounded-lg cursor-pointer" onClick={() => setZoomQr(t)}>
                   <QRCodeSVG
                     value={JSON.stringify({ code: t.qr_code, ticket_id: t.id })}
                     size={150} bgColor="#ffffff" fgColor="#000000"
                   />
                 </div>
                 <p className="font-mono text-xs" style={{ color: '#4B5563' }}>{t.qr_code}</p>
+
+                <button
+                  type="button"
+                  onClick={() => setZoomQr(t)}
+                  className="w-full py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all"
+                  style={{ background: 'rgba(201,151,77,0.15)', color: '#C9974D', border: '1px solid rgba(201,151,77,0.4)' }}
+                >
+                  ☀️ Agrandar QR (Brillo Máximo)
+                </button>
               </div>
             ))}
 
@@ -601,6 +625,34 @@ const PublicBuy = () => {
                 </button>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Modal Fullscreen de Brillo Máximo */}
+        {zoomQr && (
+          <div className="fixed inset-0 z-50 bg-white text-black flex flex-col items-center justify-center p-6 text-center select-none">
+            <p className="text-xs uppercase tracking-widest font-bold text-amber-700 mb-2">☀️ MÁXIMO BRILLO DE PANTALLA</p>
+            <h2 className="text-2xl font-black mb-1">{zoomQr.buyer_name} {zoomQr.buyer_apellido || ''}</h2>
+            <p className="text-xs text-gray-600 mb-6">{zoomQr.tipo_entrada || 'ENTRADA'}</p>
+
+            <div className="p-4 bg-white rounded-2xl shadow-2xl border-4 border-black">
+              <QRCodeSVG
+                value={JSON.stringify({ code: zoomQr.qr_code, ticket_id: zoomQr.id })}
+                size={290} bgColor="#ffffff" fgColor="#000000"
+              />
+            </div>
+
+            <p className="font-mono text-sm font-bold mt-4 tracking-widest">{zoomQr.qr_code}</p>
+            <p className="text-xs text-gray-500 mt-2 max-w-xs">
+              Mantené la pantalla orientada hacia la cámara del escáner para una lectura instantánea.
+            </p>
+
+            <button
+              onClick={() => setZoomQr(null)}
+              className="mt-8 px-8 py-3 rounded-full bg-black text-white font-bold text-sm hover:opacity-90 transition-all shadow-lg"
+            >
+              ✖️ Cerrar vista de brillo
+            </button>
           </div>
         )}
 
