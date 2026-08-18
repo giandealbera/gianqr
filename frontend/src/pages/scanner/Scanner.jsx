@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { startQrCamera, createQrScanner, pauseScanner, resumeScanner } from '../../lib/qrCamera';
+import { startQrCamera, destroyQrScanner, pauseScanner, resumeScanner } from '../../lib/qrCamera';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import { useConfirm } from '../../context/ConfirmContext';
@@ -42,6 +42,9 @@ const Scanner = () => {
   // Guarda de reentrada: a 30 FPS el callback se dispara muchas veces
   // mientras el servidor todavia esta respondiendo.
   const busyRef = useRef(false);
+  // Marca si el componente sigue montado. Sin esto, un arranque que termina
+  // DESPUES de desmontar deja una camara prendida sin dueño.
+  const montadoRef = useRef(true);
   // Espejo de typeSel en ref para leer el valor mas reciente dentro del
   // callback del scanner SIN remontar el componente cuando typeSel cambia.
   // Antes el useEffect dependia de [typeSel] y eso destruia/recreaba el
@@ -144,24 +147,33 @@ const Scanner = () => {
   // botón "Request Camera Permission" en inglés ni selector. Si el navegador
   // exige un toque, dejamos needsTap=true y mostramos un botón EN ESPAÑOL.
   const startCamera = useCallback(async () => {
-    const html5 = scannerRef.current;
-    if (!html5) return;
     setCamError(null);
-    // Toda la logica de arranque (HD -> plana -> enumerar camaras -> config
-    // minima) vive en lib/qrCamera para no duplicarla con PublicScanner.jsx.
-    const { ok, error } = await startQrCamera(html5, handleDecoded);
+    // Descartamos la instancia previa antes de reintentar: una instancia con
+    // un start() fallido queda trabada y contagia el error a todo lo demas.
+    const previa = scannerRef.current;
+    scannerRef.current = null;
+    await destroyQrScanner(previa);
+
+    const { ok, error, scanner } = await startQrCamera({
+      elementId: 'qr-reader',
+      onDecoded: handleDecoded,
+    });
+
+    if (!montadoRef.current) { await destroyQrScanner(scanner); return; }
+    scannerRef.current = scanner || null;
     setNeedsTap(!ok);
     setCamError(ok ? null : error);
   }, [handleDecoded]);
 
   // Montar el escáner UNA vez por vida del componente.
   useEffect(() => {
-    const html5 = createQrScanner('qr-reader');
-    scannerRef.current = html5;
+    montadoRef.current = true;
     startCamera();
     return () => {
+      montadoRef.current = false;
+      const s = scannerRef.current;
       scannerRef.current = null;
-      try { html5.stop().then(() => { try { html5.clear(); } catch {} }).catch(() => {}); } catch {}
+      destroyQrScanner(s);
     };
   }, [startCamera]);
 

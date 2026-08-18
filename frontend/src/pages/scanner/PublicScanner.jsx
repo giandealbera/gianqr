@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { startQrCamera, createQrScanner, pauseScanner, resumeScanner } from '../../lib/qrCamera';
+import { startQrCamera, destroyQrScanner, pauseScanner, resumeScanner } from '../../lib/qrCamera';
 import useWakeLock from '../../hooks/useWakeLock';
 import { BACKEND_URL as BACKEND } from '../../api/config';
 
@@ -124,13 +124,26 @@ const PublicScanner = () => {
   // widget): sin botón "Request Camera Permission" en inglés ni selector.
   // Si el navegador exige un toque del usuario para abrir la cámara, dejamos
   // needsTap=true y mostramos un botón EN ESPAÑOL para reintentar.
+  // Marca si el componente sigue montado. Sin esto, un arranque que termina
+  // DESPUES de desmontar (React monta y desmonta dos veces en desarrollo)
+  // deja una camara prendida sin dueño.
+  const montadoRef = useRef(true);
+
   const startCamera = useCallback(async () => {
-    const html5 = scannerRef.current;
-    if (!html5) return;
     setCamError(null);
-    // Toda la logica de arranque (HD -> plana -> enumerar camaras -> config
-    // minima) vive en lib/qrCamera para no duplicarla con Scanner.jsx.
-    const { ok, error } = await startQrCamera(html5, handleDecoded);
+    // Descartamos la instancia previa antes de reintentar: una instancia con
+    // un start() fallido queda trabada y contagia el error a todo lo demas.
+    const previa = scannerRef.current;
+    scannerRef.current = null;
+    await destroyQrScanner(previa);
+
+    const { ok, error, scanner } = await startQrCamera({
+      elementId: 'qr-reader',
+      onDecoded: handleDecoded,
+    });
+
+    if (!montadoRef.current) { await destroyQrScanner(scanner); return; }
+    scannerRef.current = scanner || null;
     setNeedsTap(!ok);
     setCamError(ok ? null : error);
   }, [handleDecoded]);
@@ -138,14 +151,13 @@ const PublicScanner = () => {
   // Montar/desmontar el escáner cuando ya tenemos la info del evento.
   useEffect(() => {
     if (!info) return;
-    const html5 = createQrScanner('qr-reader');
-    scannerRef.current = html5;
+    montadoRef.current = true;
     startCamera();
     return () => {
+      montadoRef.current = false;
+      const s = scannerRef.current;
       scannerRef.current = null;
-      // stop() lanza throw sincrónico si no está corriendo — usar try/catch,
-      // no .catch(), que solo captura rechazos de promesas.
-      try { html5.stop().then(() => { try { html5.clear(); } catch {} }).catch(() => {}); } catch {}
+      destroyQrScanner(s);
     };
   }, [info, startCamera]);
 

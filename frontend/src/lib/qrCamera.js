@@ -115,60 +115,68 @@ function friendlyCamError(err) {
   return `No se pudo abrir la cámara: ${msg || 'error desconocido'}`;
 }
 
+// Apaga y desmonta una instancia. Siempre con catch: si el start() quedo a
+// medias, stop() tambien tira.
+export async function destroyQrScanner(html5) {
+  if (!html5) return;
+  try { await html5.stop(); } catch { /* no estaba corriendo */ }
+  try { html5.clear(); } catch { /* nada que limpiar */ }
+}
+
+// Errores donde reintentar con otra configuracion no cambia nada: el problema
+// es el permiso o el hardware, no los constraints.
+function esFatal(err) {
+  const s = `${err?.name || ''} ${err?.message || err || ''}`;
+  return /NotAllowedError|Permission|NotFoundError|DevicesNotFound|secure context/i.test(s);
+}
+
 /**
  * Arranca la camara trasera probando varias estrategias, de la mas nitida a
- * la mas compatible. Devuelve { ok:true } o { ok:false, error:<texto> }.
+ * la mas compatible. Devuelve { ok, scanner } o { ok:false, error }.
  *
- * Antes esto vivia duplicado en los dos escaneres y el catch final se tragaba
- * la excepcion: el portero veia un boton "Activar camara" que fallaba en
- * silencio para siempre, sin ninguna pista del motivo.
+ * Clave: CADA intento usa una instancia NUEVA.
+ *
+ * html5-qrcode maneja su ciclo de vida con una maquina de estados que marca
+ * "transicion en curso" al empezar el start(). Si ese start() falla por un
+ * camino que no cancela la transicion, la instancia queda trabada: todo
+ * start/stop/pause posterior sobre ella tira "Cannot transition to a new
+ * state, already under transition". Reintentando sobre la misma instancia,
+ * ese mensaje terminaba pisando el error verdadero (por ejemplo, que el
+ * usuario habia denegado el permiso) y era lo unico que veia el portero.
  */
-export async function startQrCamera(html5, onDecoded) {
-  if (!html5) return { ok: false, error: 'El escáner todavía no está listo.' };
-
-  // Cada intento: [descripcion, fuente de video, config]
-  const attempts = [
-    ['hd-environment',    HD_REAR,                  SCAN_CONFIG],
-    ['plain-environment', { facingMode: 'environment' }, SCAN_CONFIG],
+export async function startQrCamera({ elementId, onDecoded }) {
+  // [fuente de video, config]. `null` = enumerar camaras y elegir la trasera.
+  const intentos = [
+    [HD_REAR,                       SCAN_CONFIG],
+    [{ facingMode: 'environment' }, SCAN_CONFIG],
+    [null,                          SCAN_CONFIG],
+    [null,                          FALLBACK_CONFIG],
   ];
 
   let lastErr = null;
 
-  for (const [, source, config] of attempts) {
+  for (const [fuente, config] of intentos) {
+    const html5 = createQrScanner(elementId);
     try {
-      await html5.start(source, config, onDecoded, () => {});
-      await tryContinuousFocus(html5);
-      return { ok: true };
-    } catch (err) {
-      // Si ya estaba corriendo, la camara funciona: no hay nada que hacer.
-      if (/already\s*(under\s*)?running/i.test(String(err?.message || err))) {
-        return { ok: true };
-      }
-      lastErr = err;
-    }
-  }
-
-  // Ultimo recurso: enumerar camaras y usar la que parezca trasera, primero
-  // con la config rapida y despues con la minima historica.
-  try {
-    const cams = await Html5Qrcode.getCameras();
-    if (!cams?.length) return { ok: false, error: 'No se detectó ninguna cámara en este dispositivo.' };
-    const back = cams.find(c => /back|rear|tras|environment/i.test(c.label || '')) || cams[cams.length - 1];
-
-    for (const config of [SCAN_CONFIG, FALLBACK_CONFIG]) {
-      try {
-        await html5.start(back.id, config, onDecoded, () => {});
-        await tryContinuousFocus(html5);
-        return { ok: true };
-      } catch (err) {
-        if (/already\s*(under\s*)?running/i.test(String(err?.message || err))) {
-          return { ok: true };
+      let src = fuente;
+      if (src === null) {
+        const cams = await Html5Qrcode.getCameras();
+        if (!cams?.length) {
+          await destroyQrScanner(html5);
+          return { ok: false, error: 'No se detectó ninguna cámara en este dispositivo.' };
         }
-        lastErr = err;
+        const back = cams.find(c => /back|rear|tras|environment/i.test(c.label || ''))
+                  || cams[cams.length - 1];
+        src = back.id;
       }
+      await html5.start(src, config, onDecoded, () => {});
+      await tryContinuousFocus(html5);
+      return { ok: true, scanner: html5 };
+    } catch (err) {
+      await destroyQrScanner(html5);
+      lastErr = err;
+      if (esFatal(err)) break;
     }
-  } catch (err) {
-    lastErr = err;
   }
 
   return { ok: false, error: friendlyCamError(lastErr) };
