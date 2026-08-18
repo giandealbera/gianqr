@@ -137,7 +137,10 @@ const PublicBuy = () => {
     e.preventDefault();
     setFormError(null);
     if (!eventSel || !typeSel) { setFormError('Selecciona el evento y tipo de entrada'); return; }
-    if (!form.buyer_name || !form.buyer_apellido) { setFormError('Nombre y apellido obligatorios'); return; }
+    if (!form.buyer_name || !form.buyer_apellido || !form.buyer_dni) {
+      setFormError('Nombre, apellido y DNI obligatorios');
+      return;
+    }
 
     setSaving(true);
     try {

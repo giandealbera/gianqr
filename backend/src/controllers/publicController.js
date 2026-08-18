@@ -105,10 +105,10 @@ const createPublicTicket = async (req, res) => {
   if (attendees.length > 10)
     return res.status(400).json({ error: 'Maximo 10 entradas por link' });
 
-  // Validar nombre + apellido en cada attendee
+  // Validar nombre + apellido + DNI en cada attendee
   for (const a of attendees) {
-    if (!a.buyer_name || !a.buyer_apellido)
-      return res.status(400).json({ error: 'Cada persona debe tener nombre y apellido' });
+    if (!a.buyer_name || !a.buyer_apellido || !a.buyer_dni)
+      return res.status(400).json({ error: 'Cada persona debe tener nombre, apellido y DNI' });
     if (a.buyer_name.length > 50 || a.buyer_apellido.length > 50)
       return res.status(400).json({ error: 'El nombre y apellido no deben superar los 50 caracteres' });
   }
@@ -326,8 +326,8 @@ const completeReservedTickets = async (req, res) => {
     return res.status(400).json({ error: 'attendees debe coincidir con ticket_ids' });
 
   for (const a of attendees) {
-    if (!a.buyer_name || !a.buyer_apellido)
-      return res.status(400).json({ error: 'Cada persona debe tener nombre y apellido' });
+    if (!a.buyer_name || !a.buyer_apellido || !a.buyer_dni)
+      return res.status(400).json({ error: 'Cada persona debe tener nombre, apellido y DNI' });
     if (a.buyer_name.length > 50 || a.buyer_apellido.length > 50)
       return res.status(400).json({ error: 'El nombre y apellido no deben superar los 50 caracteres' });
   }
@@ -431,7 +431,7 @@ const recoverTickets = async (req, res) => {
        WHERE ${promotorWhere}
          AND LOWER(TRIM(t.buyer_name))     = LOWER(TRIM(?))
          AND LOWER(TRIM(t.buyer_apellido)) = LOWER(TRIM(?))
-         AND REPLACE(REPLACE(COALESCE(t.buyer_dni, ''), '.', ''), ' ', '') = ?
+         AND (REPLACE(REPLACE(COALESCE(t.buyer_dni, ''), '.', ''), ' ', '') = ? OR COALESCE(t.buyer_dni, '') = '')
          AND t.status IN ('pagado','usado')
        ORDER BY t.created_at DESC
        LIMIT 20`,
