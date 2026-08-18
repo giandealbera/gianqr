@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Html5Qrcode } from 'html5-qrcode';
-import { startQrCamera } from '../../lib/qrCamera';
+import { startQrCamera, createQrScanner, pauseScanner, resumeScanner } from '../../lib/qrCamera';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import { useConfirm } from '../../context/ConfirmContext';
@@ -10,7 +9,13 @@ import { Icon } from '../../components/Icon';
 import { share } from '../../lib/share';
 import toast from 'react-hot-toast';
 
-const COOLDOWN_MS = 2000;
+// Cuanto ignoramos el MISMO QR despues de procesarlo. Evita releer el
+// celular del cliente que todavia esta en el cuadro.
+const REPEAT_LOCK_MS = 8000;
+
+// Con una entrada VALIDA seguimos escaneando solos, sin que el portero
+// toque nada. Las invalidas quedan fijas hasta que las despache a mano.
+const AUTO_NEXT_MS = 1400;
 
 // Vibracion corta = ok, doble larga = error. Util en boliches ruidosos.
 const VIBRATE_OK  = [40];
@@ -33,8 +38,10 @@ const Scanner = () => {
   const [scanning,     setScanning]     = useState(false);
   const [camError,     setCamError]     = useState(null);
   const [needsTap,     setNeedsTap]     = useState(false);
-  const lastScan = useRef(0);
   const scannerRef = useRef(null);
+  // Guarda de reentrada: a 30 FPS el callback se dispara muchas veces
+  // mientras el servidor todavia esta respondiendo.
+  const busyRef = useRef(false);
   // Espejo de typeSel en ref para leer el valor mas reciente dentro del
   // callback del scanner SIN remontar el componente cuando typeSel cambia.
   // Antes el useEffect dependia de [typeSel] y eso destruia/recreaba el
@@ -71,6 +78,10 @@ const Scanner = () => {
 
   // Qué hacer cuando se lee un QR. Estable: lee typeSel del ref, no de deps.
   const handleDecoded = useCallback(async (decodedText) => {
+    // Sin esta guarda salian varios POST en paralelo y un resultado pisaba
+    // al otro.
+    if (busyRef.current) return;
+
     let qr_code = decodedText;
     try {
       const parsed = JSON.parse(decodedText);
@@ -78,15 +89,19 @@ const Scanner = () => {
     } catch { /* plain text */ }
 
     const cleanCode = String(qr_code || '').toUpperCase().trim();
+    if (!cleanCode) return;
     const now = Date.now();
 
-    // Si es el MISMO código QR leído dentro de los 15 segundos: ignorar en silencio.
-    if (cleanCode === lastScannedCode.current && (now - lastScannedTime.current < 15000)) {
+    // Mismo QR recien procesado: ignorar en silencio.
+    if (cleanCode === lastScannedCode.current && (now - lastScannedTime.current < REPEAT_LOCK_MS)) {
       return;
     }
 
+    busyRef.current = true;
     lastScannedCode.current = cleanCode;
     lastScannedTime.current = now;
+    // Dejamos de decodificar mientras verificamos contra el servidor.
+    pauseScanner(scannerRef.current);
 
     setScanning(true);
     try {
@@ -99,13 +114,31 @@ const Scanner = () => {
       toast.success('Entrada válida');
     } catch (err) {
       const errData = err.response?.data;
+      // Si no hubo respuesta del servidor fue la RED, no el QR: liberamos el
+      // bloqueo para poder reintentar la misma entrada en el acto.
+      if (!err.response) lastScannedCode.current = '';
       buzz(VIBRATE_BAD);
       setResult({ ok: false, data: errData });
       toast.error(errData?.error || 'QR inválido');
     } finally {
       setScanning(false);
+      busyRef.current = false;
     }
   }, []);
+
+  // Auto-continuar tras una entrada valida: el cartel se limpia solo y la
+  // fila sigue. Las invalidas quedan hasta que el portero las despache.
+  useEffect(() => {
+    if (!result?.ok) return;
+    const t = setTimeout(() => setResult(null), AUTO_NEXT_MS);
+    return () => clearTimeout(t);
+  }, [result]);
+
+  // Sin cartel en pantalla, volvemos a decodificar.
+  useEffect(() => {
+    if (result) return;
+    resumeScanner(scannerRef.current);
+  }, [result]);
 
   // Arranca la cámara trasera con la API de bajo nivel (no el widget): sin
   // botón "Request Camera Permission" en inglés ni selector. Si el navegador
@@ -123,7 +156,7 @@ const Scanner = () => {
 
   // Montar el escáner UNA vez por vida del componente.
   useEffect(() => {
-    const html5 = new Html5Qrcode('qr-reader', { verbose: false });
+    const html5 = createQrScanner('qr-reader');
     scannerRef.current = html5;
     startCamera();
     return () => {

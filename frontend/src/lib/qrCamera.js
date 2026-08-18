@@ -1,8 +1,49 @@
-import { Html5Qrcode } from 'html5-qrcode';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 
 // Arranque de camara compartido por el escaner del admin (Scanner.jsx) y el
 // del portero (PublicScanner.jsx). Antes cada uno tenia su copia del mismo
 // bloque y un bug habia que arreglarlo dos veces.
+
+/**
+ * Crea el escaner ya afinado para velocidad.
+ *
+ * Las dos opciones de abajo son la diferencia mas grande en tiempo de
+ * lectura, y van en el CONSTRUCTOR (no en start()):
+ *
+ *  - formatsToSupport: por defecto html5-qrcode arma un lector multi-formato
+ *    con 17 simbologias (Aztec, PDF417, DataMatrix, EAN, UPC, ITF, Codabar,
+ *    Code39/93/128, RSS...) y las prueba UNA POR UNA en cada frame. Nosotros
+ *    solo emitimos QR, asi que 16 de esos 17 decoders son trabajo tirado en
+ *    cada cuadro de video. Restringirlo a QR_CODE es la mayor ganancia,
+ *    sobre todo en iPhone, donde no existe el decoder nativo del navegador.
+ *
+ *  - useBarCodeDetectorIfSupported: usa el BarcodeDetector nativo cuando el
+ *    navegador lo tiene (Chrome en Android), que decodifica por hardware y
+ *    es varias veces mas rapido que el decoder JS. Hoy la libreria ya lo
+ *    activa por defecto, pero lo dejamos explicito para que una actualizacion
+ *    de la dependencia no nos lo apague sin que nos demos cuenta.
+ */
+export function createQrScanner(elementId) {
+  return new Html5Qrcode(elementId, {
+    verbose: false,
+    formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+    experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+  });
+}
+
+// Pausa/reanuda SOLO la decodificacion (el stream de video sigue abierto, no
+// se vuelve a pedir permiso de camara). Lo usamos mientras se muestra el
+// cartel de resultado: sin esto la libreria sigue decodificando a 30 FPS
+// contra un elemento oculto, quemando bateria y CPU al pedo.
+// Van con try/catch porque la libreria tira excepcion si el escaner no esta
+// en el estado esperado (todavia no arranco, ya estaba pausado, etc).
+export function pauseScanner(html5) {
+  try { if (typeof html5?.pause === 'function') html5.pause(false); } catch { /* no estaba escaneando */ }
+}
+
+export function resumeScanner(html5) {
+  try { if (typeof html5?.resume === 'function') html5.resume(); } catch { /* no estaba pausado */ }
+}
 
 // Config del decodificador.
 //
@@ -15,6 +56,13 @@ import { Html5Qrcode } from 'html5-qrcode';
 export const SCAN_CONFIG = {
   // 30 FPS = lectura casi instantanea del QR en la puerta.
   fps: 30,
+  // Sin doble pasada espejada. Cuando disableFlip es false (el default),
+  // por cada frame que NO logra decodificar la libreria da vuelta el canvas
+  // y vuelve a intentar: el doble de trabajo justo en el caso mas comun
+  // (mientras el portero esta apuntando). Un QR en la pantalla de un celular
+  // o impreso nunca viene espejado, y siempre usamos la camara trasera, asi
+  // que esa segunda pasada no sirve para nada.
+  disableFlip: true,
   qrbox: (viewWidth, viewHeight) => {
     const minEdge = Math.min(viewWidth, viewHeight);
     // El recuadro NUNCA puede superar al contenedor: la libreria tira
@@ -24,7 +72,6 @@ export const SCAN_CONFIG = {
     const size = Math.min(minEdge, Math.max(Math.floor(minEdge * 0.85), 240));
     return { width: size, height: size };
   },
-  disableFlip: false,
 };
 
 // Pedimos HD para que el QR entre nitido aunque el celular este lejos, pero
@@ -39,7 +86,7 @@ const HD_REAR = {
 // Config minima de ultimo recurso (la que usabamos historicamente y andaba
 // en todos lados). Si la HD falla, preferimos escanear mas lento a no
 // escanear nada.
-const FALLBACK_CONFIG = { fps: 10, qrbox: { width: 250, height: 250 } };
+const FALLBACK_CONFIG = { fps: 10, qrbox: { width: 250, height: 250 }, disableFlip: true };
 
 // Enfoque continuo: se aplica DESPUES de arrancar y con catch. Mandarlo
 // dentro de getUserMedia hace que algunos devices rechacen el stream entero.
