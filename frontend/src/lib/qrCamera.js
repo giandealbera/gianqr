@@ -115,10 +115,17 @@ function friendlyCamError(err) {
   return `No se pudo abrir la cámara: ${msg || 'error desconocido'}`;
 }
 
+// En toda la app puede haber UNA sola camara viva. La guardamos aca para
+// poder apagarla siempre, incluso si una instancia quedo suelta por una
+// carrera entre dos arranques. Dos instancias vivas = dos camaras prendidas
+// y dos previews apilados ("la camara ve doble").
+let instanciaViva = null;
+
 // Apaga y desmonta una instancia. Siempre con catch: si el start() quedo a
 // medias, stop() tambien tira.
 export async function destroyQrScanner(html5) {
   if (!html5) return;
+  if (html5 === instanciaViva) instanciaViva = null;
   try { await html5.stop(); } catch { /* no estaba corriendo */ }
   try { html5.clear(); } catch { /* nada que limpiar */ }
 }
@@ -145,6 +152,17 @@ function esFatal(err) {
  * usuario habia denegado el permiso) y era lo unico que veia el portero.
  */
 export async function startQrCamera({ elementId, onDecoded }) {
+  // Apagamos cualquier camara que haya quedado viva de un arranque anterior.
+  // Limpiar el DOM no alcanza: la instancia huerfana sigue reteniendo el
+  // stream, y esa es la que hace que queden "dos camaras activas".
+  await destroyQrScanner(instanciaViva);
+
+  // Y dejamos el contenedor vacio, por si sobrevivio algun <video> suelto.
+  if (typeof document !== 'undefined') {
+    const host = document.getElementById(elementId);
+    if (host) host.innerHTML = '';
+  }
+
   // [fuente de video, config]. `null` = enumerar camaras y elegir la trasera.
   const intentos = [
     [HD_REAR,                       SCAN_CONFIG],
@@ -170,6 +188,7 @@ export async function startQrCamera({ elementId, onDecoded }) {
         src = back.id;
       }
       await html5.start(src, config, onDecoded, () => {});
+      instanciaViva = html5;
       await tryContinuousFocus(html5);
       return { ok: true, scanner: html5 };
     } catch (err) {

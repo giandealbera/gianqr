@@ -45,6 +45,8 @@ const Scanner = () => {
   // Marca si el componente sigue montado. Sin esto, un arranque que termina
   // DESPUES de desmontar deja una camara prendida sin dueño.
   const montadoRef = useRef(true);
+  // Candado de arranque: evita dos aperturas de camara simultaneas.
+  const arrancandoRef = useRef(false);
   // Espejo de typeSel en ref para leer el valor mas reciente dentro del
   // callback del scanner SIN remontar el componente cuando typeSel cambia.
   // Antes el useEffect dependia de [typeSel] y eso destruia/recreaba el
@@ -147,22 +149,32 @@ const Scanner = () => {
   // botón "Request Camera Permission" en inglés ni selector. Si el navegador
   // exige un toque, dejamos needsTap=true y mostramos un botón EN ESPAÑOL.
   const startCamera = useCallback(async () => {
+    // Candado: si ya hay un arranque en curso, no largamos otro. Sin esto, el
+    // arranque automatico y un toque en "Activar camara" corrian a la vez,
+    // creaban DOS instancias y quedaban dos camaras prendidas con dos
+    // previews apilados.
+    if (arrancandoRef.current) return;
+    arrancandoRef.current = true;
     setCamError(null);
-    // Descartamos la instancia previa antes de reintentar: una instancia con
-    // un start() fallido queda trabada y contagia el error a todo lo demas.
-    const previa = scannerRef.current;
-    scannerRef.current = null;
-    await destroyQrScanner(previa);
+    try {
+      // Descartamos la instancia previa antes de reintentar: una instancia con
+      // un start() fallido queda trabada y contagia el error a todo lo demas.
+      const previa = scannerRef.current;
+      scannerRef.current = null;
+      await destroyQrScanner(previa);
 
-    const { ok, error, scanner } = await startQrCamera({
-      elementId: 'qr-reader',
-      onDecoded: handleDecoded,
-    });
+      const { ok, error, scanner } = await startQrCamera({
+        elementId: 'qr-reader',
+        onDecoded: handleDecoded,
+      });
 
-    if (!montadoRef.current) { await destroyQrScanner(scanner); return; }
-    scannerRef.current = scanner || null;
-    setNeedsTap(!ok);
-    setCamError(ok ? null : error);
+      if (!montadoRef.current) { await destroyQrScanner(scanner); return; }
+      scannerRef.current = scanner || null;
+      setNeedsTap(!ok);
+      setCamError(ok ? null : error);
+    } finally {
+      arrancandoRef.current = false;
+    }
   }, [handleDecoded]);
 
   // Montar el escáner UNA vez por vida del componente.

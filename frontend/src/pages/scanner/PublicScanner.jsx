@@ -128,24 +128,36 @@ const PublicScanner = () => {
   // DESPUES de desmontar (React monta y desmonta dos veces en desarrollo)
   // deja una camara prendida sin dueño.
   const montadoRef = useRef(true);
+  // Candado de arranque: evita dos aperturas de camara simultaneas.
+  const arrancandoRef = useRef(false);
 
   const startCamera = useCallback(async () => {
+    // Candado: si ya hay un arranque en curso, no largamos otro. Sin esto, el
+    // arranque automatico y un toque en "Activar camara" corrian a la vez,
+    // creaban DOS instancias y quedaban dos camaras prendidas con dos
+    // previews apilados.
+    if (arrancandoRef.current) return;
+    arrancandoRef.current = true;
     setCamError(null);
-    // Descartamos la instancia previa antes de reintentar: una instancia con
-    // un start() fallido queda trabada y contagia el error a todo lo demas.
-    const previa = scannerRef.current;
-    scannerRef.current = null;
-    await destroyQrScanner(previa);
+    try {
+      // Descartamos la instancia previa antes de reintentar: una instancia con
+      // un start() fallido queda trabada y contagia el error a todo lo demas.
+      const previa = scannerRef.current;
+      scannerRef.current = null;
+      await destroyQrScanner(previa);
 
-    const { ok, error, scanner } = await startQrCamera({
-      elementId: 'qr-reader',
-      onDecoded: handleDecoded,
-    });
+      const { ok, error, scanner } = await startQrCamera({
+        elementId: 'qr-reader',
+        onDecoded: handleDecoded,
+      });
 
-    if (!montadoRef.current) { await destroyQrScanner(scanner); return; }
-    scannerRef.current = scanner || null;
-    setNeedsTap(!ok);
-    setCamError(ok ? null : error);
+      if (!montadoRef.current) { await destroyQrScanner(scanner); return; }
+      scannerRef.current = scanner || null;
+      setNeedsTap(!ok);
+      setCamError(ok ? null : error);
+    } finally {
+      arrancandoRef.current = false;
+    }
   }, [handleDecoded]);
 
   // Montar/desmontar el escáner cuando ya tenemos la info del evento.
