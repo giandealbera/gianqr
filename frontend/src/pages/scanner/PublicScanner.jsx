@@ -173,6 +173,27 @@ const PublicScanner = () => {
     };
   }, [info, startCamera]);
 
+  // Soltamos la camara cuando la pantalla pasa a segundo plano y la
+  // reabrimos al volver. Sin esto, si el escaner queda abierto en dos lados
+  // a la vez (una pestaña del navegador y la app instalada, o dos pestañas),
+  // los dos retienen la camara: el celular queda con dos capturas activas y
+  // el preview se ve raro o duplicado. Ademas deja de gastar bateria cuando
+  // el portero cambia de app.
+  useEffect(() => {
+    if (!info) return;
+    const alCambiarVisibilidad = () => {
+      if (document.hidden) {
+        const s = scannerRef.current;
+        scannerRef.current = null;
+        destroyQrScanner(s);
+      } else if (montadoRef.current && !scannerRef.current) {
+        startCamera();
+      }
+    };
+    document.addEventListener('visibilitychange', alCambiarVisibilidad);
+    return () => document.removeEventListener('visibilitychange', alCambiarVisibilidad);
+  }, [info, startCamera]);
+
   const fmt = (d) => d ? new Date(d + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'long' }) : '';
   const ticket = result?.data?.ticket;
 
