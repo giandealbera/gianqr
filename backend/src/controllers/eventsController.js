@@ -553,16 +553,10 @@ const toggleTicketType = async (req, res) => {
 // POST /api/events/:id/reset
 const resetEvent = async (req, res) => {
   const { id } = req.params;
+  if (!await guardEventAccess(req, res, id)) return;
   try {
     const evResult = await db.query('SELECT id, name FROM events WHERE id = ?', [id]);
     if (!evResult.rows[0]) return res.status(404).json({ error: 'Evento no encontrado' });
-
-    // Owner solo puede resetear SUS eventos. Sin este check, un owner podia
-    // borrar tickets y rendiciones de otro tenant (catastrofico).
-    if (req.user?.role === 'owner') {
-      const own = await db.query('SELECT 1 FROM event_owners WHERE event_id = ? AND user_id = ?', [id, req.user.id]);
-      if (!own.rows[0]) return res.status(403).json({ error: 'No sos dueño de este evento' });
-    }
 
     const before = await db.query(
       `SELECT
