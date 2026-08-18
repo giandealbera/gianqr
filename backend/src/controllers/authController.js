@@ -2,11 +2,11 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const jwt    = require('jsonwebtoken');
 const db     = require('../config/database');
-const { sendMail } = require('../utils/mailer');
+const { sendMail, isMailConfigured, renderEmail } = require('../utils/mailer');
 const { logAudit } = require('../utils/auditLog');
 const { verifyToken: verifyTotp } = require('../utils/tfa');
 const { consumeRecoveryCode } = require('./tfaController');
-const { createSession } = require('../utils/sessions');
+const { createSession, revokeAllSessionsForUser } = require('../utils/sessions');
 
 // Roles para los que el 2FA es OBLIGATORIO. Se setea por env var.
 // Si el rol del usuario aparece aca y NO tiene totp_enabled=1, el cliente
@@ -20,6 +20,43 @@ function isTfaRequiredForRole(role) {
 }
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// --- Reset de contraseña por email ------------------------------------------
+
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hora
+
+// En la base guardamos el HASH del token, nunca el token. Si alguien se hace
+// de una copia de la base (backup, dump, acceso al panel del proveedor), los
+// resets en curso no le sirven para entrar: el valor que abre el link solo
+// existe en la casilla del usuario.
+const hashResetToken = (t) =>
+  crypto.createHash('sha256').update(String(t)).digest('hex');
+
+// Parseo robusto de fechas que vienen de la base. SQLite devuelve
+// "YYYY-MM-DD HH:MM:SS" en UTC y Postgres puede devolver un Date ya armado;
+// sin la 'Z' explicita, new Date() interpreta el string como hora LOCAL y el
+// vencimiento se corre tantas horas como el offset del servidor. Es el mismo
+// tratamiento que ya hacen magicLogin y el middleware de auth.
+function parseDbDate(value) {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  const raw = String(value);
+  const iso = raw.includes('T') ? raw : raw.replace(' ', 'T') + 'Z';
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+// Igualamos el tiempo de respuesta de las dos ramas (la cuenta existe / no
+// existe). Antes la rama "existe" se quedaba esperando la llamada HTTP al
+// proveedor de mail y la otra dormia 200ms fijos, asi que cronometrando la
+// respuesta se podia deducir que emails estaban registrados.
+const FORGOT_MIN_MS = 180;
+async function padTiming(startedAt) {
+  const elapsed = Date.now() - startedAt;
+  if (elapsed < FORGOT_MIN_MS) {
+    await new Promise(r => setTimeout(r, FORGOT_MIN_MS - elapsed));
+  }
+}
 
 // POST /api/auth/login
 const login = async (req, res) => {
@@ -217,10 +254,25 @@ const magicLogin = async (req, res) => {
 // (o lo loguea si no hay Resend configurado). Siempre devuelve la misma respuesta
 // generica para no permitir enumeracion de emails.
 const forgotPassword = async (req, res) => {
+  const startedAt = Date.now();
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: 'Email requerido' });
+  if (!EMAIL_REGEX.test(email))
+    return res.status(400).json({ error: 'Email inválido' });
 
-  // Respuesta generica: enviada incluso si el email no existe (anti-enumeration)
+  // Este chequeo va ANTES de tocar la base a proposito: la respuesta es
+  // identica exista o no la cuenta, asi que no filtra nada. Antes, si el
+  // proveedor de mail no estaba configurado el endpoint igual contestaba
+  // "te enviamos las instrucciones" y el mail no salia nunca: el usuario
+  // quedaba esperando un correo fantasma, sin ninguna pista de que hacer.
+  if (!isMailConfigured()) {
+    return res.status(503).json({
+      error: 'El envío de emails no está disponible en este momento. Recuperá tu acceso con celular + apellido, o pedile a un administrador que te genere un acceso directo.',
+      code: 'MAIL_NOT_CONFIGURED',
+    });
+  }
+
+  // Respuesta generica: la misma exista o no el email (anti-enumeration)
   const genericReply = { message: 'Si el email existe en el sistema, te enviamos las instrucciones para resetear tu contraseña' };
 
   try {
@@ -229,36 +281,48 @@ const forgotPassword = async (req, res) => {
       [email.toLowerCase()]
     );
     const user = result.rows[0];
-    if (!user) {
-      // No revelamos que el email no existe. Esperamos un poco para que el
-      // timing no delate la diferencia.
-      await new Promise(r => setTimeout(r, 200));
-      return res.json(genericReply);
+
+    // Token random de 32 bytes hex (64 chars) — imposible de adivinar.
+    // En la base va solo su hash; el valor en claro viaja unicamente al mail.
+    let pending = null;
+    if (user) {
+      const resetToken = crypto.randomBytes(32).toString('hex');
+      const expiresAt  = new Date(Date.now() + RESET_TOKEN_TTL_MS).toISOString();
+      await db.query(
+        'UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE id = ?',
+        [hashResetToken(resetToken), expiresAt, user.id]
+      );
+      pending = { user, resetToken };
+      logAudit(req, 'AUTH_FORGOT_PASSWORD', { resourceType: 'user', resourceId: user.id });
     }
 
-    // Token random de 32 bytes hex (64 chars) — imposible de adivinar
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1h
-    await db.query(
-      'UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE id = ?',
-      [resetToken, expiresAt, user.id]
-    );
-
-    const frontUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    const resetLink = `${frontUrl}/reset-password/${resetToken}`;
-
-    await sendMail({
-      to: user.email,
-      subject: 'GianQR — Reset de contraseña',
-      text: `Hola ${user.name},\n\nPediste resetear tu contraseña. Hacé click en este link (vale 1 hora):\n\n${resetLink}\n\nSi no fuiste vos, ignorá este mensaje.\n\n— GianQR`,
-      html: `<p>Hola ${user.name},</p><p>Pediste resetear tu contraseña. Hacé click en este link (vale 1 hora):</p><p><a href="${resetLink}">${resetLink}</a></p><p>Si no fuiste vos, ignorá este mensaje.</p><p>— GianQR</p>`,
-    });
-
+    await padTiming(startedAt);
     res.json(genericReply);
+
+    // El envio va DESPUES de responder: el usuario no espera el round-trip al
+    // proveedor, y el tiempo de respuesta deja de depender de si la cuenta
+    // existe. Si el envio falla queda en los logs del server (el token sigue
+    // valido y el usuario puede volver a pedirlo).
+    if (pending) {
+      const frontUrl  = (process.env.FRONTEND_URL || 'http://localhost:5173').split(',')[0].trim();
+      const resetLink = `${frontUrl}/reset-password/${pending.resetToken}`;
+      const nombre    = pending.user.name || '';
+      sendMail({
+        to: pending.user.email,
+        subject: 'GianQR — Restablecer tu contraseña',
+        text: `Hola ${nombre},\n\nPediste restablecer tu contraseña de GianQR. Entrá a este link para elegir una nueva (vale 1 hora y se puede usar una sola vez):\n\n${resetLink}\n\nSi no fuiste vos, ignorá este mensaje: tu contraseña actual sigue funcionando.\n\n— GianQR`,
+        html: renderEmail({
+          title: `Hola ${nombre}`,
+          intro: 'Pediste restablecer tu contraseña de GianQR. Tocá el botón para elegir una nueva. El link vale 1 hora y se puede usar una sola vez.',
+          cta:   { label: 'Elegir nueva contraseña', url: resetLink },
+          note:  'Si no fuiste vos, ignorá este mensaje: tu contraseña actual sigue funcionando.',
+        }),
+      }).catch(() => { /* ya se loguea dentro de sendMail */ });
+    }
   } catch (err) {
     console.error('forgotPassword error:', err.message);
     // Aun en caso de error, respondemos generico para no filtrar info
-    res.json(genericReply);
+    if (!res.headersSent) res.json(genericReply);
   }
 };
 
@@ -338,6 +402,41 @@ const forgotPasswordByPhone = async (req, res) => {
   }
 };
 
+// Busca al usuario dueño de un reset token en claro. Devuelve
+// { user } | { error, status } para que los dos endpoints den el mismo
+// diagnostico (vencido vs invalido) sin duplicar la logica.
+async function findUserByResetToken(token) {
+  const result = await db.query(
+    'SELECT id, name, email, reset_token_expires FROM users WHERE reset_token = ? AND is_active = 1',
+    [hashResetToken(token)]
+  );
+  const user = result.rows[0];
+  if (!user) return { status: 400, error: 'Link inválido o ya usado. Pedí uno nuevo desde "Olvidé mi contraseña".' };
+
+  const expires = parseDbDate(user.reset_token_expires);
+  if (!expires || expires < new Date()) {
+    // Limpiamos el token vencido para que no quede dando vueltas en la base.
+    await db.query('UPDATE users SET reset_token = NULL, reset_token_expires = NULL WHERE id = ?', [user.id]);
+    return { status: 410, error: 'El link expiró. Pedí uno nuevo desde "Olvidé mi contraseña".' };
+  }
+  return { user };
+}
+
+// GET /api/auth/reset-password/:token — valida el link ANTES de mostrar el
+// formulario. Sin esto el usuario elegia y confirmaba una contraseña nueva
+// para recien ahi enterarse de que el link estaba vencido.
+const checkResetToken = async (req, res) => {
+  try {
+    const found = await findUserByResetToken(req.params.token);
+    if (found.error) return res.status(found.status).json({ valid: false, error: found.error });
+    // El nombre solo se revela a quien ya tiene el token valido en la mano.
+    res.json({ valid: true, name: found.user.name || null });
+  } catch (err) {
+    console.error('checkResetToken error:', err.message);
+    res.status(500).json({ valid: false, error: 'Error al validar el link' });
+  }
+};
+
 // POST /api/auth/reset-password — recibe token + nueva password, valida y resetea
 const resetPassword = async (req, res) => {
   const { token, password } = req.body;
@@ -347,19 +446,9 @@ const resetPassword = async (req, res) => {
     return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres' });
 
   try {
-    const result = await db.query(
-      'SELECT id, reset_token_expires FROM users WHERE reset_token = ? AND is_active = 1',
-      [token]
-    );
-    const user = result.rows[0];
-    if (!user) return res.status(400).json({ error: 'Link inválido o ya usado' });
-
-    // Verificar expiracion
-    if (new Date(user.reset_token_expires) < new Date()) {
-      // Limpiar el token expirado y devolver error
-      await db.query('UPDATE users SET reset_token = NULL, reset_token_expires = NULL WHERE id = ?', [user.id]);
-      return res.status(400).json({ error: 'El link expiró. Pedí uno nuevo desde "Olvidé mi contraseña"' });
-    }
+    const found = await findUserByResetToken(token);
+    if (found.error) return res.status(found.status).json({ error: found.error });
+    const user = found.user;
 
     const hash = await bcrypt.hash(password, 10);
     // Reset por mail tambien limpia must_change_password (la password nueva
@@ -369,10 +458,35 @@ const resetPassword = async (req, res) => {
       [hash, user.id]
     );
 
+    // Cerramos todas las sesiones abiertas. password_changed_at ya invalida
+    // los JWT viejos en el middleware, pero sin esto las filas quedaban como
+    // "activas" en la pantalla de Sesiones. Y si el reset fue porque alguien
+    // le entro a la cuenta, el intruso tiene que quedar afuera de verdad.
+    try { await revokeAllSessionsForUser(user.id); } catch { /* no critico */ }
+
+    logAudit(req, 'AUTH_PASSWORD_RESET', { resourceType: 'user', resourceId: user.id });
+
     res.json({ message: 'Contraseña actualizada. Ya podés iniciar sesión.' });
+
+    // Aviso post-cambio: si el reset no lo pidio el dueño de la cuenta, este
+    // mail es la unica forma de que se entere.
+    if (isMailConfigured() && user.email) {
+      const frontUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').split(',')[0].trim();
+      sendMail({
+        to: user.email,
+        subject: 'GianQR — Tu contraseña fue cambiada',
+        text: `Hola ${user.name || ''},\n\nTe confirmamos que la contraseña de tu cuenta de GianQR se cambió recién, y se cerraron todas las sesiones abiertas.\n\nSi no fuiste vos, entrá ya mismo a ${frontUrl}/olvide-password y restablecela de nuevo, o avisale a un administrador.\n\n— GianQR`,
+        html: renderEmail({
+          title: 'Tu contraseña fue cambiada',
+          intro: `Hola ${user.name || ''}, te confirmamos que la contraseña de tu cuenta de GianQR se cambió recién. Por seguridad cerramos todas las sesiones abiertas.`,
+          cta:   { label: 'No fui yo, restablecer', url: `${frontUrl}/olvide-password` },
+          note:  'Si el cambio lo hiciste vos, podés ignorar este mensaje.',
+        }),
+      }).catch(() => { /* ya se loguea dentro de sendMail */ });
+    }
   } catch (err) {
     console.error('resetPassword error:', err.message);
-    res.status(500).json({ error: 'Error al resetear contraseña' });
+    if (!res.headersSent) res.status(500).json({ error: 'Error al resetear contraseña' });
   }
 };
 
@@ -417,4 +531,4 @@ const changePassword = async (req, res) => {
   }
 };
 
-module.exports = { login, me, magicLogin, forgotPassword, forgotPasswordByPhone, resetPassword, changePassword, verifyTwoFactor };
+module.exports = { login, me, magicLogin, forgotPassword, forgotPasswordByPhone, resetPassword, checkResetToken, changePassword, verifyTwoFactor };

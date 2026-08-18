@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 
@@ -30,6 +30,22 @@ const ForgotPassword = () => {
 
   const navigate = useNavigate();
 
+  // Cuando el backend avisa que el envio de mails no esta disponible
+  // (RESEND_API_KEY sin configurar o proveedor caido) mostramos un cartel
+  // que explica que hacer, en vez del "te enviamos un link" de siempre —
+  // que dejaba al usuario esperando un mail que nunca iba a llegar.
+  const [mailDown, setMailDown] = useState(false);
+
+  // Cuenta regresiva para reenviar. El backend permite 3 pedidos cada 15
+  // minutos por IP: sin este freno, dos toques impacientes se comen el cupo
+  // y el proximo intento rebota.
+  const [cooldown, setCooldown] = useState(0);
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown(c => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
+
   const submitEmail = async (e) => {
     e?.preventDefault();
     setLoading(true);
@@ -37,8 +53,13 @@ const ForgotPassword = () => {
     try {
       await api.post('/auth/forgot-password', { email });
       setEmailSent(true);
+      setCooldown(45);
     } catch (err) {
-      setError(err.response?.data?.error || 'Error al enviar. Probá de nuevo.');
+      if (err.response?.data?.code === 'MAIL_NOT_CONFIGURED') {
+        setMailDown(true);
+      } else {
+        setError(err.response?.data?.error || 'Error al enviar. Probá de nuevo.');
+      }
     } finally {
       setLoading(false);
     }
@@ -67,6 +88,7 @@ const ForgotPassword = () => {
     setError('');
     setPhoneResult(null);
     setEmailSent(false);
+    setMailDown(false);
   };
 
   return (
@@ -110,6 +132,36 @@ const ForgotPassword = () => {
                 Este link vale 1 hora y es de un solo uso.
               </p>
             </>
+          ) : mailDown ? (
+            <>
+              <div className="text-center py-2">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full mb-3"
+                     style={{ background: 'rgba(202,138,4,0.12)', border: '1px solid rgba(202,138,4,0.35)' }}>
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="#FCD34D" strokeWidth={1.75}
+                       strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                  </svg>
+                </div>
+                <h2 className="text-lg font-semibold text-white mb-2">El envío por email no está disponible</h2>
+                <p className="text-sm text-gray-400 leading-relaxed">
+                  No te lo dejamos pendiente: el mail no iba a llegar. Recuperá tu acceso
+                  con celular + apellido, o pedile a un administrador que te genere un acceso directo.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => switchMode('phone')}
+                className="w-full py-3 rounded-xl font-semibold text-sm"
+                style={{ background: 'linear-gradient(135deg, #C9974D, #A87B35)', color: '#fff', boxShadow: '0 4px 24px rgba(201,151,77,0.25)' }}
+              >
+                Recuperar con celular
+              </button>
+              <Link to="/login"
+                    className="block w-full text-center text-xs hover:underline"
+                    style={{ color: '#6B7280' }}>
+                ← Volver a inicio de sesión
+              </Link>
+            </>
           ) : emailSent ? (
             <>
               <div className="text-center py-4">
@@ -125,9 +177,23 @@ const ForgotPassword = () => {
                   Si el email <span className="text-gray-200">{email}</span> está registrado, te enviamos un link. Vale 1 hora.
                 </p>
                 <p className="text-xs text-gray-500 mt-3">
-                  Revisá tu casilla (y spam). Si no llega, probá con celular.
+                  Revisá tu casilla y la carpeta de spam.
                 </p>
               </div>
+
+              {error && <p className="text-sm text-red-400 text-center">{error}</p>}
+
+              <button
+                type="button"
+                disabled={cooldown > 0 || loading}
+                onClick={() => submitEmail()}
+                className="w-full py-2.5 rounded-xl text-sm font-medium disabled:opacity-40"
+                style={{ background: '#161B24', border: '1px solid #1E2530', color: '#E8EAF0' }}
+              >
+                {loading ? 'Reenviando…'
+                  : cooldown > 0 ? `Reenviar en ${cooldown}s`
+                  : 'No me llegó, reenviar'}
+              </button>
               <button
                 type="button"
                 onClick={() => switchMode('phone')}

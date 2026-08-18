@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import api from '../api/axios';
 
@@ -9,6 +9,24 @@ const ResetPassword = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState('');
   const [done, setDone]       = useState(false);
+  const [showPass, setShowPass] = useState(false);
+  // Estado del link: lo validamos al abrir la pantalla para no hacer que el
+  // usuario elija y confirme una contraseña nueva y recien ahi se entere de
+  // que el link estaba vencido.
+  const [checking, setChecking] = useState(true);
+  const [linkError, setLinkError] = useState('');
+  const [name, setName] = useState('');
+
+  useEffect(() => {
+    let cancelado = false;
+    api.get(`/auth/reset-password/${token}`)
+      .then(r => { if (!cancelado) setName(r.data?.name || ''); })
+      .catch(err => {
+        if (!cancelado) setLinkError(err.response?.data?.error || 'No pudimos validar el link.');
+      })
+      .finally(() => { if (!cancelado) setChecking(false); });
+    return () => { cancelado = true; };
+  }, [token]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -27,7 +45,12 @@ const ResetPassword = () => {
       setDone(true);
       setTimeout(() => navigate('/login'), 2000);
     } catch (err) {
-      setError(err.response?.data?.error || 'No se pudo resetear la contraseña');
+      // 400/410 = el link dejo de servir mientras completaba el formulario.
+      // Lo mostramos como pantalla de link vencido, no como error del campo.
+      const status = err.response?.status;
+      const msg = err.response?.data?.error || 'No se pudo resetear la contraseña';
+      if (status === 400 || status === 410) setLinkError(msg);
+      else setError(msg);
     } finally {
       setLoading(false);
     }
@@ -43,7 +66,33 @@ const ResetPassword = () => {
         </div>
 
         <div className="rounded-2xl p-6 space-y-5" style={{ background: '#0D1117', border: '1px solid #1E2530' }}>
-          {done ? (
+          {checking ? (
+            <div className="text-center py-6">
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 mx-auto mb-3"
+                   style={{ borderColor: '#C9974D' }} />
+              <p className="text-sm text-gray-400">Validando el link…</p>
+            </div>
+          ) : linkError ? (
+            <div className="text-center py-4">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full mb-3"
+                   style={{ background: 'rgba(185,28,28,0.10)', border: '1px solid rgba(185,28,28,0.35)' }}>
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="#FCA5A5" strokeWidth={1.75}
+                     strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                </svg>
+              </div>
+              <h2 className="text-lg font-semibold text-white mb-2">Este link ya no sirve</h2>
+              <p className="text-sm text-gray-400 leading-relaxed mb-5">{linkError}</p>
+              <Link to="/olvide-password"
+                    className="block w-full text-center py-3 rounded-xl font-semibold text-sm"
+                    style={{ background: 'linear-gradient(135deg, #C9974D, #A87B35)', color: '#fff' }}>
+                Pedir un link nuevo
+              </Link>
+              <Link to="/login" className="block mt-3 text-xs hover:underline" style={{ color: '#6B7280' }}>
+                ← Volver a inicio de sesión
+              </Link>
+            </div>
+          ) : done ? (
             <div className="text-center py-4">
               <div className="inline-flex items-center justify-center w-12 h-12 rounded-full mb-3"
                    style={{ background: 'rgba(52,211,153,0.15)' }}>
@@ -57,16 +106,29 @@ const ResetPassword = () => {
           ) : (
             <>
               <div>
-                <h2 className="text-lg font-semibold text-white mb-1">Elegí tu nueva contraseña</h2>
-                <p className="text-xs text-gray-500">Mínimo 8 caracteres.</p>
+                <h2 className="text-lg font-semibold text-white mb-1">
+                  {name ? `Hola ${name}, elegí tu nueva contraseña` : 'Elegí tu nueva contraseña'}
+                </h2>
+                <p className="text-xs text-gray-500">
+                  Mínimo 8 caracteres. Al guardarla se cierran todas tus sesiones abiertas.
+                </p>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: '#6B7280' }}>Nueva contraseña</label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-semibold uppercase tracking-widest" style={{ color: '#6B7280' }}>Nueva contraseña</label>
+                  {/* Ver la clave evita el clasico "la escribi mal dos veces"
+                      en el teclado del celular. */}
+                  <button type="button" onClick={() => setShowPass(v => !v)}
+                          className="text-[11px] hover:underline" style={{ color: '#6B7280' }}>
+                    {showPass ? 'Ocultar' : 'Mostrar'}
+                  </button>
+                </div>
                 <input
-                  type="password"
+                  type={showPass ? 'text' : 'password'}
                   required
                   minLength={8}
+                  autoComplete="new-password"
                   className="input"
                   placeholder="••••••••"
                   value={form.password}
@@ -77,14 +139,18 @@ const ResetPassword = () => {
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: '#6B7280' }}>Confirmar contraseña</label>
                 <input
-                  type="password"
+                  type={showPass ? 'text' : 'password'}
                   required
                   minLength={8}
+                  autoComplete="new-password"
                   className="input"
                   placeholder="••••••••"
                   value={form.confirm}
                   onChange={e => setForm(f => ({ ...f, confirm: e.target.value }))}
                 />
+                {form.confirm && form.password !== form.confirm && (
+                  <p className="text-[11px] mt-1.5 text-red-400">Las contraseñas no coinciden</p>
+                )}
               </div>
 
               {error && <p className="text-sm text-red-400">{error}</p>}
