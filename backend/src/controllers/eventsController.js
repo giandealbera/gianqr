@@ -231,7 +231,7 @@ const cloneEvent = async (req, res) => {
     const origR = await db.query('SELECT * FROM events WHERE id = ?', [id]);
     const orig = origR.rows[0];
     if (!orig) return res.status(404).json({ error: 'Evento origen no encontrado' });
-    const origTT = (await db.query('SELECT name, price, total_quota FROM ticket_types WHERE event_id = ? AND is_active = 1', [id])).rows;
+    const origTT = (await db.query('SELECT id, name, price, total_quota FROM ticket_types WHERE event_id = ? AND is_active = 1', [id])).rows;
 
     const newEventId = uuidv4();
     await db.transaction(async (conn) => {
@@ -243,10 +243,24 @@ const cloneEvent = async (req, res) => {
          end_time || orig.end_time, orig.flyer_url, sale_start_at, sale_end_at, req.user.id]
       );
       for (const tt of origTT) {
+        const newTtId = uuidv4();
         await conn.execute(
           'INSERT INTO ticket_types (id, event_id, name, price, total_quota, sold_count) VALUES (?,?,?,?,?,0)',
-          [uuidv4(), newEventId, tt.name, tt.price, tt.total_quota]
+          [newTtId, newEventId, tt.name, tt.price, tt.total_quota]
         );
+        // Copiar los permisos de venta por tipo. Sin esto el clon quedaba
+        // ABIERTO A TODOS (lista vacia = sin restriccion): el dueño limitaba
+        // quien podia vender "VIP", clonaba el evento para la fecha siguiente
+        // y cualquier vendedor podia emitir VIP sin darse cuenta nadie.
+        const sellers = (await conn.execute(
+          'SELECT user_id FROM ticket_type_sellers WHERE ticket_type_id = ?', [tt.id]
+        ))[0];
+        for (const s of sellers) {
+          await conn.execute(
+            'INSERT INTO ticket_type_sellers (ticket_type_id, user_id) VALUES (?,?)',
+            [newTtId, s.user_id]
+          );
+        }
       }
       // Heredar dueños del evento original (event_owners).
       const origOwners = (await conn.execute('SELECT user_id FROM event_owners WHERE event_id = ?', [id]))[0];
@@ -318,11 +332,21 @@ const stats = async (req, res) => {
   if (!await guardEventAccess(req, res, id)) return;
 
   try {
+    // `recaudado` sale de la plata REAL cobrada (tickets.amount_paid), no de
+    // sold_count * price. Las cortesias suben sold_count con amount_paid=0,
+    // asi que la cuenta vieja mostraba como recaudado el precio de lista de
+    // cada entrada regalada: 4 cortesias de $5000 inflaban $20.000 que nunca
+    // entraron, y no cerraba contra totals.total_recaudado.
     const result = await db.query(
       `SELECT tt.name AS tipo, tt.price, tt.total_quota, tt.sold_count,
               (tt.total_quota - tt.sold_count) AS disponibles,
-              (tt.sold_count * tt.price) AS recaudado
-       FROM ticket_types tt WHERE tt.event_id = ?`, [id]
+              COALESCE(SUM(CASE WHEN t.status IN ('pagado','usado') THEN t.amount_paid ELSE 0 END), 0) AS recaudado,
+              COUNT(CASE WHEN t.payment_method = 'cortesia' THEN t.id END) AS cortesias
+       FROM ticket_types tt
+       LEFT JOIN tickets t ON t.ticket_type_id = tt.id
+       WHERE tt.event_id = ?
+       GROUP BY tt.id, tt.name, tt.price, tt.total_quota, tt.sold_count, tt.created_at
+       ORDER BY tt.created_at ASC`, [id]
     );
     const totals = await db.query(
       `SELECT
@@ -384,8 +408,22 @@ const getTicketTypes = async (req, res) => {
 // GET /api/events/:id/ticket-types/:ttId/sellers
 // Lista los user_ids autorizados a vender este ticket_type. Solo admin/owner
 // (gestion). Si devuelve [], es "abierto a todos".
+// guardEventAccess valida el EVENTO de la URL, pero estos endpoints operan
+// sobre :ttId. Sin este chequeo, un dueño podia poner su propio evento en la
+// URL y el ticket_type de OTRO dueño en el path: el PUT le borraba los
+// permisos de venta al otro tenant (verificado, devolvia 200).
+async function ticketTypeBelongsToEvent(ttId, eventId) {
+  const r = await db.query(
+    'SELECT 1 FROM ticket_types WHERE id = ? AND event_id = ? LIMIT 1',
+    [ttId, eventId]
+  );
+  return r.rows.length > 0;
+}
+
 const getTicketTypeSellers = async (req, res) => {
   if (!await guardEventAccess(req, res, req.params.id)) return;
+  if (!await ticketTypeBelongsToEvent(req.params.ttId, req.params.id))
+    return res.status(404).json({ error: 'Tipo de entrada no encontrado en este evento' });
   try {
     const r = await db.query(
       `SELECT s.user_id, u.name, u.apellido, u.email, u.role
@@ -407,6 +445,8 @@ const getTicketTypeSellers = async (req, res) => {
 // para este ticket_type. Lista vacia = abierto a todos.
 const setTicketTypeSellers = async (req, res) => {
   if (!await guardEventAccess(req, res, req.params.id)) return;
+  if (!await ticketTypeBelongsToEvent(req.params.ttId, req.params.id))
+    return res.status(404).json({ error: 'Tipo de entrada no encontrado en este evento' });
   const { user_ids } = req.body;
   if (!Array.isArray(user_ids)) {
     return res.status(400).json({ error: 'user_ids debe ser un array' });

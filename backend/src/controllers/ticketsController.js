@@ -17,7 +17,7 @@ async function generateQR(ticketId) {
 const create = async (req, res) => {
   const {
     event_id, ticket_type_id,
-    buyer_name, buyer_apellido, buyer_email, buyer_edad, buyer_localidad,
+    buyer_name, buyer_apellido, buyer_dni, buyer_email, buyer_edad, buyer_localidad,
     payment_method, payment_ref, amount_paid,
     promotor_code,
   } = req.body;
@@ -83,10 +83,11 @@ const create = async (req, res) => {
 
       await conn.execute(
         `INSERT INTO tickets
-           (id, event_id, ticket_type_id, buyer_name, buyer_apellido, buyer_email, buyer_edad, buyer_localidad,
+           (id, event_id, ticket_type_id, buyer_name, buyer_apellido, buyer_dni, buyer_email, buyer_edad, buyer_localidad,
             qr_code, payment_method, payment_ref, amount_paid, status, promotor_id, sold_by)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [ticketId, event_id, ticket_type_id, buyer_name, buyer_apellido || null,
+         buyer_dni || null,
          buyer_email || '', buyer_edad || null, normalizeCity(buyer_localidad) || null,
          code, payment_method, payment_ref || null,
          price, status, promotorId, req.user?.id || null]
