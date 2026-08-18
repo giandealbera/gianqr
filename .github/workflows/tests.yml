@@ -1,0 +1,62 @@
+# Corre la suite e2e del backend y compila el frontend en cada push y PR a
+# master. La idea es que un error que ya arreglamos no vuelva a produccion
+# sin que nadie se de cuenta: la suite incluye un bloque de regresiones con
+# los bugs que se nos escaparon (check-in por encima del 100%, cortesias
+# inflando lo recaudado, QR de cortesia ajena recuperable, permisos que se
+# perdian al clonar, y el cupo de rate limit compartido por IP).
+name: tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  backend:
+    name: backend — e2e
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install (ci)
+        run: npm ci
+
+      - name: Suite e2e
+        # run-e2e levanta el server con una base SQLite temporal, corre los
+        # checks y apaga todo. No necesita servicios externos.
+        run: npm test
+        env:
+          JWT_SECRET: secreto_solo_para_ci
+
+  frontend:
+    name: frontend — build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install (ci)
+        run: npm ci
+
+      - name: Build
+        # Un error de sintaxis o un import roto rompen el build: es la red
+        # que hubiera atajado el import borrado que dejo la app en blanco.
+        run: npm run build

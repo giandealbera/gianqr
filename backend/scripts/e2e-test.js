@@ -61,7 +61,20 @@ async function dbGet(sql, params = []) {
   return dbh.get(sql, params);
 }
 
+async function dbRun(sql, params = []) {
+  if (!dbh) {
+    const sqlite3 = require('sqlite3');
+    const { open } = require('sqlite');
+    dbh = await open({ filename: DB_FILE, driver: sqlite3.Database });
+  }
+  return dbh.run(sql, params);
+}
+
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+// DNI de prueba. Desde que es obligatorio en el flujo publico, cada
+// comprador necesita el suyo, y el recupero del QR se hace con el.
+const dni = (n) => String(30000000 + n);
 
 // ---------------------------------------------------------------------------
 // Suite
@@ -273,13 +286,13 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
     // Vendedor (no autorizado) intenta vender VIP por link publico -> 403
     const pv = await req('POST', `/public/tickets/${vendCode}`, {
-      body: { event_id: eventId, ticket_type_id: ttVipId, payment_method: 'efectivo', attendees: [{ buyer_name: 'No', buyer_apellido: 'Puede' }] },
+      body: { event_id: eventId, ticket_type_id: ttVipId, payment_method: 'efectivo', attendees: [{ buyer_name: 'No', buyer_apellido: 'Puede', buyer_dni: dni(10) }] },
     });
     check('sellers: vendedor no autorizado -> 403', pv.status === 403, `status=${pv.status}`);
 
     // Jefe autorizado si puede
     const pj = await req('POST', `/public/tickets/${jefeCode}`, {
-      body: { event_id: eventId, ticket_type_id: ttVipId, payment_method: 'efectivo', attendees: [{ buyer_name: 'Vip', buyer_apellido: 'Uno' }] },
+      body: { event_id: eventId, ticket_type_id: ttVipId, payment_method: 'efectivo', attendees: [{ buyer_name: 'Vip', buyer_apellido: 'Uno', buyer_dni: dni(11) }] },
     });
     check('sellers: jefe autorizado vende VIP', pj.status === 201 && pj.data?.tickets?.length === 1, JSON.stringify(pj.data));
 
@@ -352,8 +365,8 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
       body: {
         ticket_ids: preIds.slice(0, 2),
         attendees: [
-          { buyer_name: 'Res', buyer_apellido: 'Uno', buyer_localidad: 'venado tuerto' },
-          { buyer_name: 'Res', buyer_apellido: 'Dos' },
+          { buyer_name: 'Res', buyer_apellido: 'Uno', buyer_dni: dni(20), buyer_localidad: 'venado tuerto' },
+          { buyer_name: 'Res', buyer_apellido: 'Dos', buyer_dni: dni(21) },
         ],
       },
     });
@@ -365,13 +378,17 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
     // Completar el ultimo
     const comp2 = await req('POST', '/public/tickets-complete/CASA', {
-      body: { ticket_ids: [info2.data.ticket_ids[0]], attendees: [{ buyer_name: 'Res', buyer_apellido: 'Tres' }] },
+      body: { ticket_ids: [info2.data.ticket_ids[0]], attendees: [{ buyer_name: 'Res', buyer_apellido: 'Tres', buyer_dni: dni(22) }] },
     });
     check('pre-sell: completar el ultimo', comp2.status === 200, JSON.stringify(comp2.status));
 
-    // Todos completos -> tickets-info 410 ALREADY_COMPLETED
+    // Con todas cargadas, el link sigue sirviendo y devuelve los QR: el
+    // comprador puede reabrirlo o refrescar y ver sus entradas, en vez del
+    // 410 con "ya fueron cargadas" que mostraba antes.
     const info3 = await req('GET', `/public/tickets-info?ids=${preIds.join(',')}`);
-    check('pre-sell: todo completo -> 410', info3.status === 410 && info3.data?.code === 'ALREADY_COMPLETED', JSON.stringify(info3.data));
+    check('pre-sell: todo completo -> el link devuelve los QR',
+          info3.status === 200 && info3.data?.status === 'completed' && info3.data?.tickets?.length === 3,
+          JSON.stringify(info3.data));
   }
 
   // ---------- Compra publica ----------
@@ -387,8 +404,8 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
       body: {
         event_id: eventId, ticket_type_id: ttGeneralId, payment_method: 'transferencia',
         attendees: [
-          { buyer_name: 'Compra', buyer_apellido: 'Uno', buyer_edad: '25', buyer_localidad: 'rosario' },
-          { buyer_name: 'Compra', buyer_apellido: 'Dos', buyer_email: 'dos@mail.com' },
+          { buyer_name: 'Compra', buyer_apellido: 'Uno', buyer_dni: dni(1), buyer_edad: '25', buyer_localidad: 'rosario' },
+          { buyer_name: 'Compra', buyer_apellido: 'Dos', buyer_dni: dni(2), buyer_email: 'dos@mail.com' },
         ],
       },
     });
@@ -399,26 +416,27 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     const noQ = await req('POST', `/public/tickets/${vendCode}`, {
       body: {
         event_id: eventId, ticket_type_id: ttVipId, payment_method: 'efectivo',
-        attendees: Array.from({ length: 5 }, (_, i) => ({ buyer_name: 'Q', buyer_apellido: `N${i}` })),
+        attendees: Array.from({ length: 5 }, (_, i) => ({ buyer_name: 'Q', buyer_apellido: `N${i}`, buyer_dni: dni(30 + i) })),
       },
     });
     check('public: oversell -> 409', noQ.status === 409, `status=${noQ.status}`);
 
     // Codigo inexistente
     const nf = await req('POST', '/public/tickets/NOEXISTE99', {
-      body: { event_id: eventId, ticket_type_id: ttGeneralId, attendees: [{ buyer_name: 'A', buyer_apellido: 'B' }] },
+      body: { event_id: eventId, ticket_type_id: ttGeneralId, attendees: [{ buyer_name: 'A', buyer_apellido: 'B', buyer_dni: dni(40) }] },
     });
     check('public: codigo invalido -> 404', nf.status === 404, `status=${nf.status}`);
 
-    // Recover por nombre+apellido
-    const rec = await req('POST', `/public/recover/${vendCode}`, { body: { nombre: 'compra', apellido: 'uno' } });
-    check('public: recover encuentra el QR', rec.status === 200 && rec.data?.tickets?.length === 1, JSON.stringify(rec.data));
+    // Recover: nombre + apellido + DNI. El DNI es la clave que impide que un
+    // tercero se baje el QR de otro sabiendo solo como se llama.
+    const rec = await req('POST', `/public/recover/${vendCode}`, { body: { nombre: 'compra', apellido: 'uno', dni: dni(1) } });
+    check('public: recover encuentra el QR con el DNI correcto', rec.status === 200 && rec.data?.tickets?.length === 1, JSON.stringify(rec.data));
 
-    // Recover de ticket con email guardado exige email
-    const rec2 = await req('POST', `/public/recover/${vendCode}`, { body: { nombre: 'Compra', apellido: 'Dos' } });
-    check('public: recover sin email no revela ticket con email', rec2.status === 200 && rec2.data?.tickets?.length === 0, JSON.stringify(rec2.data));
-    const rec3 = await req('POST', `/public/recover/${vendCode}`, { body: { nombre: 'Compra', apellido: 'Dos', email: 'dos@mail.com' } });
-    check('public: recover con email correcto', rec3.status === 200 && rec3.data?.tickets?.length === 1, JSON.stringify(rec3.data));
+    const rec2 = await req('POST', `/public/recover/${vendCode}`, { body: { nombre: 'Compra', apellido: 'Uno', dni: '99999999' } });
+    check('public: recover con DNI equivocado no devuelve nada', rec2.status === 200 && rec2.data?.tickets?.length === 0, JSON.stringify(rec2.data));
+
+    const rec3 = await req('POST', `/public/recover/${vendCode}`, { body: { nombre: 'Compra', apellido: 'Dos' } });
+    check('public: recover sin DNI -> 400', rec3.status === 400, `status=${rec3.status}`);
 
     // Autocomplete localidades
     const loc = await req('GET', '/public/localidades?q=ros');
@@ -431,7 +449,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     check('saleWindow: stop-sales', stop.status === 200, JSON.stringify(stop.status));
 
     const buy = await req('POST', `/public/tickets/${vendCode}`, {
-      body: { event_id: eventId, ticket_type_id: ttGeneralId, payment_method: 'efectivo', attendees: [{ buyer_name: 'Cerrado', buyer_apellido: 'X' }] },
+      body: { event_id: eventId, ticket_type_id: ttGeneralId, payment_method: 'efectivo', attendees: [{ buyer_name: 'Cerrado', buyer_apellido: 'X', buyer_dni: dni(41) }] },
     });
     check('saleWindow: compra con venta cortada -> 400', buy.status === 400, `status=${buy.status}`);
 
@@ -476,9 +494,16 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     const s4 = await req('POST', '/tickets/scan', { token: admin, body: { qr_code: pubTickets[1]?.qr_code, ticket_type_id: ttVipId } });
     check('scan admin: tipo incorrecto -> 403', s4.status === 403, `status=${s4.status}`);
 
-    // Owner no puede usar el scan admin
-    const s5 = await req('POST', '/tickets/scan', { token: ownerTok, body: { qr_code: pubTickets[1]?.qr_code } });
-    check('scan admin: owner -> 403 (solo admin)', s5.status === 403, `status=${s5.status}`);
+    // El owner SI puede escanear desde el panel, pero solo en SUS eventos.
+    // Antes la ruta exigia rol admin y al owner cada lectura le devolvia
+    // "Se requiere rol: admin" aunque la pantalla se le mostrara.
+    // Usamos la entrada YA escaneada arriba: alcanza para ver que el rechazo
+    // viene del estado del ticket (409) y no del rol, sin consumir una
+    // entrada que necesitan los tests del escaner publico.
+    const s5 = await req('POST', '/tickets/scan', { token: ownerTok, body: { qr_code: qr } });
+    check('scan admin: el owner del evento ya no recibe "se requiere rol"',
+          s5.status === 409 && !/se requiere rol/i.test(s5.data?.error || ''),
+          `status=${s5.status} ${JSON.stringify(s5.data?.error)}`);
   }
 
   // ---------- Scanner tokens + escaneo publico ----------
@@ -611,19 +636,38 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
   // ---------- Recupero de contraseña ----------
   {
-    // Por email: el mail no sale (sin SMTP) pero el token queda en la base.
+    // Requiere MAIL_DEV_STUB=1 (o RESEND_API_KEY): sin proveedor de mail
+    // configurado el endpoint responde 503 a proposito, para no dejar al
+    // usuario esperando un correo que no va a salir.
     const f = await req('POST', '/auth/forgot-password', { body: { email: 'vend@test.com' } });
     check('forgot: respuesta generica', f.status === 200, JSON.stringify(f.data));
-    const row = await dbGet('SELECT reset_token FROM users WHERE email = ?', ['vend@test.com']);
-    check('forgot: reset_token generado', !!row?.reset_token, JSON.stringify(row));
 
-    const rp = await req('POST', '/auth/reset-password', { body: { token: row?.reset_token, password: 'nuevaClave9' } });
+    // En la base va el HASH del token, no el token: si se filtra una copia de
+    // la base, los resets en curso no sirven para entrar. Por eso el test no
+    // puede leer el valor y usarlo — inventa uno, guarda su hash y usa el
+    // original, que es exactamente lo que hace el link del mail.
+    const guardado = await dbGet('SELECT reset_token FROM users WHERE email = ?', ['vend@test.com']);
+    check('forgot: el token guardado es un hash sha256, no el token en claro',
+          /^[a-f0-9]{64}$/.test(guardado?.reset_token || ''), JSON.stringify(guardado));
+
+    const crypto = require('crypto');
+    const tokenClaro = crypto.randomBytes(32).toString('hex');
+    const hash = crypto.createHash('sha256').update(tokenClaro).digest('hex');
+    const vence = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    await dbRun('UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE email = ?',
+                [hash, vence, 'vend@test.com']);
+
+    const chk = await req('GET', `/auth/reset-password/${tokenClaro}`);
+    check('forgot: el link se valida antes de pedir la clave nueva',
+          chk.status === 200 && chk.data?.valid === true, JSON.stringify(chk.data));
+
+    const rp = await req('POST', '/auth/reset-password', { body: { token: tokenClaro, password: 'nuevaClave9' } });
     check('forgot: reset con token valido', rp.status === 200, JSON.stringify(rp.data));
 
     const rl = await req('POST', '/auth/login', { body: { email: 'vend@test.com', password: 'nuevaClave9' } });
     check('forgot: login con clave nueva', rl.status === 200, `status=${rl.status}`);
 
-    const rp2 = await req('POST', '/auth/reset-password', { body: { token: row?.reset_token, password: 'otraClave99' } });
+    const rp2 = await req('POST', '/auth/reset-password', { body: { token: tokenClaro, password: 'otraClave99' } });
     check('forgot: token de reset es de un solo uso', rp2.status === 400, `status=${rp2.status}`);
 
     // Por celular+apellido (vendedora Vicky Vende, cel +54 9 11 5555-0002)
@@ -716,7 +760,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
     // La venta publica del desactivado tambien queda bloqueada
     const pb = await req('POST', `/public/tickets/${vendCode}`, {
-      body: { event_id: eventId, ticket_type_id: ttGeneralId, payment_method: 'efectivo', attendees: [{ buyer_name: 'Z', buyer_apellido: 'Z' }] },
+      body: { event_id: eventId, ticket_type_id: ttGeneralId, payment_method: 'efectivo', attendees: [{ buyer_name: 'Z', buyer_apellido: 'Z', buyer_dni: dni(42) }] },
     });
     check('users: link publico de desactivado -> 404', pb.status === 404, `status=${pb.status}`);
 
@@ -730,6 +774,107 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   {
     const pk = await req('GET', '/push/public-key');
     check('push: public key expuesta', pk.status === 200, JSON.stringify(pk.data));
+  }
+
+  // ---------- Regresiones de bugs ya corregidos ----------
+  // Cada bloque de aca abajo cubre un error que se escapo a produccion. La
+  // idea es que si alguno vuelve, CI lo cante antes de que lo vea un usuario.
+  {
+    // Evento nuevo y limpio para medir sin arrastrar lo de arriba.
+    const hoy    = new Date().toISOString().slice(0, 10);
+    const ayer   = new Date(Date.now() - 864e5).toISOString().slice(0, 19).replace('T', ' ');
+    const manana = new Date(Date.now() + 864e5).toISOString().slice(0, 19).replace('T', ' ');
+    const ev = await req('POST', '/events', { token: admin, body: {
+      name: 'Regresiones', date: hoy, start_time: '23:00', sale_start_at: ayer, sale_end_at: manana } });
+    const evId = ev.data?.id;
+    const tt = await req('POST', `/events/${evId}/ticket-types`, { token: admin, body: {
+      name: 'General', price: 5000, total_quota: 100 } });
+    const ttId = tt.data?.id;
+
+    // --- El check-in pasaba de 100% ------------------------------------
+    // total_pagados cuenta solo las NO escaneadas: al usarlo de denominador,
+    // con 9 de 10 escaneadas daba 900% y la barra se salia de la pantalla.
+    const qrs = [];
+    for (let i = 0; i < 10; i++) {
+      const t = await req('POST', '/tickets', { token: admin, body: {
+        event_id: evId, ticket_type_id: ttId,
+        buyer_name: `Chk${i}`, buyer_apellido: 'Test', payment_method: 'efectivo' } });
+      qrs.push(t.data?.qr_code);
+    }
+    for (let i = 0; i < 9; i++) {
+      await req('POST', '/tickets/scan', { token: admin, body: { qr_code: qrs[i] } });
+    }
+    const st = await req('GET', `/events/${evId}/stats`, { token: admin });
+    const usados  = Number(st.data?.totals?.total_usados || 0);
+    const validas = usados + Number(st.data?.totals?.total_pagados || 0);
+    const checkin = validas > 0 ? Math.round((usados / validas) * 100) : 0;
+    check('regresion: check-in de 9 sobre 10 da 90%, no 900%', checkin === 90, `dio ${checkin}%`);
+
+    // --- Las cortesias inflaban lo recaudado ---------------------------
+    // by_type.recaudado salia de sold_count * price, asi que contaba las
+    // regaladas a precio de lista.
+    await req('POST', '/cortesias', { token: admin, body: {
+      event_id: evId, ticket_type_id: ttId,
+      attendees: [{ buyer_name: 'Free', buyer_apellido: 'Uno' }, { buyer_name: 'Free', buyer_apellido: 'Dos' }] } });
+    const st2 = await req('GET', `/events/${evId}/stats`, { token: admin });
+    const porTipo = st2.data?.by_type?.[0] || {};
+    check('regresion: las cortesias no suman a lo recaudado',
+          Number(porTipo.recaudado) === Number(st2.data?.totals?.total_recaudado),
+          `by_type=${porTipo.recaudado} totals=${st2.data?.totals?.total_recaudado}`);
+    check('regresion: se informan las cortesias por tipo', Number(porTipo.cortesias) === 2,
+          `dio ${porTipo.cortesias}`);
+
+    // --- El QR de una cortesia se sacaba sabiendo solo el nombre --------
+    const apCort = 'CortRegr' + Date.now();
+    await req('POST', '/cortesias', { token: admin, body: {
+      event_id: evId, ticket_type_id: ttId,
+      attendees: [{ buyer_name: 'Invitada', buyer_apellido: apCort }] } });
+    const robo = await req('POST', '/public/recover/CASA', { body: {
+      nombre: 'Invitada', apellido: apCort, dni: '11111111' } });
+    check('regresion: no se recupera la cortesia ajena con un DNI inventado',
+          (robo.data?.tickets?.length || 0) === 0, JSON.stringify(robo.data));
+
+    // --- Clonar perdia los permisos por tipo ---------------------------
+    // ticket_type_sellers no se copiaba: el clon quedaba abierto a todos.
+    const vr = await req('POST', '/users', { token: admin, body: {
+      name: 'VendRegr', apellido: 'T', email: `vr${Date.now()}@t.com`,
+      password: 'password123', role: 'vendedor' } });
+    await req('PUT', `/events/${evId}/ticket-types/${ttId}/sellers`, {
+      token: admin, body: { user_ids: [vr.data?.id] } });
+    const clon = await req('POST', `/events/${evId}/clone`, { token: admin, body: {
+      name: 'Regresiones Clon', date: hoy, start_time: '23:00',
+      sale_start_at: ayer, sale_end_at: manana } });
+    const ttClon = (await req('GET', `/events/${clon.data?.id}/ticket-types`, { token: admin })).data?.[0];
+    const selClon = await req('GET', `/events/${clon.data?.id}/ticket-types/${ttClon?.id}/sellers`, { token: admin });
+    check('regresion: el clon conserva los vendedores autorizados',
+          selClon.data?.length === 1, `dio ${selClon.data?.length}`);
+
+    // --- Permisos editables cruzando eventos (IDOR) --------------------
+    // Se validaba el evento de la URL pero no que el tipo fuera de ese evento.
+    const cruzado = await req('PUT', `/events/${clon.data?.id}/ticket-types/${ttId}/sellers`, {
+      token: admin, body: { user_ids: [] } });
+    check('regresion: no se editan permisos de un tipo de otro evento',
+          cruzado.status === 404, `status=${cruzado.status}`);
+
+    // --- El DNI se descartaba en la venta manual -----------------------
+    const conDni = await req('POST', '/tickets', { token: admin, body: {
+      event_id: evId, ticket_type_id: ttId, buyer_name: 'ConDni', buyer_apellido: 'Test',
+      buyer_dni: '30999888', payment_method: 'efectivo' } });
+    check('regresion: la venta manual guarda el DNI', conDni.data?.buyer_dni === '30999888',
+          JSON.stringify(conDni.data?.buyer_dni));
+
+    // --- El cupo del rate limit era por IP compartida -------------------
+    // Todo el staff sale por el WiFi del lugar: con clave por IP, el tablero
+    // abierto agotaba el cupo y dejaba sin escanear a los porteros.
+    const rl = await fetch(`${BASE}/auth/me`, { headers: { Authorization: `Bearer ${admin}` } });
+    const cabecera = rl.headers.get('ratelimit') || '';
+    const limite = Number(/limit=(\d+)/.exec(cabecera)?.[1] ?? 0);
+    check('regresion: el usuario logueado tiene cupo propio y amplio', limite >= 3000,
+          `limite=${limite} (${cabecera})`);
+    const anon = await fetch(`${BASE}/health`);
+    const limAnon = Number(/limit=(\d+)/.exec(anon.headers.get('ratelimit') || '')?.[1] ?? 0);
+    check('regresion: el trafico anonimo mantiene el cupo corto', limAnon > 0 && limAnon < 3000,
+          `limite=${limAnon}`);
   }
 
   // ---------- Resumen ----------
