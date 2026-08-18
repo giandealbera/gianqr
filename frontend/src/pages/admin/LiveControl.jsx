@@ -14,6 +14,9 @@ const fmtCorto = (n) => new Intl.NumberFormat('es-AR', {
   style: 'currency', currency: 'ARS', maximumFractionDigits: 0,
 }).format(n || 0);
 const REFRESH_MS = 3000;
+// Cada cuantas vueltas de refresco recargamos el listado completo de
+// entradas (la llamada cara). 4 x 3s = cada 12 segundos.
+const TICKETS_CADA = 4;
 
 const LiveControl = () => {
   const confirm = useConfirm();
@@ -41,15 +44,23 @@ const LiveControl = () => {
     }).catch(() => { toast.error('Error al cargar eventos'); setLoading(false); });
   }, []);
 
-  const refresh = async (evId) => {
+  // El listado de entradas es la parte cara: trae hasta 5000 filas completas.
+  // Los contadores de arriba (stats) son cuatro numeros. Antes pediamos las
+  // dos cosas cada 3 segundos: 40 pedidos por minuto y varios MB por hora en
+  // el 4G del celular. Ahora los contadores siguen al ritmo de siempre y el
+  // listado se actualiza cada 12s (cada 4 vueltas), que para una tabla de
+  // control es mas que suficiente.
+  const vueltaRef = useRef(0);
+
+  const refresh = async (evId, { incluirEntradas = false } = {}) => {
     if (!evId) return;
     try {
-      const [statsRes, tickRes] = await Promise.all([
-        api.get(`/events/${evId}/stats`),
-        api.get(`/tickets?event_id=${evId}`),
-      ]);
+      const pedidos = [api.get(`/events/${evId}/stats`)];
+      if (incluirEntradas) pedidos.push(api.get(`/tickets?event_id=${evId}`));
+
+      const [statsRes, tickRes] = await Promise.all(pedidos);
       setStats(statsRes.data);
-      setTickets(tickRes.data);
+      if (tickRes) setTickets(tickRes.data);
       setLastUpd(new Date());
       // Pulsar el indicador
       setPulse(true);
@@ -69,7 +80,10 @@ const LiveControl = () => {
     const startPolling = () => {
       if (intervalRef.current) return;
       intervalRef.current = setInterval(() => {
-        if (document.visibilityState === 'visible' && !cancelled) refresh(eventSel);
+        if (document.visibilityState !== 'visible' || cancelled) return;
+        vueltaRef.current += 1;
+        // El listado pesado solo cada TICKETS_CADA vueltas.
+        refresh(eventSel, { incluirEntradas: vueltaRef.current % TICKETS_CADA === 0 });
       }, REFRESH_MS);
     };
     const stopPolling = () => {
@@ -79,12 +93,14 @@ const LiveControl = () => {
       }
     };
 
-    refresh(eventSel);
+    // La primera carga y la vuelta desde segundo plano si traen el listado:
+    // ahi el usuario necesita ver la tabla al dia de una.
+    refresh(eventSel, { incluirEntradas: true });
     startPolling();
 
     const onVisibility = () => {
       if (document.visibilityState === 'visible') {
-        refresh(eventSel);
+        refresh(eventSel, { incluirEntradas: true });
         startPolling();
       } else {
         stopPolling();
@@ -111,7 +127,9 @@ const LiveControl = () => {
     try {
       await api.delete(`/tickets/${t.id}`);
       toast.success('Entrada eliminada');
-      refresh(eventSel);
+      // Recargamos el listado si o si: el usuario acaba de borrar una fila y
+      // tiene que verla desaparecer, no esperar a la proxima vuelta pesada.
+      refresh(eventSel, { incluirEntradas: true });
     } catch (err) {
       toast.error(err.response?.data?.error || 'Error al eliminar');
     }

@@ -6,18 +6,53 @@
  * el server.js setea app.set('trust proxy', 1). Sin eso todas las peticiones se ven
  * como del mismo IP y un atacante tumba a todos.
  */
-const rateLimit = require('express-rate-limit');
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
+const jwt = require('jsonwebtoken');
 
 const baseConfig = {
   standardHeaders: 'draft-7',
   legacyHeaders: false,
 };
 
-// Global: red de seguridad para todo /api/* — 500 req por IP cada 15 min
+/**
+ * Identifica al usuario para el cupo del rate limit.
+ *
+ * Por que existe: en un evento TODO el staff sale por el mismo WiFi del
+ * lugar, asi que con la clave por IP compartian un unico cupo. Solo el
+ * tablero de Control en vivo ya consumia ~600 pedidos cada 15 minutos
+ * (refresca cada 3s con 2 llamadas), por encima del limite de 500 — y al
+ * agotarse, el servidor empezaba a rechazar TODO lo que viniera de esa IP,
+ * incluidos los escaneos de los porteros en plena entrada de gente.
+ *
+ * Va como middleware ANTES del limiter para verificar el token una sola vez.
+ * La firma se valida de verdad: si aceptaramos un token sin verificar,
+ * cualquiera podria inventar ids y fabricarse cupos nuevos a voluntad.
+ */
+const identifyForRateLimit = (req, res, next) => {
+  const header = req.headers['authorization'];
+  const token = header && header.split(' ')[1];
+  if (token && process.env.JWT_SECRET) {
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      if (decoded?.id) req.rateLimitUserId = String(decoded.id);
+    } catch { /* token invalido o vencido: queda con el cupo de su IP */ }
+  }
+  next();
+};
+
+// Clave del cupo: el usuario logueado si lo identificamos, sino su IP.
+const claveUsuarioOIp = (req) =>
+  req.rateLimitUserId ? `u:${req.rateLimitUserId}` : `ip:${ipKeyGenerator(req.ip)}`;
+
+// Global: red de seguridad para todo /api/*.
+// Al usuario identificado le damos margen (un tablero abierto toda la noche
+// hace muchos pedidos chicos y legitimos); al trafico anonimo lo dejamos mas
+// corto, que es donde vive el abuso.
 const globalLimiter = rateLimit({
   ...baseConfig,
   windowMs: 15 * 60 * 1000,
-  max: 500,
+  max: (req) => (req.rateLimitUserId ? 3000 : 500),
+  keyGenerator: claveUsuarioOIp,
   message: { error: 'Demasiadas solicitudes, esperá unos minutos' },
 });
 
@@ -68,11 +103,19 @@ const publicTicketsInfoLimiter = rateLimit({
   message: { error: 'Demasiadas consultas, esperá un momento' },
 });
 
-// Public scan: 60/min por IP. Un portero escanea rapido pero un bot mucho mas.
+// Public scan: 120/min POR LINK DE PORTERO, no por IP.
+//
+// Con la clave por IP, los 4 o 5 porteros de la puerta —todos en el WiFi del
+// lugar, todos con la misma IP publica— compartian un unico cupo de 60/min.
+// En la entrada fuerte se lo comian entre ellos y el escaneo empezaba a
+// fallar justo en el peor momento. Cada link tiene su propio cupo ahora, y un
+// link es un uuid: el que no lo tiene no llega a este endpoint igual.
 const publicScanLimiter = rateLimit({
   ...baseConfig,
   windowMs: 60 * 1000,
-  max: 60,
+  max: 120,
+  keyGenerator: (req) =>
+    req.params?.token ? `scan:${req.params.token}` : `ip:${ipKeyGenerator(req.ip)}`,
   message: { error: 'Demasiados escaneos' },
 });
 
@@ -93,6 +136,7 @@ const resetPasswordLimiter = rateLimit({
 });
 
 module.exports = {
+  identifyForRateLimit,
   globalLimiter,
   loginLimiter,
   magicLimiter,

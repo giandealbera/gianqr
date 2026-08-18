@@ -4,7 +4,7 @@ const cors    = require('cors');
 const helmet  = require('helmet');
 const compression = require('compression');
 const { initDb } = require('./src/config/database');
-const { globalLimiter } = require('./src/middleware/rateLimiters');
+const { globalLimiter, identifyForRateLimit } = require('./src/middleware/rateLimiters');
 
 const app = express();
 
@@ -49,7 +49,11 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Rate limit global como red de seguridad — los limiters por-endpoint son mas
 // estrictos para login/public.
-app.use('/api', globalLimiter);
+// identifyForRateLimit va PRIMERO: resuelve de quien es el pedido para que
+// cada usuario tenga su propio cupo. Sin eso, todo el staff de un evento
+// (misma IP del WiFi del lugar) compartia uno solo y el tablero abierto
+// dejaba sin escanear a los porteros.
+app.use('/api', identifyForRateLimit, globalLimiter);
 
 app.use('/api/auth',            require('./src/routes/auth'));
 app.use('/api/users',           require('./src/routes/users'));
