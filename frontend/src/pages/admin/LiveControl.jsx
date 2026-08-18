@@ -3,9 +3,16 @@ import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import { useConfirm } from '../../context/ConfirmContext';
 import { Icon } from '../../components/Icon';
+import { porcentaje, anchoBarra } from '../../lib/percent';
 import toast from 'react-hot-toast';
 
 const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n || 0);
+// Version sin centavos para los numeros grandes del tablero: "$ 1.850.000"
+// en vez de "$ 1.850.000,00". Los centavos no aportan nada mirando el aforo
+// y son 3 caracteres que hacian desbordar la tarjeta en el celular.
+const fmtCorto = (n) => new Intl.NumberFormat('es-AR', {
+  style: 'currency', currency: 'ARS', maximumFractionDigits: 0,
+}).format(n || 0);
 const REFRESH_MS = 3000;
 
 const LiveControl = () => {
@@ -126,7 +133,7 @@ const LiveControl = () => {
   const ingresaron = totals.total_usados || 0;
   const pagados    = totals.total_pagados || 0;
   const totalEntradas = ingresaron + pagados; // todos los validos
-  const pct = totalEntradas > 0 ? Math.round((ingresaron / totalEntradas) * 100) : 0;
+  const pct = porcentaje(ingresaron, totalEntradas);
 
   const selectedEv = events.find(e => e.id === eventSel);
 
@@ -181,27 +188,34 @@ const LiveControl = () => {
             ) : (
               <>
                 {/* Counters grandes */}
+                {/* min-w-0 en cada tarjeta: sin eso las columnas de la grilla
+                    toman el ancho del contenido y un numero largo empuja la
+                    tarjeta fuera de la pantalla en vez de achicarse.
+                    Los tamaños arrancan chicos y crecen con la pantalla. */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                  <div className="card text-center py-6">
-                    <p className="text-5xl font-black text-emerald-400">{ingresaron}</p>
+                  <div className="card text-center py-6 min-w-0">
+                    <p className="text-4xl sm:text-5xl font-black text-emerald-400 tabular-nums leading-none">{ingresaron}</p>
                     <p className="text-[10px] uppercase tracking-wider mt-2" style={{ color: '#6B7280' }}>
                       Ingresaron
                     </p>
                   </div>
-                  <div className="card text-center py-6">
-                    <p className="text-5xl font-black" style={{ color: '#C9974D' }}>{pagados}</p>
+                  <div className="card text-center py-6 min-w-0">
+                    <p className="text-4xl sm:text-5xl font-black tabular-nums leading-none" style={{ color: '#C9974D' }}>{pagados}</p>
                     <p className="text-[10px] uppercase tracking-wider mt-2" style={{ color: '#6B7280' }}>
                       Pendientes ingreso
                     </p>
                   </div>
-                  <div className="card text-center py-6">
-                    <p className="text-5xl font-black">{totalEntradas}</p>
+                  <div className="card text-center py-6 min-w-0">
+                    <p className="text-4xl sm:text-5xl font-black tabular-nums leading-none">{totalEntradas}</p>
                     <p className="text-[10px] uppercase tracking-wider mt-2" style={{ color: '#6B7280' }}>
                       Total vendido
                     </p>
                   </div>
-                  <div className="card text-center py-6">
-                    <p className="text-3xl md:text-4xl font-black">{fmt(totals.total_recaudado)}</p>
+                  <div className="card text-center py-6 min-w-0">
+                    <p className="text-xl sm:text-2xl md:text-3xl font-black tabular-nums leading-none break-words"
+                       title={fmt(totals.total_recaudado)}>
+                      {fmtCorto(totals.total_recaudado)}
+                    </p>
                     <p className="text-[10px] uppercase tracking-wider mt-2" style={{ color: '#6B7280' }}>
                       Recaudado
                     </p>
@@ -219,7 +233,7 @@ const LiveControl = () => {
                   <div className="h-3 rounded-full overflow-hidden" style={{ background: '#1E2530' }}>
                     <div
                       className="h-full rounded-full transition-all duration-500"
-                      style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #34D399, #10B981)' }}
+                      style={{ width: anchoBarra(pct), background: 'linear-gradient(90deg, #34D399, #10B981)' }}
                     />
                   </div>
                   <p className="text-xs mt-2" style={{ color: '#6B7280' }}>
@@ -274,7 +288,7 @@ const LiveControl = () => {
                       {stats.by_type.map((tt, i) => {
                         const cap = tt.total_quota || 0;
                         const sold = tt.sold_count || 0;
-                        const ttPct = cap > 0 ? Math.round((sold / cap) * 100) : 0;
+                        const ttPct = porcentaje(sold, cap);
                         return (
                           <div key={i}>
                             <div className="flex justify-between items-baseline text-sm">
@@ -283,8 +297,8 @@ const LiveControl = () => {
                                 {sold} / {cap} ({ttPct}%)
                               </span>
                             </div>
-                            <div className="h-1.5 rounded-full mt-1" style={{ background: '#1E2530' }}>
-                              <div className="h-full rounded-full" style={{ width: `${ttPct}%`, background: '#C9974D' }} />
+                            <div className="h-1.5 rounded-full mt-1 overflow-hidden" style={{ background: '#1E2530' }}>
+                              <div className="h-full rounded-full" style={{ width: anchoBarra(ttPct), background: '#C9974D' }} />
                             </div>
                           </div>
                         );

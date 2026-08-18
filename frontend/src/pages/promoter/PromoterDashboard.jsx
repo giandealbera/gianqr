@@ -122,7 +122,7 @@ const PromoterDashboard = () => {
                     <p className="text-[10px] text-slate-400 uppercase tracking-wider mt-1">Entradas de mi zona</p>
                   </div>
                   <div className="card text-center py-4 border-emerald-800/40">
-                    <p className="text-3xl font-black text-emerald-400">{fmt(data.summary.mi_comision_jefe)}</p>
+                    <p className="stat-num font-black text-emerald-400">{fmt(data.summary.mi_comision_jefe)}</p>
                     <p className="text-[10px] text-slate-400 uppercase tracking-wider mt-1">Mi ganancia por la zona</p>
                   </div>
                 </div>
@@ -273,15 +273,15 @@ const PromoterDashboard = () => {
                 <p className="text-[10px] text-slate-400 uppercase tracking-wider mt-1">Vendidas</p>
               </div>
               <div className="card text-center py-4">
-                <p className="text-3xl font-black text-slate-200">{fmt(data.summary?.total_recaudado)}</p>
+                <p className="stat-num font-black text-slate-200">{fmt(data.summary?.total_recaudado)}</p>
                 <p className="text-[10px] text-slate-400 uppercase tracking-wider mt-1">Recaudado</p>
               </div>
               <div className="card text-center py-4 border-emerald-800/40">
-                <p className="text-3xl font-black text-emerald-400">{fmt(data.summary?.mi_comision)}</p>
+                <p className="stat-num font-black text-emerald-400">{fmt(data.summary?.mi_comision)}</p>
                 <p className="text-[10px] text-slate-400 uppercase tracking-wider mt-1">Mi Ganancia</p>
               </div>
               <div className="card text-center py-4 border-red-900/40">
-                <p className="text-3xl font-black text-red-400">{fmt(data.summary?.debo_enviar)}</p>
+                <p className="stat-num font-black text-red-400">{fmt(data.summary?.debo_enviar)}</p>
                 <p className="text-[10px] text-slate-400 uppercase tracking-wider mt-1">A rendir</p>
               </div>
             </div>

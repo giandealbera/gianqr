@@ -6,6 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useConfirm } from '../../context/ConfirmContext';
 import useBodyScrollLock from '../../hooks/useBodyScrollLock';
 import { setActiveEvent } from '../../lib/activeEvent';
+import { porcentaje, anchoBarra } from '../../lib/percent';
 import toast from 'react-hot-toast';
 
 const SvgIcon = ({ path, size = 'w-5 h-5' }) => (
@@ -87,10 +88,15 @@ const EventDashboard = () => {
 
   const today     = new Date().toISOString().split('T')[0];
   const isActive  = event.is_active && event.date >= today;
-  const totalSold = stats?.totals?.total_pagados || event.tickets_sold || 0;
   const totalUsed = stats?.totals?.total_usados  || 0;
+  // total_pagados cuenta SOLO las que todavia no se escanearon: al escanear,
+  // la entrada pasa de 'pagado' a 'usado' y sale de ese conteo. Usarlo como
+  // denominador daba porcentajes disparatados (con 9 de 10 escaneadas:
+  // 9/1 = 900%, y la barra se salia de la pantalla). El total de entradas
+  // validas es escaneadas + sin escanear, igual que hace LiveControl.
+  const totalSold = (totalUsed + (stats?.totals?.total_pagados || 0)) || event.tickets_sold || 0;
   const totalPend = stats?.totals?.total_pendientes || 0;
-  const checkinPct = totalSold > 0 ? Math.round((totalUsed / totalSold) * 100) : 0;
+  const checkinPct = porcentaje(totalUsed, totalSold);
   const salesStopped = !!event.sales_stopped_at;
   const canManageSales = ['admin','owner'].includes(user?.role);
   // Jefes y vendedores NO ven stats agregadas del evento (cuanta gente
@@ -266,11 +272,11 @@ const EventDashboard = () => {
                   {checkinPct}%
                 </span>
               </div>
-              <div className="w-full rounded-full h-2" style={{ background: '#1E2530' }}>
+              <div className="w-full rounded-full h-2 overflow-hidden" style={{ background: '#1E2530' }}>
                 <div
                   className="h-2 rounded-full transition-all duration-700"
                   style={{
-                    width: `${Math.max(checkinPct, 1)}%`,
+                    width: anchoBarra(checkinPct, 1),
                     background: checkinPct >= 80
                       ? 'linear-gradient(90deg, #059669, #34D399)'
                       : checkinPct >= 40
@@ -293,7 +299,7 @@ const EventDashboard = () => {
                 <h3 className="text-sm font-semibold text-gray-200 mb-4">Tipos de entrada</h3>
                 <div className="space-y-4">
                   {stats.by_type.map((tt, i) => {
-                    const pct = tt.total_quota > 0 ? Math.round((tt.sold_count / tt.total_quota) * 100) : 0;
+                    const pct = porcentaje(tt.sold_count, tt.total_quota);
                     const barColor = pct >= 90 ? '#EF4444' : pct >= 50 ? '#FBBF24' : '#C9974D';
                     return (
                       <div key={i}>
@@ -304,10 +310,10 @@ const EventDashboard = () => {
                             <span className="font-semibold" style={{ color: barColor }}>{pct}%</span>
                           </div>
                         </div>
-                        <div className="w-full rounded-full h-1.5" style={{ background: '#1E2530' }}>
+                        <div className="w-full rounded-full h-1.5 overflow-hidden" style={{ background: '#1E2530' }}>
                           <div
                             className="h-1.5 rounded-full transition-all duration-500"
-                            style={{ width: `${Math.max(pct, 1)}%`, background: barColor }}
+                            style={{ width: anchoBarra(pct, 1), background: barColor }}
                           />
                         </div>
                         <p className="text-[10px] text-gray-600 mt-1">{tt.disponibles} disponibles</p>

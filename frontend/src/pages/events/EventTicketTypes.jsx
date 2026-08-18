@@ -5,6 +5,7 @@ import Layout from '../../components/Layout';
 import useBodyScrollLock from '../../hooks/useBodyScrollLock';
 import { Icon } from '../../components/Icon';
 import { share } from '../../lib/share';
+import { porcentaje, anchoBarra } from '../../lib/percent';
 import toast from 'react-hot-toast';
 
 const emptyForm = { name: '', price: '', total_quota: '' };
@@ -303,7 +304,7 @@ const EventTicketTypes = () => {
               <button onClick={openNew} className="btn-primary mt-4">Crear tanda</button>
             </div>
           ) : types.map(tt => {
-            const pct = tt.total_quota > 0 ? Math.round((tt.sold_count / tt.total_quota) * 100) : 0;
+            const pct = porcentaje(tt.sold_count, tt.total_quota);
             return (
               <div key={tt.id} className={`card transition-opacity ${!tt.is_active ? 'opacity-50' : ''}`}>
                 <div className="flex items-start justify-between gap-3">
@@ -318,10 +319,10 @@ const EventTicketTypes = () => {
                     <p className="text-xs text-gray-400 mt-1">
                       {tt.sold_count} vendidas de {tt.total_quota} — {tt.available} disponibles
                     </p>
-                    <div className="w-full bg-gray-800 rounded-full h-1.5 mt-2">
+                    <div className="w-full bg-gray-800 rounded-full h-1.5 mt-2 overflow-hidden">
                       <div
                         className={`h-1.5 rounded-full transition-all ${pct >= 90 ? 'bg-red-500' : pct >= 50 ? 'bg-yellow-500' : 'bg-brand'}`}
-                        style={{ width: `${pct}%` }}
+                        style={{ width: anchoBarra(pct) }}
                       />
                     </div>
                   </div>

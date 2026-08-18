@@ -55,15 +55,15 @@ const PromoterSales = () => {
             <p className="text-[10px] text-gray-400 uppercase tracking-wider mt-1">Vendidas por Públicas</p>
           </div>
           <div className="card text-center py-4">
-            <p className="text-3xl font-black text-white">{fmt(totalRecaudado)}</p>
+            <p className="stat-num font-black text-white">{fmt(totalRecaudado)}</p>
             <p className="text-[10px] text-gray-400 uppercase tracking-wider mt-1">Total Generado</p>
           </div>
           <div className="card text-center py-4 border-red-500/30 bg-red-900/10">
-            <p className="text-3xl font-black text-red-400">{fmt(totalComisiones)}</p>
+            <p className="stat-num font-black text-red-400">{fmt(totalComisiones)}</p>
             <p className="text-[10px] text-gray-400 uppercase tracking-wider mt-1">Total Comisiones (Públicas + Jefes)</p>
           </div>
           <div className="card text-center py-4 border-green-500/30 bg-green-900/10">
-            <p className="text-3xl font-black text-green-400">{fmt(totalAEnviar)}</p>
+            <p className="stat-num font-black text-green-400">{fmt(totalAEnviar)}</p>
             <p className="text-[10px] text-gray-400 uppercase tracking-wider mt-1">Neto para la org.</p>
           </div>
         </div>

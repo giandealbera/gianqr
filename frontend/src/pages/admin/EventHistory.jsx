@@ -107,15 +107,15 @@ const EventHistory = () => {
               </div>
               <div className="card">
                 <p className="text-sm text-gray-400">Recaudado total</p>
-                <p className="text-2xl font-bold text-green-400 mt-1">{fmt(totals.recaudado_total)}</p>
+                <p className="stat-num-sm font-bold text-green-400 mt-1">{fmt(totals.recaudado_total)}</p>
               </div>
               <div className="card">
                 <p className="text-sm text-gray-400">Ya rindieron</p>
-                <p className="text-2xl font-bold text-emerald-400 mt-1">{fmt(totals.ya_rindio)}</p>
+                <p className="stat-num-sm font-bold text-emerald-400 mt-1">{fmt(totals.ya_rindio)}</p>
               </div>
               <div className="card">
                 <p className="text-sm text-gray-400">Pendiente de rendir</p>
-                <p className={`text-2xl font-bold mt-1 ${totals.pendiente_rendicion > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                <p className={`stat-num-sm font-bold mt-1 ${totals.pendiente_rendicion > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
                   {fmt(totals.pendiente_rendicion)}
                 </p>
               </div>

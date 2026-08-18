@@ -4,6 +4,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { downloadTicketsPdf } from '../../utils/downloadTicketsPdf';
 import LocalidadInput from '../../components/LocalidadInput';
 import useWakeLock from '../../hooks/useWakeLock';
+import { porcentaje, anchoBarra } from '../../lib/percent';
 import { BACKEND_URL as BACKEND } from '../../api/config';
 
 const emptyForm = () => ({
@@ -302,9 +303,9 @@ const PublicBuy = () => {
                 {createdAll.length} / {presetQty} generadas
               </p>
             </div>
-            <div className="h-1.5 rounded-full" style={{ background: '#1E2530' }}>
+            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#1E2530' }}>
               <div className="h-full rounded-full transition-all duration-500"
-                   style={{ width: `${(createdAll.length / presetQty) * 100}%`, background: '#C9974D' }} />
+                   style={{ width: anchoBarra(porcentaje(createdAll.length, presetQty)), background: '#C9974D' }} />
             </div>
           </div>
         )}

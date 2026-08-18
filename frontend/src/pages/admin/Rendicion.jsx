@@ -200,11 +200,11 @@ const Rendicion = () => {
                 <p className="text-[10px] uppercase tracking-wider mt-1" style={{ color: '#6B7280' }}>Vendidas</p>
               </div>
               <div className="card text-center py-4">
-                <p className="text-2xl font-black">{fmt(detail.totals.total_recaudado)}</p>
+                <p className="stat-num-sm font-black">{fmt(detail.totals.total_recaudado)}</p>
                 <p className="text-[10px] uppercase tracking-wider mt-1" style={{ color: '#6B7280' }}>Recaudado</p>
               </div>
               <div className="card text-center py-4" style={{ borderColor: 'rgba(52,211,153,0.3)' }}>
-                <p className="text-2xl font-black text-emerald-400">{fmt(detail.totals.ya_rindio)}</p>
+                <p className="stat-num-sm font-black text-emerald-400">{fmt(detail.totals.ya_rindio)}</p>
                 <p className="text-[10px] uppercase tracking-wider mt-1" style={{ color: '#6B7280' }}>Ya rindió</p>
               </div>
               <div className="card text-center py-4" style={{ borderColor: 'rgba(239,68,68,0.3)' }}>

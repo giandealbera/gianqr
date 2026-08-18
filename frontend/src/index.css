@@ -124,6 +124,29 @@
     border: 1px solid #2B312E;
     border-radius: 0.5rem;
     padding: 1.25rem;
+    /* Una tarjeta nunca debe empujar su columna fuera de la pantalla. Sin
+       esto, en una grilla las pistas toman el ancho del CONTENIDO y un
+       importe largo desborda el celular en vez de achicarse. */
+    min-width: 0;
+  }
+
+  /* Numero grande de tarjeta de estadistica (importes, contadores).
+     El tamaño se adapta al ancho disponible: en un celular angosto se achica
+     en lugar de desbordar. Antes eran tamaños fijos (text-3xl) y un importe
+     como "$ 1.850.000,00" se salia de la tarjeta.
+     tabular-nums alinea los digitos; anywhere es la ultima red: si aun asi no
+     entra, corta el numero en dos lineas en vez de irse de pantalla. */
+  .stat-num {
+    font-size: clamp(1.15rem, 5.5vw, 1.875rem);
+    line-height: 1.05;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+  .stat-num-sm {
+    font-size: clamp(1rem, 4.5vw, 1.5rem);
+    line-height: 1.05;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
   }
 
   .badge-pagado    { background-color: #1C2920; color: #78B884; font-size: 0.75rem; padding: 0.125rem 0.5rem; border-radius: 0.25rem; font-weight: 500; border: 1px solid #2A4232; }

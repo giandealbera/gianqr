@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
+import { porcentaje, anchoBarra } from '../../lib/percent';
 
 const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n || 0);
 const METHOD_LABEL = { efectivo: 'Efectivo', transferencia: 'Transferencia' };
@@ -88,7 +89,7 @@ const EventStats = () => {
             <p className="text-[10px] text-gray-400 uppercase tracking-wider mt-1">Entradas vendidas</p>
           </div>
           <div className="card text-center py-4">
-            <p className="text-3xl font-black text-green-400">{fmt(totalRevenue)}</p>
+            <p className="stat-num font-black text-green-400">{fmt(totalRevenue)}</p>
             <p className="text-[10px] text-gray-400 uppercase tracking-wider mt-1">Recaudado</p>
           </div>
           <div className="card text-center py-4">
@@ -127,7 +128,7 @@ const EventStats = () => {
             <h3 className="font-semibold text-sm mb-4">Por tipo de entrada</h3>
             <div className="space-y-4">
               {stats.by_type.map((tt, i) => {
-                const pct = tt.total_quota > 0 ? Math.round((tt.sold_count / tt.total_quota) * 100) : 0;
+                const pct = porcentaje(tt.sold_count, tt.total_quota);
                 return (
                   <div key={i}>
                     <div className="flex justify-between items-center mb-1">
@@ -137,10 +138,10 @@ const EventStats = () => {
                       </div>
                       <span className="text-xs text-gray-400">{tt.sold_count}/{tt.total_quota} ({pct}%)</span>
                     </div>
-                    <div className="w-full bg-gray-800 rounded-full h-2.5">
+                    <div className="w-full bg-gray-800 rounded-full h-2.5 overflow-hidden">
                       <div
                         className={`h-2.5 rounded-full transition-all duration-500 ${pct >= 90 ? 'bg-red-500' : pct >= 50 ? 'bg-yellow-500' : 'bg-brand'}`}
-                        style={{ width: `${Math.max(pct, 2)}%` }}
+                        style={{ width: anchoBarra(pct, 2) }}
                       />
                     </div>
                     <p className="text-xs text-gray-500 mt-1">Recaudado: {fmt(tt.recaudado)} · Disponibles: {tt.disponibles}</p>
@@ -199,7 +200,7 @@ const EventStats = () => {
                       <div key={b.rango} className="flex items-center gap-3 text-xs">
                         <span className="w-12 text-gray-400">{b.rango}</span>
                         <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: '#161B24' }}>
-                          <div className="h-full transition-all" style={{ width: `${b.pct}%`, background: '#C9974D' }} />
+                          <div className="h-full transition-all" style={{ width: anchoBarra(b.pct), background: '#C9974D' }} />
                         </div>
                         <span className="w-16 text-right text-gray-300 tabular-nums">{b.count} ({b.pct}%)</span>
                       </div>

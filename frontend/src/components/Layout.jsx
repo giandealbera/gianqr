@@ -16,8 +16,14 @@ const Layout = ({ children }) => {
         <Sidebar />
       </div>
 
-      {/* Main content. pb-24 deja espacio para el BottomNav fijo + safe-area */}
-      <main className="flex-1 pb-24 lg:pb-0">
+      {/* Main content. pb-24 deja espacio para el BottomNav fijo + safe-area.
+          min-w-0 es imprescindible: `main` es un item flex y por defecto no
+          puede achicarse por debajo de su contenido (min-width:auto). Sin eso
+          una tabla ancha estiraba `main` a 865px en una pantalla de 375 y
+          arrastraba TODA la pagina a scrollear de costado; ademas los
+          contenedores con overflow-x-auto nunca llegaban a scrollear por
+          dentro, porque crecian junto con el padre en vez de recortar. */}
+      <main className="flex-1 min-w-0 pb-24 lg:pb-0">
         {/* Header mobile sticky */}
         <header className="lg:hidden sticky top-0 z-30 backdrop-blur-lg pt-safe" style={{ background: 'rgba(23,26,25,0.98)', borderBottom: '1px solid #2B312E' }}>
           <div className="px-4 py-3 flex items-center justify-between safe-area-x">
