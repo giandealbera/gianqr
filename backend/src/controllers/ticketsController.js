@@ -330,6 +330,18 @@ const scan = async (req, res) => {
     const ticket = result.rows[0];
     if (!ticket) return res.status(404).json({ error: 'QR no válido', valid: false });
 
+    // Scope por rol: el owner solo puede escanear entradas de SUS eventos.
+    // Sin esto, habilitar owner en la ruta le habria dado el poder de marcar
+    // como usada cualquier entrada del sistema, de cualquier tenant.
+    if (req.user?.role === 'owner') {
+      const own = await db.query(
+        'SELECT 1 FROM event_owners WHERE event_id = ? AND user_id = ?',
+        [ticket.event_id, req.user.id]
+      );
+      if (!own.rows[0])
+        return res.status(403).json({ valid: false, error: 'Esta entrada es de un evento que no es tuyo' });
+    }
+
     // Filtro por tipo de entrada si se especificó
     if (ticket_type_id && ticket.ticket_type_id !== ticket_type_id) {
       return res.status(403).json({
