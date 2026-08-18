@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Html5Qrcode } from 'html5-qrcode';
+import { startQrCamera } from '../../lib/qrCamera';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import { useConfirm } from '../../context/ConfirmContext';
@@ -113,37 +114,11 @@ const Scanner = () => {
     const html5 = scannerRef.current;
     if (!html5) return;
     setCamError(null);
-    const config = {
-      fps: 30,
-      qrbox: (viewWidth, viewHeight) => {
-        const minEdge = Math.min(viewWidth, viewHeight);
-        const size = Math.floor(minEdge * 0.85);
-        return { width: Math.max(size, 240), height: Math.max(size, 240) };
-      },
-      aspectRatio: 1.0,
-      disableFlip: false,
-    };
-    const cameraConstraints = {
-      facingMode: 'environment',
-      width: { ideal: 1280 },
-      height: { ideal: 720 },
-      focusMode: 'continuous',
-    };
-    try {
-      await html5.start(cameraConstraints, config, handleDecoded, () => {});
-      setNeedsTap(false);
-    } catch(err) {
-      if (/already running/i.test(String(err))) { setNeedsTap(false); return; }
-      try {
-        const cams = await Html5Qrcode.getCameras();
-        if (!cams?.length) { setCamError('No se detectó ninguna cámara.'); setNeedsTap(true); return; }
-        const back = cams.find(c => /back|rear|tras|environment/i.test(c.label || '')) || cams[cams.length - 1];
-        await html5.start(back.id, config, handleDecoded, () => {});
-        setNeedsTap(false);
-      } catch {
-        setNeedsTap(true);
-      }
-    }
+    // Toda la logica de arranque (HD -> plana -> enumerar camaras -> config
+    // minima) vive en lib/qrCamera para no duplicarla con PublicScanner.jsx.
+    const { ok, error } = await startQrCamera(html5, handleDecoded);
+    setNeedsTap(!ok);
+    setCamError(ok ? null : error);
   }, [handleDecoded]);
 
   // Montar el escáner UNA vez por vida del componente.

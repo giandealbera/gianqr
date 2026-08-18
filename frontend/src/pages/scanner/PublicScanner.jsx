@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { Html5Qrcode } from 'html5-qrcode';
+import { startQrCamera } from '../../lib/qrCamera';
 import useWakeLock from '../../hooks/useWakeLock';
 import { BACKEND_URL as BACKEND } from '../../api/config';
 
@@ -91,43 +92,11 @@ const PublicScanner = () => {
     const html5 = scannerRef.current;
     if (!html5) return;
     setCamError(null);
-    const config = {
-      fps: 30,
-      qrbox: (viewWidth, viewHeight) => {
-        const minEdge = Math.min(viewWidth, viewHeight);
-        const size = Math.floor(minEdge * 0.85);
-        return { width: Math.max(size, 240), height: Math.max(size, 240) };
-      },
-      aspectRatio: 1.0,
-      disableFlip: false,
-    };
-    const cameraConstraints = {
-      facingMode: 'environment',
-      width: { ideal: 1280 },
-      height: { ideal: 720 },
-      focusMode: 'continuous',
-    };
-    try {
-      // 1) Intento directo con la cámara trasera (environment) a alta velocidad.
-      await html5.start(cameraConstraints, config, handleDecoded, () => {});
-      setNeedsTap(false);
-    } catch(err) {
-      // Si ya estaba corriendo (eg: toque extra del usuario), la cámara
-      // funciona — solo ocultamos el botón sin reiniciar nada.
-      if (/already running/i.test(String(err))) { setNeedsTap(false); return; }
-      // 2) Fallback: algún device rechaza el constraint. Listamos cámaras y
-      //    elegimos la que parezca trasera (o la última, que suele serlo).
-      try {
-        const cams = await Html5Qrcode.getCameras();
-        if (!cams?.length) { setCamError('No se detectó ninguna cámara.'); setNeedsTap(true); return; }
-        const back = cams.find(c => /back|rear|tras|environment/i.test(c.label || '')) || cams[cams.length - 1];
-        await html5.start(back.id, config, handleDecoded, () => {});
-        setNeedsTap(false);
-      } catch {
-        // El navegador suele exigir un toque del usuario, o se denegó el permiso.
-        setNeedsTap(true);
-      }
-    }
+    // Toda la logica de arranque (HD -> plana -> enumerar camaras -> config
+    // minima) vive en lib/qrCamera para no duplicarla con Scanner.jsx.
+    const { ok, error } = await startQrCamera(html5, handleDecoded);
+    setNeedsTap(!ok);
+    setCamError(ok ? null : error);
   }, [handleDecoded]);
 
   // Montar/desmontar el escáner cuando ya tenemos la info del evento.
