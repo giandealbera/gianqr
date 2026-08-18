@@ -7,24 +7,23 @@ const listPublicas = async (req, res) => {
   const { search, event_id } = req.query;
   try {
     const params = [];
-    let searchClause = '';
-    if (search) {
-      // LOWER en ambos lados → case-insensitive en PG y SQLite.
-      searchClause = `AND (LOWER(u.name) LIKE LOWER(?) OR LOWER(u.apellido) LIKE LOWER(?) OR LOWER(p.promo_code) LIKE LOWER(?))`;
-      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
-    }
-
-    // Si filtran por evento: tickets se cuentan sólo de ese evento y `ya_rindio` también
     let ticketJoinClause = 'LEFT JOIN tickets t ON t.promotor_id = p.id';
     let yaRindioClause   = '(SELECT COALESCE(SUM(amount),0) FROM rendiciones WHERE promotor_id = p.id)';
     if (event_id) {
       ticketJoinClause = 'LEFT JOIN tickets t ON t.promotor_id = p.id AND t.event_id = ?';
       yaRindioClause   = '(SELECT COALESCE(SUM(amount),0) FROM rendiciones WHERE promotor_id = p.id AND event_id = ?)';
-      params.unshift(event_id);  // primer ? del query
-      params.push(event_id);     // ? del subselect
+      params.push(event_id); // ? #1 en ticketJoinClause
+      params.push(event_id); // ? #2 en yaRindioClause (SELECT list)
     }
 
-    // Scope multi-tenant para owner: solo ve staff que el (o su jefe) creo.
+    let searchClause = '';
+    if (search) {
+      searchClause = `AND (LOWER(u.name) LIKE LOWER(?) OR LOWER(u.apellido) LIKE LOWER(?) OR LOWER(p.promo_code) LIKE LOWER(?))`;
+      const q = `%${search}%`;
+      params.push(q, q, q); // ? #3, #4, #5 en WHERE clause
+    }
+
+    // Scope multi-tenant para owner: solo ve staff que él (o su jefe) creó.
     let ownerScopeClause = '';
     if (req.user.role === 'owner') {
       ownerScopeClause = 'AND (u.created_by = ? OR u.created_by IN (SELECT id FROM users WHERE created_by = ?))';
