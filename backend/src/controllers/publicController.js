@@ -431,7 +431,17 @@ const recoverTickets = async (req, res) => {
        WHERE ${promotorWhere}
          AND LOWER(TRIM(t.buyer_name))     = LOWER(TRIM(?))
          AND LOWER(TRIM(t.buyer_apellido)) = LOWER(TRIM(?))
-         AND (REPLACE(REPLACE(COALESCE(t.buyer_dni, ''), '.', ''), ' ', '') = ? OR COALESCE(t.buyer_dni, '') = '')
+         AND (
+              REPLACE(REPLACE(COALESCE(t.buyer_dni, ''), '.', ''), ' ', '') = ?
+              -- Entradas sin DNI (las emitidas antes de que fuera obligatorio):
+              -- se siguen pudiendo recuperar con nombre + apellido para no
+              -- dejar afuera a quien ya habia comprado. Las CORTESIAS quedan
+              -- excluidas de esa excepcion a proposito: se emiten sin DNI y el
+              -- organizador manda el QR directo, asi que con la excepcion
+              -- puesta bastaba con saber el nombre del invitado para bajarse
+              -- su QR. Si una cortesia tiene DNI cargado, se recupera con el.
+              OR (COALESCE(t.buyer_dni, '') = '' AND COALESCE(t.payment_method, '') != 'cortesia')
+             )
          AND t.status IN ('pagado','usado')
        ORDER BY t.created_at DESC
        LIMIT 20`,

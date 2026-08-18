@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 import { downloadTicketsPdf } from '../../utils/downloadTicketsPdf';
 import { Icon } from '../../components/Icon';
 
-const emptyAttendee = () => ({ buyer_name: '', buyer_apellido: '', buyer_edad: '', buyer_localidad: '', buyer_email: '' });
+const emptyAttendee = () => ({ buyer_name: '', buyer_apellido: '', buyer_dni: '', buyer_edad: '', buyer_localidad: '', buyer_email: '' });
 
 const Cortesias = () => {
   const [events,      setEvents]      = useState([]);
@@ -180,6 +180,13 @@ const Cortesias = () => {
                   <input className="input text-sm" required placeholder="Apellido *"
                     value={a.buyer_apellido}
                     onChange={e => updateAt(i, 'buyer_apellido', e.target.value)} />
+                  {/* El DNI es la clave con la que el invitado puede recuperar
+                      su QR si lo pierde. Sin DNI la cortesia no se puede
+                      recuperar sola: se la tenes que reenviar vos. */}
+                  <input className="input text-sm col-span-2" placeholder="DNI (para que pueda recuperar su QR)"
+                    inputMode="numeric"
+                    value={a.buyer_dni}
+                    onChange={e => updateAt(i, 'buyer_dni', e.target.value)} />
                   <input className="input text-sm" placeholder="Edad" inputMode="numeric" enterKeyHint="done"
                     value={a.buyer_edad}
                     onChange={e => updateAt(i, 'buyer_edad', e.target.value)} />

@@ -1,5 +1,6 @@
 const { v4: uuidv4 } = require('uuid');
 const db = require('../config/database');
+const { normalizeCity } = require('../utils/normalize');
 
 // POST /api/cortesias — admin genera N entradas de cortesia
 // body: { event_id, ticket_type_id, attendees: [{name, apellido, edad?, localidad?, email?}] }
@@ -54,11 +55,12 @@ const createCortesias = async (req, res) => {
         const qrCode   = `GIANQR-${ticketId.substring(0, 8).toUpperCase()}`;
         await conn.execute(
           `INSERT INTO tickets
-             (id, ticket_type_id, event_id, buyer_name, buyer_apellido, buyer_edad, buyer_localidad, buyer_email,
+             (id, ticket_type_id, event_id, buyer_name, buyer_apellido, buyer_dni, buyer_edad, buyer_localidad, buyer_email,
               qr_code, payment_method, payment_ref, amount_paid, status, promotor_id, sold_by)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
           [ticketId, ticket_type_id, event_id, a.buyer_name, a.buyer_apellido,
-           a.buyer_edad || null, a.buyer_localidad || null, a.buyer_email || '',
+           a.buyer_dni || null,
+           a.buyer_edad || null, normalizeCity(a.buyer_localidad) || null, a.buyer_email || '',
            qrCode, 'cortesia', 'CORTESIA', 0, 'pagado', promotorId, req.user.id]
         );
         created.push({
