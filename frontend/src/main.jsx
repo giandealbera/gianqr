@@ -2,11 +2,10 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
-// vite-plugin-pwa registra el service worker. registerType:'autoUpdate' en
-// vite.config hace que al detectar un deploy nuevo lo active en la
-// proxima visita sin pedir reload manual.
-import { registerSW } from 'virtual:pwa-register';
-registerSW({ immediate: true });
+
+// El registro del service worker ahora vive en UpdatePrompt (dentro de App):
+// necesita avisar en pantalla cuando hay una version nueva, y para eso tiene
+// que ser un componente. Registrarlo tambien aca duplicaria el listener.
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

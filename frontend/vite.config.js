@@ -1,15 +1,34 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import { execSync } from 'node:child_process';
+
+// Sello de version. Sirve para saber de una si el celular esta corriendo la
+// version nueva o una cacheada: la app lo muestra en Login y en "Acerca de".
+// En Vercel el repo no siempre esta disponible, pero si la env var del commit.
+const commit = (() => {
+  const deVercel = process.env.VERCEL_GIT_COMMIT_SHA;
+  if (deVercel) return deVercel.slice(0, 7);
+  try { return execSync('git rev-parse --short HEAD').toString().trim(); }
+  catch { return 'dev'; }
+})();
+const fechaBuild = new Date().toISOString().slice(0, 16).replace('T', ' ');
 
 export default defineConfig({
+  define: {
+    __APP_BUILD__: JSON.stringify(`${commit} · ${fechaBuild}`),
+  },
   plugins: [
     react(),
     VitePWA({
-      // registerType: 'autoUpdate' instala el SW automaticamente y al detectar
-      // un deploy nuevo lo activa en la proxima visita (sin que el usuario
-      // tenga que cerrar y abrir el browser).
-      registerType: 'autoUpdate',
+      // 'prompt' en vez de 'autoUpdate': con autoUpdate la actualizacion se
+      // aplicaba sola pero EN SILENCIO, y la pagina abierta seguia corriendo
+      // el codigo viejo hasta que alguien recargara. Resultado: pasabamos
+      // horas persiguiendo bugs ya arreglados porque el celular seguia con
+      // una version cacheada y no habia forma de saberlo.
+      // Ahora el componente UpdatePrompt avisa que hay una version nueva y la
+      // aplica al tocar un boton.
+      registerType: 'prompt',
       // Toma el manifest.json que ya tenemos en /public.
       manifest: false,
       includeAssets: ['favicon.svg', 'manifest.json'],

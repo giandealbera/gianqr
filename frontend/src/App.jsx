@@ -9,6 +9,7 @@ import ScrollManager from './components/ScrollManager';
 import GestureManager from './components/GestureManager';
 import OfflineBanner from './components/OfflineBanner';
 import InstallTip from './components/InstallTip';
+import UpdatePrompt from './components/UpdatePrompt';
 
 // Páginas del flujo de auth — eager (siempre cargan rápido al abrir la app)
 import Login             from './pages/Login';
@@ -170,6 +171,7 @@ const App = () => (
       <GestureManager />
       <OfflineBanner />
       <InstallTip />
+      <UpdatePrompt />
       <ResponsiveToaster />
       <ErrorBoundary>
         <Suspense fallback={<PageLoader />}>
