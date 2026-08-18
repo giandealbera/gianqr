@@ -95,6 +95,13 @@ const MoreMenu = () => {
               <MenuItem iconKey="receipt"   label="Bitácora"              desc="Quién hizo qué cuándo en tu cuenta" onClick={() => navigate('/admin/bitacora')} />
             </>
           )}
+          {(user?.role === 'jefe_publicas' || user?.role === 'vendedor') && (
+            <>
+              <MenuItem iconKey="ticket"    label="Vender entradas"       desc="Generar link de cobro o reserva" onClick={() => navigate('/promotor/vender')} />
+              <MenuItem iconKey="chart"     label="Mi Panel de ventas"    desc="Ver tus ventas acumuladas y comisiones" onClick={() => navigate('/promotor')} />
+              <MenuItem iconKey="ticket"    label="Mis Eventos"           desc="Ver los eventos asignados" onClick={() => navigate('/eventos')} />
+            </>
+          )}
 
           <div className="pt-4 border-t mt-4" style={{ borderColor: '#2B312E' }}>
             <MenuItem iconKey="users" label="Configuración" desc="Cambiar tu contraseña y ver tus datos" onClick={() => navigate('/configuracion')} />

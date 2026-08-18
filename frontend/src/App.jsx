@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { Component, lazy, Suspense, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -72,16 +72,49 @@ const PageLoader = () => (
 // Wrapper que anima la entrada/salida de cada ruta. Slide horizontal corto
 // + fade. El mode="wait" hace que la pantalla saliente termine antes de que
 // arranque la entrante (sino se ven montadas en el mismo instante).
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error('App ErrorBoundary:', error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-dvh flex items-center justify-center px-4 text-center" style={{ background: '#111312' }}>
+          <div className="space-y-4 max-w-sm">
+            <p className="text-3xl font-bold font-heading text-white select-none">Gian<span style={{ color: '#788C79' }}>QR</span></p>
+            <p className="text-sm" style={{ color: '#8C948D' }}>Ocurrió un inconveniente al cargar esta página.</p>
+            <button
+              onClick={() => { this.setState({ hasError: false }); window.location.reload(); }}
+              className="btn-primary px-6 py-2.5 text-sm font-semibold w-full"
+            >
+              🔄 Reintentar
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// Wrapper de rutas optimizado sin bloqueos de AnimatePresence.
 const AnimatedRoutes = ({ children }) => {
   const location = useLocation();
   return (
-    <AnimatePresence mode="wait">
+    <AnimatePresence initial={false}>
       <motion.div
         key={location.pathname}
-        initial={{ opacity: 0, x: 12 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: -8 }}
-        transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.12 }}
       >
         {children}
       </motion.div>
@@ -138,9 +171,10 @@ const App = () => (
       <OfflineBanner />
       <InstallTip />
       <ResponsiveToaster />
-      <Suspense fallback={<PageLoader />}>
-      <AnimatedRoutes>
-      <Routes>
+      <ErrorBoundary>
+        <Suspense fallback={<PageLoader />}>
+        <AnimatedRoutes>
+        <Routes>
         {/* Público */}
         <Route path="/login" element={<Login />} />
         <Route path="/olvide-password" element={<ForgotPassword />} />
@@ -269,6 +303,7 @@ const App = () => (
       </Routes>
       </AnimatedRoutes>
       </Suspense>
+      </ErrorBoundary>
     </BrowserRouter>
     </ConfirmProvider>
   </AuthProvider>
