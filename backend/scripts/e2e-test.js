@@ -863,6 +863,36 @@ const dni = (n) => String(30000000 + n);
     check('regresion: la venta manual guarda el DNI', conDni.data?.buyer_dni === '30999888',
           JSON.stringify(conDni.data?.buyer_dni));
 
+    // --- Un pedido con basura no puede tumbar el servidor ---------------
+    // POST /public/tickets/:code con attendees:[null] tiraba TypeError en la
+    // validacion. Como el handler es async, Express 4 no ve esa promesa
+    // rechazada, Node la reporta como unhandledRejection y MATA el proceso:
+    // un solo pedido publico dejaba a todos sin sistema. Ahora cada handler
+    // va envuelto (utils/asyncRouter) y ademas se valida la forma del dato.
+    {
+      const basura = [
+        ['persona nula',        [null]],
+        ['persona como texto',  ['texto']],
+        ['persona como numero', [123]],
+        ['persona como lista',  [[]]],
+      ];
+      for (const [caso, attendees] of basura) {
+        const r = await req('POST', '/public/tickets/CASA', { body: {
+          event_id: evId, ticket_type_id: ttId, payment_method: 'efectivo', attendees } });
+        check(`regresion: ${caso} devuelve error, no rompe el server`,
+              r.status === 400, `status=${r.status}`);
+      }
+      const cort = await req('POST', '/cortesias', { token: admin, body: {
+        event_id: evId, ticket_type_id: ttId, attendees: [null] } });
+      check('regresion: cortesia con invitado nulo devuelve 400', cort.status === 400,
+            `status=${cort.status}`);
+
+      // Lo decisivo: el servidor tiene que seguir respondiendo.
+      const vivo = await req('GET', '/health');
+      check('regresion: el servidor sigue vivo despues de los pedidos basura',
+            vivo.status === 200, `status=${vivo.status}`);
+    }
+
     // --- Rendiciones: un admin no toca las publicas de otro admin -------
     // ownerCanAccessPromotor devolvia true para todo rol que no fuera owner,
     // asi que un admin podia listar, abrir, registrar y BORRAR pagos de las

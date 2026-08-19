@@ -1,5 +1,6 @@
 const express = require('express');
-const router  = express.Router();
+const { asyncRouter } = require('../utils/asyncRouter');
+const router  = asyncRouter(express.Router());
 const { publicScanLimiter } = require('../middleware/rateLimiters');
 const { getScannerInfo, publicScan } = require('../controllers/scannerTokensController');
 

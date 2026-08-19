@@ -16,10 +16,14 @@ const createCortesias = async (req, res) => {
   if (attendees.length > 50)
     return res.status(400).json({ error: 'Maximo 50 cortesias por vez' });
 
+  // Igual que en el flujo publico: un invitado nulo tiraba TypeError y, por
+  // ser handler async, mataba el proceso en vez de devolver un 400.
   for (const a of attendees) {
+    if (!a || typeof a !== 'object')
+      return res.status(400).json({ error: 'Datos de invitado inválidos' });
     if (!a.buyer_name || !a.buyer_apellido)
       return res.status(400).json({ error: 'Cada cortesia debe tener nombre y apellido' });
-    if (a.buyer_name.length > 50 || a.buyer_apellido.length > 50)
+    if (String(a.buyer_name).length > 50 || String(a.buyer_apellido).length > 50)
       return res.status(400).json({ error: 'El nombre y apellido no deben superar los 50 caracteres' });
   }
 

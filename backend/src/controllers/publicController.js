@@ -105,11 +105,17 @@ const createPublicTicket = async (req, res) => {
   if (attendees.length > 10)
     return res.status(400).json({ error: 'Maximo 10 entradas por link' });
 
-  // Validar nombre + apellido + DNI en cada attendee
+  // Validar nombre + apellido + DNI en cada attendee.
+  // El chequeo de que `a` sea un objeto NO es de adorno: con attendees:[null]
+  // esta linea tiraba TypeError, y como el handler es async la excepcion subia
+  // como unhandledRejection y Node MATABA el proceso. Un solo pedido publico
+  // dejaba sin sistema a todos: porteros sin escanear, compradores sin comprar.
   for (const a of attendees) {
+    if (!a || typeof a !== 'object')
+      return res.status(400).json({ error: 'Datos de persona inválidos' });
     if (!a.buyer_name || !a.buyer_apellido || !a.buyer_dni)
       return res.status(400).json({ error: 'Cada persona debe tener nombre, apellido y DNI' });
-    if (a.buyer_name.length > 50 || a.buyer_apellido.length > 50)
+    if (String(a.buyer_name).length > 50 || String(a.buyer_apellido).length > 50)
       return res.status(400).json({ error: 'El nombre y apellido no deben superar los 50 caracteres' });
   }
 
@@ -325,10 +331,14 @@ const completeReservedTickets = async (req, res) => {
   if (!Array.isArray(attendees) || attendees.length !== ticket_ids.length)
     return res.status(400).json({ error: 'attendees debe coincidir con ticket_ids' });
 
+  // Mismo cuidado que en createPublicTicket: un elemento nulo aca tiraba
+  // TypeError y, por ser handler async, se llevaba puesto el proceso entero.
   for (const a of attendees) {
+    if (!a || typeof a !== 'object')
+      return res.status(400).json({ error: 'Datos de persona inválidos' });
     if (!a.buyer_name || !a.buyer_apellido || !a.buyer_dni)
       return res.status(400).json({ error: 'Cada persona debe tener nombre, apellido y DNI' });
-    if (a.buyer_name.length > 50 || a.buyer_apellido.length > 50)
+    if (String(a.buyer_name).length > 50 || String(a.buyer_apellido).length > 50)
       return res.status(400).json({ error: 'El nombre y apellido no deben superar los 50 caracteres' });
   }
 

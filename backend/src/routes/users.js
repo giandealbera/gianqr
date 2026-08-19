@@ -1,5 +1,6 @@
 const express = require('express');
-const router  = express.Router();
+const { asyncRouter } = require('../utils/asyncRouter');
+const router  = asyncRouter(express.Router());
 const auth    = require('../middleware/auth');
 const roles   = require('../middleware/roles');
 const { getAll, create, update, deactivate, hardDelete, generateMagicLink, getPromoterSales, getMyPromoterSales, createTeamMember, getMyTeam, removeTeamMember, updateCommission } = require('../controllers/usersController');

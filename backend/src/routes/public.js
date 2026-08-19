@@ -1,5 +1,6 @@
 const express = require('express');
-const router  = express.Router();
+const { asyncRouter } = require('../utils/asyncRouter');
+const router  = asyncRouter(express.Router());
 const { publicBuyLimiter, publicRecoverLimiter, publicTicketsInfoLimiter } = require('../middleware/rateLimiters');
 const {
   getPublicEvents, getPromoterInfo, createPublicTicket, recoverTickets,
