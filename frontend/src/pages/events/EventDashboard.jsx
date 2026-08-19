@@ -88,14 +88,19 @@ const EventDashboard = () => {
 
   const today     = new Date().toISOString().split('T')[0];
   const isActive  = event.is_active && event.date >= today;
-  const totalUsed = stats?.totals?.total_usados  || 0;
+  // Number() explicito: Postgres devuelve los COUNT como texto, asi que sumar
+  // dos conteos sin convertir los CONCATENA. Mostraba "16450 vendidas" cuando
+  // eran 164 escaneadas + 50 pendientes = 214. En SQLite vienen como numero,
+  // por eso no se veia en desarrollo.
+  const num = (v) => Number(v) || 0;
+  const totalUsed = num(stats?.totals?.total_usados);
   // total_pagados cuenta SOLO las que todavia no se escanearon: al escanear,
   // la entrada pasa de 'pagado' a 'usado' y sale de ese conteo. Usarlo como
   // denominador daba porcentajes disparatados (con 9 de 10 escaneadas:
   // 9/1 = 900%, y la barra se salia de la pantalla). El total de entradas
   // validas es escaneadas + sin escanear, igual que hace LiveControl.
-  const totalSold = (totalUsed + (stats?.totals?.total_pagados || 0)) || event.tickets_sold || 0;
-  const totalPend = stats?.totals?.total_pendientes || 0;
+  const totalSold = (totalUsed + num(stats?.totals?.total_pagados)) || num(event.tickets_sold);
+  const totalPend = num(stats?.totals?.total_pendientes);
   const checkinPct = porcentaje(totalUsed, totalSold);
   const salesStopped = !!event.sales_stopped_at;
   const canManageSales = ['admin','owner'].includes(user?.role);

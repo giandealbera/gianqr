@@ -140,7 +140,21 @@ let pgPool = null;
 
 async function initPg() {
   if (pgPool) return pgPool;
-  const { Pool } = require('pg');
+  const { Pool, types } = require('pg');
+
+  // COUNT() en Postgres devuelve bigint, y el driver lo entrega como TEXTO
+  // para no perder precision con numeros enormes. En SQLite viene como
+  // numero. Esa diferencia es una trampa: el codigo que suma dos conteos
+  // anda perfecto en desarrollo y en produccion CONCATENA. Paso de verdad:
+  // "164" + "50" mostraba 16450 entradas vendidas en vez de 214.
+  //
+  // Un conteo de entradas jamas se acerca al limite seguro de JS
+  // (9 mil billones), asi que lo parseamos a numero y el problema
+  // desaparece para todas las consultas de una.
+  types.setTypeParser(types.builtins.INT8, (v) => (v === null ? null : parseInt(v, 10)));
+  // NUMERIC tiene el mismo tratamiento y aparece en los SUM de dinero.
+  types.setTypeParser(types.builtins.NUMERIC, (v) => (v === null ? null : parseFloat(v)));
+
   pgPool = new Pool({
     connectionString: process.env.DATABASE_URL,
     // Railway/Neon/Supabase usan SSL pero sin CA en el cliente

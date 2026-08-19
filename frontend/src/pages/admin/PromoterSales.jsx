@@ -23,10 +23,13 @@ const PromoterSales = () => {
 
   const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n || 0);
 
-  const totalVendidas = sales.reduce((acc, p) => acc + (p.total_vendidas || 0), 0);
-  const totalRecaudado = sales.reduce((acc, p) => acc + (p.total_recaudado || 0), 0);
-  const totalComisiones = sales.reduce((acc, p) => acc + (p.comision_promotor || 0), 0);
-  const totalAEnviar = sales.reduce((acc, p) => acc + (p.debe_enviar || 0), 0);
+  // Number() explicito: los COUNT de Postgres llegan como texto y sumarlos
+  // sin convertir los concatena, dando totales gigantes.
+  const num = (v) => Number(v) || 0;
+  const totalVendidas = sales.reduce((acc, p) => acc + num(p.total_vendidas), 0);
+  const totalRecaudado = sales.reduce((acc, p) => acc + num(p.total_recaudado), 0);
+  const totalComisiones = sales.reduce((acc, p) => acc + num(p.comision_promotor), 0);
+  const totalAEnviar = sales.reduce((acc, p) => acc + num(p.debe_enviar), 0);
 
   return (
     <Layout>

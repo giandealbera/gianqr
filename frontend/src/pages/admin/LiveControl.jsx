@@ -148,8 +148,12 @@ const LiveControl = () => {
   });
 
   const totals = stats?.totals || {};
-  const ingresaron = totals.total_usados || 0;
-  const pagados    = totals.total_pagados || 0;
+  // Number() explicito: Postgres devuelve los COUNT como texto y sumar dos
+  // conteos sin convertir los CONCATENA ("164" + "50" = "16450" entradas en
+  // vez de 214). En SQLite vienen como numero, por eso no se ve en desarrollo.
+  const num = (v) => Number(v) || 0;
+  const ingresaron = num(totals.total_usados);
+  const pagados    = num(totals.total_pagados);
   const totalEntradas = ingresaron + pagados; // todos los validos
   const pct = porcentaje(ingresaron, totalEntradas);
 

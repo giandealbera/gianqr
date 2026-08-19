@@ -863,6 +863,28 @@ const dni = (n) => String(30000000 + n);
     check('regresion: la venta manual guarda el DNI', conDni.data?.buyer_dni === '30999888',
           JSON.stringify(conDni.data?.buyer_dni));
 
+    // --- Los conteos deben poder sumarse, no concatenarse ---------------
+    // En Postgres COUNT() devuelve bigint y el driver lo entrega como TEXTO;
+    // en SQLite viene como numero. Por esa diferencia, sumar dos conteos
+    // andaba en desarrollo y en produccion CONCATENABA: el tablero llego a
+    // mostrar "16450 vendidas" cuando eran 164 escaneadas + 50 pendientes.
+    // El parser de INT8 en config/database lo normaliza; esto lo vigila.
+    const stNum = await req('GET', `/events/${evId}/stats`, { token: admin });
+    const t = stNum.data?.totals || {};
+    const sumables = ['total_pagados', 'total_usados', 'total_pendientes'];
+    const tiposMal = sumables.filter(k => typeof t[k] !== 'number');
+    check('regresion: los conteos de stats llegan como numero, no como texto',
+          tiposMal.length === 0,
+          tiposMal.map(k => `${k}=${JSON.stringify(t[k])} (${typeof t[k]})`).join(', '));
+    check('regresion: sumar dos conteos da un numero, no una concatenacion',
+          typeof (t.total_usados + t.total_pagados) === 'number',
+          `${JSON.stringify(t.total_usados)} + ${JSON.stringify(t.total_pagados)} = ${JSON.stringify(t.total_usados + t.total_pagados)}`);
+
+    const porTipoNum = (stNum.data?.by_type || [])[0] || {};
+    check('regresion: los conteos por tipo tambien son numeros',
+          typeof porTipoNum.sold_count === 'number' && typeof porTipoNum.cortesias === 'number',
+          `sold_count=${typeof porTipoNum.sold_count} cortesias=${typeof porTipoNum.cortesias}`);
+
     // --- El cupo del rate limit era por IP compartida -------------------
     // Todo el staff sale por el WiFi del lugar: con clave por IP, el tablero
     // abierto agotaba el cupo y dejaba sin escanear a los porteros.

@@ -6,6 +6,8 @@ import { Icon } from '../../components/Icon';
 
 /* ─── helpers ─────────────────────────────────────────────────────────── */
 const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n || 0);
+// Los conteos de Postgres llegan como texto: sin esto, sumarlos concatena.
+const num = (v) => Number(v) || 0;
 const METHOD_LABEL = { efectivo: 'Efectivo', transferencia: 'Transferencia', cortesia: 'Cortesía' };
 const MONTHS_ES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
@@ -167,9 +169,12 @@ const Reports = () => {
   // Totals from monthly. Memoizados para no recalcular en cada render del
   // componente (filtros, modales, hover en tooltip de chart, etc. lo
   // re-renderizan sino).
-  const totalVendidas  = useMemo(() => monthly.reduce((a, m) => a + m.vendidas, 0),  [monthly]);
-  const totalCortesias = useMemo(() => monthly.reduce((a, m) => a + m.cortesias, 0), [monthly]);
-  const totalFiestas   = useMemo(() => monthly.reduce((a, m) => a + m.fiestas, 0),   [monthly]);
+  // num(): Postgres devuelve los COUNT como texto y sumarlos sin convertir
+  // los CONCATENA, dando totales absurdos. En SQLite vienen como numero, asi
+  // que el error solo aparece en produccion.
+  const totalVendidas  = useMemo(() => monthly.reduce((a, m) => a + num(m.vendidas), 0),  [monthly]);
+  const totalCortesias = useMemo(() => monthly.reduce((a, m) => a + num(m.cortesias), 0), [monthly]);
+  const totalFiestas   = useMemo(() => monthly.reduce((a, m) => a + num(m.fiestas), 0),   [monthly]);
 
   const handleExportCsv = () => {
     if (!filteredDetalle.length) return;
@@ -300,7 +305,7 @@ const Reports = () => {
                           <td style={{ padding: '12px 20px', color: '#D1D5DB', fontWeight: 600, whiteSpace: 'nowrap' }}>{formatMonth(m.mes)}</td>
                           <td style={{ padding: '12px 20px', textAlign: 'right', color: '#C9974D', fontWeight: 700 }}>{m.vendidas.toLocaleString('es-AR')}</td>
                           <td style={{ padding: '12px 20px', textAlign: 'right', color: '#60A5FA' }}>{m.cortesias.toLocaleString('es-AR')}</td>
-                          <td style={{ padding: '12px 20px', textAlign: 'right', color: '#9CA3AF' }}>{(m.vendidas + m.cortesias).toLocaleString('es-AR')}</td>
+                          <td style={{ padding: '12px 20px', textAlign: 'right', color: '#9CA3AF' }}>{(num(m.vendidas) + num(m.cortesias)).toLocaleString('es-AR')}</td>
                           <td style={{ padding: '12px 20px', textAlign: 'right' }}>
                             <span style={{
                               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
