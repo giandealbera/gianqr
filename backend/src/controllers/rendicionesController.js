@@ -1,5 +1,6 @@
 const { v4: uuidv4 } = require('uuid');
 const db = require('../config/database');
+const { adminCanAccessUser } = require('../utils/scope');
 
 // GET /api/rendiciones — lista de publicas con saldo
 // Devuelve todas las publicas con: vendido, comision, debe enviar, ya rindio, saldo pendiente
@@ -23,11 +24,25 @@ const listPublicas = async (req, res) => {
       params.push(q, q, q); // ? #3, #4, #5 en WHERE clause
     }
 
-    // Scope multi-tenant para owner: solo ve staff que él (o su jefe) creó.
+    // Scope multi-tenant.
+    //   owner: solo su staff (el que creo el, o el que creo su jefe).
+    //   admin: solo su arbol —los owners que cargo, el staff de esos owners y
+    //     el staff de esos jefes—. Sin esta rama, el listado le mostraba a un
+    //     admin las publicas de los clientes de otro admin, con sus ventas y
+    //     saldos.
     let ownerScopeClause = '';
     if (req.user.role === 'owner') {
       ownerScopeClause = 'AND (u.created_by = ? OR u.created_by IN (SELECT id FROM users WHERE created_by = ?))';
       params.push(req.user.id, req.user.id);
+    } else if (req.user.role === 'admin') {
+      ownerScopeClause = `AND (
+        u.created_by = ?
+        OR u.created_by IN (SELECT id FROM users WHERE created_by = ?)
+        OR u.created_by IN (
+          SELECT id FROM users WHERE created_by IN (SELECT id FROM users WHERE created_by = ?)
+        )
+      )`;
+      params.push(req.user.id, req.user.id, req.user.id);
     }
 
     const result = await db.query(
@@ -67,12 +82,18 @@ const listPublicas = async (req, res) => {
   }
 };
 
-// Helper: ¿este owner puede ver/modificar esta pública?
-// Tenant check: la pública debe ser del staff del owner (chain created_by).
-async function ownerCanAccessPromotor(req, promotorId) {
-  if (req.user?.role !== 'owner') return true;
+// ¿Este usuario puede ver/modificar esta pública?
+//
+// El owner ya estaba acotado a su staff. El ADMIN no: el helper devolvia true
+// para cualquier rol que no fuera owner, asi que un admin podia listar, abrir,
+// registrar y borrar pagos de las publicas de OTRO admin. Verificado: admin B
+// le registraba y borraba pagos a una publica del arbol de admin A.
+// Ahora el admin queda acotado a su propio arbol, igual que ya pasa con
+// entradas, eventos y links de portero.
+async function puedeAccederPromotor(req, promotorId) {
+  const rol = req.user?.role;
   const r = await db.query(
-    `SELECT u.created_by AS lvl1, lvl2.created_by AS lvl2
+    `SELECT p.user_id, u.created_by AS lvl1, lvl2.created_by AS lvl2
        FROM promotors p
        JOIN users u ON u.id = p.user_id
        LEFT JOIN users lvl2 ON lvl2.id = u.created_by
@@ -81,14 +102,16 @@ async function ownerCanAccessPromotor(req, promotorId) {
   );
   const row = r.rows[0];
   if (!row) return false;
-  return row.lvl1 === req.user.id || row.lvl2 === req.user.id;
+  if (rol === 'owner') return row.lvl1 === req.user.id || row.lvl2 === req.user.id;
+  if (rol === 'admin') return adminCanAccessUser(req.user.id, row.user_id);
+  return false;
 }
 
 // GET /api/rendiciones/:promotorId — detalle de un publica
 const getPublicaDetail = async (req, res) => {
   const { promotorId } = req.params;
   try {
-    if (!(await ownerCanAccessPromotor(req, promotorId)))
+    if (!(await puedeAccederPromotor(req, promotorId)))
       return res.status(403).json({ error: 'Sin acceso a esta pública' });
     // perfil
     const profileResult = await db.query(
@@ -191,7 +214,7 @@ const registrarPago = async (req, res) => {
     return res.status(400).json({ error: 'El monto debe ser un numero mayor a 0' });
 
   try {
-    if (!(await ownerCanAccessPromotor(req, promotor_id)))
+    if (!(await puedeAccederPromotor(req, promotor_id)))
       return res.status(403).json({ error: 'Sin acceso a esta pública' });
     // Calcular el saldo pendiente actual (global o filtrado por evento).
     // Reusa la misma logica que getPublicaDetail.
@@ -246,7 +269,7 @@ const eliminarPago = async (req, res) => {
   try {
     const r = await db.query('SELECT promotor_id FROM rendiciones WHERE id = ?', [req.params.id]);
     if (!r.rows[0]) return res.status(404).json({ error: 'Pago no encontrado' });
-    if (!(await ownerCanAccessPromotor(req, r.rows[0].promotor_id)))
+    if (!(await puedeAccederPromotor(req, r.rows[0].promotor_id)))
       return res.status(403).json({ error: 'Sin acceso a esta pública' });
     await db.query('DELETE FROM rendiciones WHERE id = ?', [req.params.id]);
     res.json({ message: 'Pago eliminado' });

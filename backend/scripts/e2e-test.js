@@ -863,6 +863,45 @@ const dni = (n) => String(30000000 + n);
     check('regresion: la venta manual guarda el DNI', conDni.data?.buyer_dni === '30999888',
           JSON.stringify(conDni.data?.buyer_dni));
 
+    // --- Rendiciones: un admin no toca las publicas de otro admin -------
+    // ownerCanAccessPromotor devolvia true para todo rol que no fuera owner,
+    // asi que un admin podia listar, abrir, registrar y BORRAR pagos de las
+    // publicas del arbol de otro admin.
+    {
+      // Segundo admin, con su propio arbol
+      const emailB = `admin_rend_${Date.now()}@t.com`;
+      await req('POST', '/users', { token: admin, body: {
+        name: 'AdminOtro', apellido: 'T', email: emailB, password: 'password123', role: 'admin' } });
+      const adminB = (await req('POST', '/auth/login', { body: {
+        email: emailB, password: 'password123' } })).data?.token;
+
+      // El admin dueño de este arbol SI ve sus publicas
+      const propias = await req('GET', '/rendiciones', { token: admin });
+      const algunaPropia = (propias.data || [])[0];
+      check('rendiciones: el admin sigue viendo las publicas de su arbol',
+            Array.isArray(propias.data) && propias.data.length > 0,
+            `devolvio ${propias.data?.length}`);
+
+      if (algunaPropia) {
+        const listaB = await req('GET', '/rendiciones', { token: adminB });
+        check('regresion: el otro admin NO ve esas publicas en su listado',
+              !(listaB.data || []).some(p => p.promotor_id === algunaPropia.promotor_id),
+              `devolvio ${listaB.data?.length} filas`);
+
+        const detB = await req('GET', `/rendiciones/${algunaPropia.promotor_id}`, { token: adminB });
+        check('regresion: el otro admin no abre su detalle', detB.status === 403, `status=${detB.status}`);
+
+        const pagoB = await req('POST', '/rendiciones', { token: adminB, body: {
+          promotor_id: algunaPropia.promotor_id, amount: 1, note: 'cross-tenant' } });
+        check('regresion: el otro admin no le registra pagos', pagoB.status === 403, `status=${pagoB.status}`);
+
+        // Y el admin dueño si puede abrir el detalle
+        const detPropio = await req('GET', `/rendiciones/${algunaPropia.promotor_id}`, { token: admin });
+        check('rendiciones: el admin dueño si abre el detalle', detPropio.status === 200,
+              `status=${detPropio.status}`);
+      }
+    }
+
     // --- Los conteos deben poder sumarse, no concatenarse ---------------
     // En Postgres COUNT() devuelve bigint y el driver lo entrega como TEXTO;
     // en SQLite viene como numero. Por esa diferencia, sumar dos conteos
