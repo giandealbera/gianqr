@@ -137,10 +137,21 @@ const EventDashboard = () => {
   // — al apretarlo recibirian 403). Lo que NO deben ver: Entradas vendidas
   // (lista de quien compro) ni Analíticas (graficos de venta), porque eso
   // revela cuanta gente hay y cuantos escanearon.
+  // Herramientas de gestion del evento: configurar, tipos de entrada y
+  // control de ingreso. Son solo para admin/owner.
+  //
+  // Al vendedor y al jefe se les mostraban igual, pero las tres terminaban en
+  // un rechazo: PUT /events/:id pide admin u owner, y las pantallas de tipos
+  // y de escaner tienen el mismo filtro de rol. O sea, tres botones que solo
+  // servian para chocarse contra un "no tenés permiso".
+  const canManageEvent = ['admin', 'owner'].includes(user?.role);
+
   const TOOLS = [
-    { iconKey: 'gear',   label: 'Configurar evento',    sub: 'Editar datos y ajustes',      to: `/eventos?edit=${id}`,     disabled: false },
-    { iconKey: 'tag',    label: 'Tipos de entrada',     sub: 'Precios y cupos disponibles', to: `/evento/${id}/tipos`,     disabled: false },
-    { iconKey: 'qr',     label: 'Gestión del ingreso',  sub: 'Escáner y control de acceso', to: '/escaner',                disabled: false },
+    ...(canManageEvent ? [
+      { iconKey: 'gear',   label: 'Configurar evento',    sub: 'Editar datos y ajustes',      to: `/eventos?edit=${id}`,     disabled: false },
+      { iconKey: 'tag',    label: 'Tipos de entrada',     sub: 'Precios y cupos disponibles', to: `/evento/${id}/tipos`,     disabled: false },
+      { iconKey: 'qr',     label: 'Gestión del ingreso',  sub: 'Escáner y control de acceso', to: '/escaner',                disabled: false },
+    ] : []),
     // Entradas vendidas y Analíticas: solo admin/owner. Revelan stats.
     ...(canSeeStats ? [
       { iconKey: 'list',  label: 'Entradas vendidas',   sub: 'Historial de tickets',        to: `/evento/${id}/vendidas`,  disabled: false },
