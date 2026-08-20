@@ -893,6 +893,35 @@ const dni = (n) => String(30000000 + n);
             vivo.status === 200, `status=${vivo.status}`);
     }
 
+    // --- Un pedido malformado NO debe tumbar el backend -----------------
+    // POST /public/tickets/:code con attendees:[null] tiraba TypeError en la
+    // validacion. Como el handler es async, Express 4 no ve la promesa
+    // rechazada, Node la reporta como unhandledRejection y MATA EL PROCESO.
+    // Era un endpoint publico: cualquiera dejaba sin sistema a todos.
+    {
+      const basura = [
+        ['attendees con un nulo',      { event_id: evId, ticket_type_id: ttId, attendees: [null] }],
+        ['attendees con un numero',    { event_id: evId, ticket_type_id: ttId, attendees: [42] }],
+        ['attendees con un texto',     { event_id: evId, ticket_type_id: ttId, attendees: ['hola'] }],
+        ['attendees que no es lista',  { event_id: evId, ticket_type_id: ttId, attendees: 'no-soy-lista' }],
+      ];
+      for (const [caso, body] of basura) {
+        const r = await req('POST', '/public/tickets/CASA', { body });
+        check(`regresion: ${caso} -> 400, no tumba el server`, r.status === 400,
+              `status=${r.status} ${JSON.stringify(r.data)}`);
+      }
+      // Cortesias tenia el mismo patron
+      const cortBasura = await req('POST', '/cortesias', { token: admin, body: {
+        event_id: evId, ticket_type_id: ttId, attendees: [null] } });
+      check('regresion: cortesia con invitado nulo -> 400', cortBasura.status === 400,
+            `status=${cortBasura.status}`);
+
+      // Y lo que de verdad importa: el server sigue vivo despues de todo eso
+      const vivo = await req('GET', '/health');
+      check('regresion: el backend sigue en pie tras los pedidos malformados',
+            vivo.status === 200, `status=${vivo.status}`);
+    }
+
     // --- Rendiciones: un admin no toca las publicas de otro admin -------
     // ownerCanAccessPromotor devolvia true para todo rol que no fuera owner,
     // asi que un admin podia listar, abrir, registrar y BORRAR pagos de las
