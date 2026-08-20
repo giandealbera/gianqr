@@ -3,6 +3,7 @@ const db = require('../config/database');
 const { adminCanAccessEvent, resolveOwnerScopeForUser } = require('../utils/scope');
 const { logAudit } = require('../utils/auditLog');
 const { sendPush } = require('./pushController');
+const { esOperable, yaPaso, cerrarEventosVencidos, estadoEfectivo } = require('../utils/eventStatus');
 
 // Notifica a TODOS los dueños asignados al evento. Lo hacemos fire-and-
 // forget: no bloqueamos la respuesta HTTP esperando el push, y si falla
@@ -52,6 +53,12 @@ async function guardEventAccess(req, res, eventId) {
 
 const getAll = async (req, res) => {
   try {
+    // Cierre automatico de los que ya pasaron de fecha. Va aca, al listar, en
+    // vez de en una tarea programada: el sistema no tiene scheduler y montarlo
+    // solo para esto seria mucho aparato. Pasado el primer listado del dia el
+    // UPDATE no toca ninguna fila.
+    await cerrarEventosVencidos();
+
     // Owner: solo ve los eventos que le asignaron.
     if (req.user?.role === 'owner') {
       const result = await db.query(
@@ -894,6 +901,69 @@ const buyerStats = async (req, res) => {
   }
 };
 
+// POST /api/events/:id/finish — cerrar el evento como registro historico.
+//
+// No borra ni mueve nada: el evento y todo lo que paso adentro (entradas,
+// escaneos, rendiciones, deudas) quedan intactos para consultarlos siempre.
+// Lo unico que cambia es que deja de ser operable.
+const finishEvent = async (req, res) => {
+  const { id } = req.params;
+  if (!await guardEventAccess(req, res, id)) return;
+  const ev = (await db.query('SELECT id, name, status FROM events WHERE id = ?', [id])).rows[0];
+  if (!ev) return res.status(404).json({ error: 'Evento no encontrado' });
+  if (ev.status === 'FINISHED')
+    return res.json({ message: 'El evento ya estaba finalizado', status: 'FINISHED' });
+  if (ev.status === 'CANCELLED')
+    return res.status(409).json({ error: 'El evento está cancelado; no se puede finalizar' });
+
+  await db.query(
+    "UPDATE events SET status = 'FINISHED', finished_at = CURRENT_TIMESTAMP WHERE id = ?", [id]
+  );
+  logAudit(req, 'EVENT_FINISH', { resourceType: 'event', resourceId: id, details: { name: ev.name } });
+  res.json({ message: 'Evento finalizado', status: 'FINISHED' });
+};
+
+// POST /api/events/:id/cancel — dar de baja un evento que no se realizo.
+const cancelEvent = async (req, res) => {
+  const { id } = req.params;
+  if (!await guardEventAccess(req, res, id)) return;
+  const ev = (await db.query('SELECT id, name, status FROM events WHERE id = ?', [id])).rows[0];
+  if (!ev) return res.status(404).json({ error: 'Evento no encontrado' });
+  if (ev.status === 'FINISHED')
+    return res.status(409).json({ error: 'El evento ya finalizó; no se puede cancelar' });
+  if (ev.status === 'CANCELLED')
+    return res.json({ message: 'El evento ya estaba cancelado', status: 'CANCELLED' });
+
+  await db.query("UPDATE events SET status = 'CANCELLED' WHERE id = ?", [id]);
+  logAudit(req, 'EVENT_CANCEL', { resourceType: 'event', resourceId: id, details: { name: ev.name } });
+  res.json({ message: 'Evento cancelado', status: 'CANCELLED' });
+};
+
+// POST /api/events/:id/reopen — volver a poner en curso un evento cerrado.
+//
+// Existe para deshacer un cierre por error (o uno automatico si la fiesta se
+// pasa de las 00:00). No revive nada: los datos nunca se tocaron.
+const reopenEvent = async (req, res) => {
+  const { id } = req.params;
+  if (!await guardEventAccess(req, res, id)) return;
+  const ev = (await db.query('SELECT id, name, status, date FROM events WHERE id = ?', [id])).rows[0];
+  if (!ev) return res.status(404).json({ error: 'Evento no encontrado' });
+  if (esOperable(ev.status))
+    return res.json({ message: 'El evento ya estaba en curso', status: ev.status });
+
+  await db.query("UPDATE events SET status = 'ACTIVE', finished_at = NULL WHERE id = ?", [id]);
+  logAudit(req, 'EVENT_REOPEN', { resourceType: 'event', resourceId: id, details: { name: ev.name, desde: ev.status } });
+  // Aviso util: si la fecha ya paso, el cierre automatico lo va a volver a
+  // finalizar en el proximo listado. Para dejarlo abierto hay que correr la fecha.
+  res.json({
+    message: 'Evento reabierto',
+    status: 'ACTIVE',
+    aviso: yaPaso(ev.date)
+      ? 'La fecha del evento ya pasó: se va a volver a finalizar solo. Si querés mantenerlo abierto, actualizá la fecha.'
+      : undefined,
+  });
+};
+
 // POST /api/events/:id/stop-sales — corte manual de venta
 // El evento sigue accesible para rendiciones, scanner, reportes.
 // Para reanudar usar POST /api/events/:id/resume-sales.
@@ -1088,6 +1158,7 @@ const exportData = async (req, res) => {
 module.exports = {
   getAll, getOne, create, update, stats, history, resetEvent, cloneEvent,
   stopSales, resumeSales, buyerStats, exportData,
+  finishEvent, cancelEvent, reopenEvent,
   getTicketTypes, addTicketType, updateTicketType, toggleTicketType,
   getTicketTypeSellers, setTicketTypeSellers,
   getOwners, addOwner, removeOwner,

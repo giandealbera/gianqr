@@ -1,6 +1,7 @@
 const { v4: uuidv4 } = require('uuid');
 const db = require('../config/database');
 const { checkSaleWindow } = require('../utils/saleWindow');
+const { eventoOperable } = require('../utils/eventStatus');
 const { sendPush } = require('./pushController');
 const { normalizeCity } = require('../utils/normalize');
 const AR_CITIES = require('../data/argentine-cities');
@@ -94,9 +95,14 @@ const createPublicTicket = async (req, res) => {
 
   // Cortesia (codigo CASA) queda exenta — el admin puede regalar entradas despues
   // de cerrada la venta. El resto se bloquea fuera de la ventana.
+  // Lo que ninguna de las dos puede saltearse es el estado del evento: uno
+  // finalizado o cancelado no recibe entradas nuevas.
   if (!isCortesia) {
     const window = await checkSaleWindow(event_id);
     if (!window.ok) return res.status(window.status).json({ error: window.message });
+  } else {
+    const estado = await eventoOperable(event_id);
+    if (!estado.ok) return res.status(estado.status).json({ error: estado.message });
   }
 
   if (!Array.isArray(attendees) || attendees.length === 0)

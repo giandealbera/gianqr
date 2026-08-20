@@ -770,6 +770,78 @@ const dni = (n) => String(30000000 + n);
     check('users: admin no puede hard-borrarse', hd.status === 400 || hd.status === 403, `status=${hd.status}`);
   }
 
+  // ---------- Estados del evento ----------
+  {
+    const dia = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
+    const ayer2   = new Date(Date.now() - 864e5).toISOString().slice(0, 19).replace('T', ' ');
+    const manana2 = new Date(Date.now() + 864e5).toISOString().slice(0, 19).replace('T', ' ');
+    const armar = async (nombre, fecha) => {
+      const e = await req('POST', '/events', { token: admin, body: {
+        name: nombre, date: fecha, start_time: '23:00', sale_start_at: ayer2, sale_end_at: manana2 } });
+      const t = await req('POST', `/events/${e.data?.id}/ticket-types`, { token: admin, body: {
+        name: 'General', price: 5000, total_quota: 50 } });
+      return { id: e.data?.id, ttId: t.data?.id };
+    };
+    const vender = (ev) => req('POST', '/tickets', { token: admin, body: {
+      event_id: ev.id, ticket_type_id: ev.ttId,
+      buyer_name: 'Cli', buyer_apellido: 'Estado', payment_method: 'efectivo' } });
+
+    const ev1 = await armar('Estados: base', dia(0));
+    const nuevo = await req('GET', `/events/${ev1.id}`, { token: admin });
+    check('estados: un evento nuevo nace ACTIVE', nuevo.data?.status === 'ACTIVE', `status=${nuevo.data?.status}`);
+    check('estados: se puede vender en un evento activo', (await vender(ev1)).status === 201, 'no dejo vender');
+
+    // Finalizar: deja de operar pero conserva todo
+    const fin = await req('POST', `/events/${ev1.id}/finish`, { token: admin });
+    check('estados: finalizar responde 200', fin.status === 200, `HTTP ${fin.status}`);
+    const trasFin = await req('GET', `/events/${ev1.id}`, { token: admin });
+    check('estados: el evento queda FINISHED', trasFin.data?.status === 'FINISHED', `status=${trasFin.data?.status}`);
+
+    check('estados: finalizado no vende por caja', (await vender(ev1)).status === 409, 'dejo vender');
+    const pre = await req('POST', '/tickets/pre-sell', { token: admin, body: {
+      event_id: ev1.id, ticket_type_id: ev1.ttId, qty: 1, payment_method: 'efectivo' } });
+    check('estados: finalizado no vende por pre-venta', pre.status === 409, `HTTP ${pre.status}`);
+    const pub = await req('POST', '/public/tickets/CASA', { body: {
+      event_id: ev1.id, ticket_type_id: ev1.ttId, payment_method: 'efectivo',
+      attendees: [{ buyer_name: 'X', buyer_apellido: 'Y', buyer_dni: '30111222' }] } });
+    check('estados: finalizado no vende por link publico', pub.status === 409, `HTTP ${pub.status}`);
+    const cor = await req('POST', '/cortesias', { token: admin, body: {
+      event_id: ev1.id, ticket_type_id: ev1.ttId,
+      attendees: [{ buyer_name: 'Inv', buyer_apellido: 'Tarde' }] } });
+    check('estados: finalizado tampoco acepta cortesias', cor.status === 409, `HTTP ${cor.status}`);
+
+    // El historico se conserva
+    const stFin = await req('GET', `/events/${ev1.id}/stats`, { token: admin });
+    check('estados: el finalizado conserva sus stats',
+          stFin.status === 200 && Number(stFin.data?.totals?.total_pagados) === 1,
+          `HTTP ${stFin.status} pagados=${stFin.data?.totals?.total_pagados}`);
+
+    // Reabrir deshace el cierre
+    const reab = await req('POST', `/events/${ev1.id}/reopen`, { token: admin });
+    check('estados: reabrir responde 200', reab.status === 200, `HTTP ${reab.status}`);
+    check('estados: reabierto vuelve a vender', (await vender(ev1)).status === 201, 'sigue bloqueado');
+
+    // Cancelar
+    const ev2 = await armar('Estados: cancelar', dia(3));
+    check('estados: cancelar responde 200',
+          (await req('POST', `/events/${ev2.id}/cancel`, { token: admin })).status === 200, 'fallo');
+    check('estados: cancelado no vende', (await vender(ev2)).status === 409, 'dejo vender');
+    check('estados: un cancelado no se puede finalizar',
+          (await req('POST', `/events/${ev2.id}/finish`, { token: admin })).status === 409, 'lo dejo');
+
+    // Cierre automatico: conservador a proposito
+    const viejo  = await armar('Estados: hace 5 dias', dia(-5));
+    const anoche = await armar('Estados: anoche', dia(-1));
+    await req('GET', '/events', { token: admin });
+    const vSt = (await req('GET', `/events/${viejo.id}`,  { token: admin })).data?.status;
+    const aSt = (await req('GET', `/events/${anoche.id}`, { token: admin })).data?.status;
+    check('estados: un evento de hace 5 dias se cierra solo', vSt === 'FINISHED', `status=${vSt}`);
+    check('estados: el de ANOCHE sigue ACTIVE (la fiesta sigue de madrugada)',
+          aSt === 'ACTIVE', `status=${aSt}`);
+    check('estados: y se le puede seguir vendiendo en la puerta',
+          (await vender(anoche)).status === 201, 'lo bloqueo de mas');
+  }
+
   // ---------- Push ----------
   {
     const pk = await req('GET', '/push/public-key');

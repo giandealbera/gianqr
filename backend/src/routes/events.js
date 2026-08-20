@@ -6,6 +6,7 @@ const roles   = require('../middleware/roles');
 const {
   getAll, getOne, create, update, stats, history, resetEvent, cloneEvent,
   stopSales, resumeSales, buyerStats, exportData,
+  finishEvent, cancelEvent, reopenEvent,
   getTicketTypes, addTicketType, updateTicketType, toggleTicketType,
   getTicketTypeSellers, setTicketTypeSellers,
   getOwners, addOwner, removeOwner,
@@ -27,6 +28,13 @@ router.post('/',       auth, roles('admin', 'owner'), create);
 // Clonar evento (copia ticket_types y dueños del original).
 router.post('/:id/clone', auth, roles('admin', 'owner'), cloneEvent);
 // Corte manual de venta (sold out). El evento sigue accesible para rendir.
+// Ciclo de vida del evento. Finalizar lo deja como registro historico: los
+// datos quedan intactos y consultables, pero el evento deja de operar.
+// Reabrir existe para deshacer un cierre por error.
+router.post('/:id/finish', auth, roles('admin', 'owner'), finishEvent);
+router.post('/:id/cancel', auth, roles('admin', 'owner'), cancelEvent);
+router.post('/:id/reopen', auth, roles('admin', 'owner'), reopenEvent);
+
 router.post('/:id/stop-sales',   auth, roles('admin', 'owner'), stopSales);
 router.post('/:id/resume-sales', auth, roles('admin', 'owner'), resumeSales);
 router.post('/:id/reset', auth, roles('admin', 'owner'), resetEvent);

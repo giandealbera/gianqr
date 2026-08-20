@@ -525,6 +525,50 @@ async function runMigrations(queryFn, execFn) {
   // El evento sigue accesible para rendiciones, escaneo, reportes.
   await tryMigrate('migration', 'ALTER TABLE events ADD COLUMN sales_stopped_at DATETIME');
 
+  // Ciclo de vida del evento. Hasta ahora "terminado" se deducia de la fecha,
+  // asi que no habia forma de distinguir un evento que paso de uno que se
+  // cancelo, ni de dejarlo cerrado como registro historico.
+  //
+  //   DRAFT     — en preparacion, todavia no sale a la venta
+  //   ACTIVE    — en curso: se vende y se escanea
+  //   FINISHED  — termino. Queda como fotografia historica: se consulta todo
+  //               (ventas, escaneos, rendiciones) pero no se opera mas.
+  //   CANCELLED — se dio de baja sin realizarse.
+  //
+  // Convive con is_active y sales_stopped_at, que siguen significando lo
+  // mismo (ocultar el evento / cortar la venta) para no romper nada de lo que
+  // ya funciona.
+  await tryMigrate('migration', "ALTER TABLE events ADD COLUMN status TEXT NOT NULL DEFAULT 'ACTIVE'");
+  await tryMigrate('migration', 'CREATE INDEX IF NOT EXISTS idx_events_status ON events(status)');
+  // Marca de cuando se finalizo, para poder mostrar "finalizado el ..." y
+  // distinguir el cierre automatico del manual mas adelante si hace falta.
+  await tryMigrate('migration', 'ALTER TABLE events ADD COLUMN finished_at DATETIME');
+
+  // Backfill de los eventos que ya existen. Se corre una sola vez de hecho:
+  // despues no quedan filas con status NULL o vacio.
+  //   - los dados de baja (is_active=0) pasan a CANCELLED
+  //   - los que ya pasaron de fecha, a FINISHED
+  //   - el resto queda ACTIVE
+  // No se borra ni se pisa ningun dato: solo se completa la columna nueva.
+  //
+  // Va con queryFn y parametro en vez de SQL crudo: events.date es TEXT y
+  // compararlo contra CURRENT_DATE explota en Postgres ("operator does not
+  // exist: text < date"). Mandando la fecha de hoy como string, la
+  // comparacion es texto contra texto y anda igual en los dos motores.
+  try {
+    const hoy = new Date().toISOString().slice(0, 10);
+    await queryFn(
+      "UPDATE events SET status = 'CANCELLED' WHERE is_active = 0 AND (status IS NULL OR status = 'ACTIVE')"
+    );
+    await queryFn(
+      "UPDATE events SET status = 'FINISHED' WHERE is_active = 1 AND date < ? AND (status IS NULL OR status = 'ACTIVE')",
+      [hoy]
+    );
+    await queryFn("UPDATE events SET status = 'ACTIVE' WHERE status IS NULL OR status = ''");
+  } catch (e) {
+    console.error('[migration] backfill de status fallo:', e.message);
+  }
+
   // Invalidacion de JWT al cambiar/resetear contraseña: el middleware auth
   // rechaza tokens emitidos antes de esta fecha. Filas legacy quedan NULL =
   // sin restriccion (los tokens viejos siguen valiendo hasta su exp natural).

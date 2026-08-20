@@ -2,6 +2,7 @@ const { v4: uuidv4 } = require('uuid');
 const QRCode = require('qrcode');
 const db = require('../config/database');
 const { checkSaleWindow } = require('../utils/saleWindow');
+const { eventoOperable } = require('../utils/eventStatus');
 const { normalizeCity } = require('../utils/normalize');
 const { logAudit } = require('../utils/auditLog');
 const { sendPush } = require('./pushController');
@@ -183,9 +184,15 @@ const preSell = async (req, res) => {
 
   // Cortesia bypasea la ventana de venta (consistente con createPublicTicket
   // para code='CASA'): el admin puede regalar entradas fuera de la ventana.
+  // Pero NO puede saltearse el estado del evento: uno finalizado o cancelado
+  // no recibe entradas nuevas, ni siquiera regaladas, porque dejaria de ser
+  // el registro fiel de lo que paso esa noche.
   if (!isCortesia) {
     const window = await checkSaleWindow(event_id);
     if (!window.ok) return res.status(window.status).json({ error: window.message });
+  } else {
+    const estado = await eventoOperable(event_id);
+    if (!estado.ok) return res.status(estado.status).json({ error: estado.message });
   }
 
   try {

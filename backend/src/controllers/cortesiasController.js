@@ -1,6 +1,7 @@
 const { v4: uuidv4 } = require('uuid');
 const db = require('../config/database');
 const { normalizeCity } = require('../utils/normalize');
+const { eventoOperable } = require('../utils/eventStatus');
 
 // POST /api/cortesias — admin genera N entradas de cortesia
 // body: { event_id, ticket_type_id, attendees: [{name, apellido, edad?, localidad?, email?}] }
@@ -26,6 +27,11 @@ const createCortesias = async (req, res) => {
     if (String(a.buyer_name).length > 50 || String(a.buyer_apellido).length > 50)
       return res.status(400).json({ error: 'El nombre y apellido no deben superar los 50 caracteres' });
   }
+
+  // Un evento finalizado o cancelado no recibe entradas nuevas, ni regaladas:
+  // dejaria de ser el registro fiel de lo que paso esa noche.
+  const estadoEv = await eventoOperable(event_id);
+  if (!estadoEv.ok) return res.status(estadoEv.status).json({ error: estadoEv.message });
 
   // Owner solo puede emitir cortesias para SUS eventos.
   if (req.user.role === 'owner') {
