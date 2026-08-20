@@ -842,6 +842,104 @@ const dni = (n) => String(30000000 + n);
           (await vender(anoche)).status === 201, 'lo bloqueo de mas');
   }
 
+  // ---------- Aislamiento entre eventos ----------
+  // Los casos de seguridad del pedido: nadie debe poder ver ni tocar datos de
+  // un evento al que no fue invitado, ni cambiando el id en la URL ni pegandole
+  // directo al endpoint.
+  {
+    const hoy2 = new Date().toISOString().slice(0, 10);
+    const ay = new Date(Date.now() - 864e5).toISOString().slice(0, 19).replace('T', ' ');
+    const ma = new Date(Date.now() + 864e5).toISOString().slice(0, 19).replace('T', ' ');
+    const rechazado = (s) => s === 403 || s === 404;
+
+    const nuevoUsuario = async (rol, nombre, creador) => {
+      const email = `${nombre}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}@t.com`;
+      const u = await req('POST', '/users', { token: creador, body: {
+        name: nombre, apellido: 'T', email, password: 'password123', role: rol } });
+      const l1 = await req('POST', '/auth/login', { body: { email, password: 'password123' } });
+      await sleep(1100);
+      await req('POST', '/auth/change-password', { token: l1.data?.token, body: { newPassword: 'claveNueva1' } });
+      const l2 = await req('POST', '/auth/login', { body: { email, password: 'claveNueva1' } });
+      return { id: u.data?.id, token: l2.data?.token };
+    };
+    const nuevoEvento = async (nombre, ownerId) => {
+      const e = await req('POST', '/events', { token: admin, body: {
+        name: nombre, date: hoy2, start_time: '23:00', sale_start_at: ay, sale_end_at: ma } });
+      if (ownerId) await req('POST', `/events/${e.data?.id}/owners`, { token: admin, body: { user_id: ownerId } });
+      const t = await req('POST', `/events/${e.data?.id}/ticket-types`, { token: admin, body: {
+        name: 'General', price: 5000, total_quota: 50 } });
+      return { id: e.data?.id, ttId: t.data?.id };
+    };
+
+    const duenioA = await nuevoUsuario('owner', 'aislA', admin);
+    const duenioB = await nuevoUsuario('owner', 'aislB', admin);
+    const evA = await nuevoEvento('Aislamiento A', duenioA.id);
+    const evB = await nuevoEvento('Aislamiento B', duenioB.id);
+    const evC = await nuevoEvento('Aislamiento conjunto', duenioA.id);
+    await req('POST', `/events/${evC.id}/owners`, { token: admin, body: { user_id: duenioB.id } });
+    const vendedorA = await nuevoUsuario('vendedor', 'aislVend', duenioA.token);
+
+    // Lectura cruzada
+    for (const [nombre, url] of [
+      ['el evento',       `/events/${evB.id}`],
+      ['sus stats',       `/events/${evB.id}/stats`],
+      ['sus compradores', `/events/${evB.id}/buyer-stats`],
+      ['sus tipos',       `/events/${evB.id}/ticket-types`],
+    ]) {
+      const r = await req('GET', url, { token: duenioA.token });
+      check(`aislamiento: un dueño no puede ver ${nombre} de otro`, rechazado(r.status), `HTTP ${r.status}`);
+    }
+    const listado = await req('GET', `/tickets?event_id=${evB.id}`, { token: duenioA.token });
+    check('aislamiento: ni listar las entradas de otro evento',
+          rechazado(listado.status) || (listado.data || []).length === 0, `HTTP ${listado.status}`);
+
+    // Escritura cruzada
+    for (const [nombre, m, url, body] of [
+      ['editarlo',           'PUT',  `/events/${evB.id}`, { name: 'Robado' }],
+      ['agregarle un tipo',  'POST', `/events/${evB.id}/ticket-types`, { name: 'X', price: 1, total_quota: 1 }],
+      ['finalizarlo',        'POST', `/events/${evB.id}/finish`, {}],
+      ['resetearlo',         'POST', `/events/${evB.id}/reset`, {}],
+      ['clonarlo',           'POST', `/events/${evB.id}/clone`, { name: 'Copia', date: hoy2, start_time: '23:00', sale_start_at: ay, sale_end_at: ma }],
+      ['emitirle cortesias', 'POST', '/cortesias', { event_id: evB.id, ticket_type_id: evB.ttId, attendees: [{ buyer_name: 'A', buyer_apellido: 'B' }] }],
+      ['crear link portero', 'POST', '/scanner-tokens', { event_id: evB.id, all_types: true }],
+    ]) {
+      const r = await req(m, url, { token: duenioA.token, body });
+      check(`aislamiento: un dueño no puede ${nombre} en el evento de otro`, rechazado(r.status), `HTTP ${r.status}`);
+    }
+
+    // Colaborador: entra solo donde lo invitaron
+    const colabFuera = await req('GET', `/events/${evA.id}`, { token: duenioB.token });
+    check('aislamiento: el colaborador de un evento no entra a los otros del organizador',
+          rechazado(colabFuera.status), `HTTP ${colabFuera.status}`);
+    const colabDentro = await req('GET', `/events/${evC.id}`, { token: duenioB.token });
+    check('aislamiento: pero SI entra al evento donde colabora',
+          colabDentro.status === 200, `HTTP ${colabDentro.status}`);
+
+    // El vendedor, pegandole directo al endpoint
+    const ventaCruzada = await req('POST', '/tickets', { token: vendedorA.token, body: {
+      event_id: evB.id, ticket_type_id: evB.ttId,
+      buyer_name: 'Colado', buyer_apellido: 'X', payment_method: 'efectivo' } });
+    check('aislamiento: un vendedor no vende en el evento de otro organizador',
+          rechazado(ventaCruzada.status), `HTTP ${ventaCruzada.status}`);
+    const preCruzado = await req('POST', '/tickets/pre-sell', { token: vendedorA.token, body: {
+      event_id: evB.id, ticket_type_id: evB.ttId, qty: 1, payment_method: 'efectivo' } });
+    check('aislamiento: ni pre-vende', rechazado(preCruzado.status), `HTTP ${preCruzado.status}`);
+
+    // Mezclar el tipo de entrada de otro evento
+    const mezcla = await req('POST', '/tickets', { token: admin, body: {
+      event_id: evA.id, ticket_type_id: evB.ttId,
+      buyer_name: 'Mezcla', buyer_apellido: 'Rara', payment_method: 'efectivo' } });
+    check('aislamiento: no se vende un tipo de entrada de otro evento',
+          mezcla.status === 404 || mezcla.status === 400, `HTTP ${mezcla.status}`);
+
+    // Y lo que importa del otro lado: en el evento propio se vende normal
+    const ventaPropia = await req('POST', '/tickets', { token: vendedorA.token, body: {
+      event_id: evA.id, ticket_type_id: evA.ttId,
+      buyer_name: 'Cliente', buyer_apellido: 'Propio', payment_method: 'efectivo' } });
+    check('aislamiento: el vendedor SI vende en el evento de su organizador',
+          ventaPropia.status === 201, `HTTP ${ventaPropia.status} ${JSON.stringify(ventaPropia.data)}`);
+  }
+
   // ---------- Push ----------
   {
     const pk = await req('GET', '/push/public-key');

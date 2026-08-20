@@ -89,4 +89,49 @@ async function resolveOwnerScopeForUser(userId) {
   return null;
 }
 
-module.exports = { adminCanAccessEvent, adminCanAccessUser, resolveOwnerScopeForUser };
+// ownerHasEvent(ownerId, eventId) — el owner figura como dueño del evento.
+// Un evento puede tener VARIOS dueños (event_owners): asi funcionan los
+// eventos conjuntos, donde el dueño de otro boliche entra como colaborador
+// solo a ese evento y no al resto de los del organizador.
+async function ownerHasEvent(ownerId, eventId) {
+  if (!ownerId || !eventId) return false;
+  const r = await db.query(
+    'SELECT 1 FROM event_owners WHERE event_id = ? AND user_id = ? LIMIT 1',
+    [eventId, ownerId]
+  );
+  return r.rows.length > 0;
+}
+
+/**
+ * userCanAccessEvent(user, eventId) — LA respuesta a "¿este usuario puede
+ * tocar este evento?", para todos los roles y en un solo lugar.
+ *
+ *   admin    -> solo eventos de su arbol
+ *   owner    -> solo donde figura en event_owners (propio o como colaborador)
+ *   jefe /
+ *   vendedor -> solo eventos del owner al que pertenecen
+ *
+ * Existe porque la comprobacion estaba repetida y con huecos: el camino de
+ * venta (POST /tickets y /tickets/pre-sell) no la hacia, y un vendedor del
+ * dueño A podia vender entradas en el evento del dueño B mandando su
+ * event_id a mano. Verificado antes de arreglarlo: devolvia 201.
+ */
+async function userCanAccessEvent(user, eventId) {
+  const rol = user?.role;
+  if (!rol || !eventId) return false;
+  if (rol === 'admin')  return adminCanAccessEvent(user.id, eventId);
+  if (rol === 'owner')  return ownerHasEvent(user.id, eventId);
+  if (rol === 'jefe_publicas' || rol === 'vendedor') {
+    const ownerId = await resolveOwnerScopeForUser(user.id);
+    return !!ownerId && ownerHasEvent(ownerId, eventId);
+  }
+  return false;
+}
+
+module.exports = {
+  adminCanAccessEvent,
+  adminCanAccessUser,
+  resolveOwnerScopeForUser,
+  ownerHasEvent,
+  userCanAccessEvent,
+};

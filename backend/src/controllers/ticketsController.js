@@ -3,6 +3,7 @@ const QRCode = require('qrcode');
 const db = require('../config/database');
 const { checkSaleWindow } = require('../utils/saleWindow');
 const { eventoOperable } = require('../utils/eventStatus');
+const { userCanAccessEvent } = require('../utils/scope');
 const { normalizeCity } = require('../utils/normalize');
 const { logAudit } = require('../utils/auditLog');
 const { sendPush } = require('./pushController');
@@ -42,6 +43,13 @@ const create = async (req, res) => {
   if (payment_ref && payment_ref.toString().toUpperCase() === 'RESERVADO')
     return res.status(400).json({ error: 'payment_ref inválido' });
 
+  // Acceso al evento. Faltaba: este endpoint tomaba el event_id del body y no
+  // comprobaba nada, asi que un vendedor del dueño A podia vender entradas en
+  // el evento del dueño B mandando su id a mano. Verificado antes del
+  // arreglo: devolvia 201 y la venta quedaba contada en el evento ajeno.
+  if (!await userCanAccessEvent(req.user, event_id))
+    return res.status(403).json({ error: 'Sin acceso a este evento' });
+
   const window = await checkSaleWindow(event_id);
   if (!window.ok) return res.status(window.status).json({ error: window.message });
 
@@ -56,9 +64,13 @@ const create = async (req, res) => {
       // chequeo de cupo (oversell). En SQLite el translator strippea FOR
       // UPDATE; el WAL mode + transacciones IMMEDIATE ya nos dan el mismo
       // efecto serializado.
+      // AND event_id: sin eso se podia vender un tipo de entrada de OTRO
+      // evento. El ticket quedaba con el event_id que mando el cliente pero
+      // descontando el cupo del evento del tipo: dos eventos con los numeros
+      // mezclados. Verificado antes del arreglo: devolvia 201.
       const [ttRows] = await conn.execute(
-        'SELECT * FROM ticket_types WHERE id = ? AND is_active = 1 FOR UPDATE',
-        [ticket_type_id]
+        'SELECT * FROM ticket_types WHERE id = ? AND event_id = ? AND is_active = 1 FOR UPDATE',
+        [ticket_type_id, event_id]
       );
       const tt = ttRows[0];
       if (!tt) throw new Error('TICKET_TYPE_NOT_FOUND');
@@ -153,11 +165,11 @@ const preSell = async (req, res) => {
     }
   }
 
-  // Owner solo puede vender en sus eventos.
-  if (req.user.role === 'owner') {
-    const own = await db.query('SELECT 1 FROM event_owners WHERE event_id = ? AND user_id = ?', [event_id, req.user.id]);
-    if (!own.rows[0]) return res.status(403).json({ error: 'No sos dueño de este evento' });
-  }
+  // Acceso al evento, para TODOS los roles. Antes solo se comprobaba para el
+  // owner, asi que un jefe o un vendedor podia pre-vender en el evento de
+  // otro organizador mandando su event_id a mano (verificado: devolvia 201).
+  if (!await userCanAccessEvent(req.user, event_id))
+    return res.status(403).json({ error: 'Sin acceso a este evento' });
 
   // Permisos por tipo: si el ticket_type tiene una lista de sellers
   // autorizados y el jefe/vendedor NO esta en ella, rechazamos. Lista vacia =
