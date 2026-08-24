@@ -10,6 +10,9 @@ import { BACKEND_URL as BACKEND } from '../../api/config';
 const emptyForm = () => ({
   buyer_name: '', buyer_apellido: '', buyer_dni: '',
   buyer_edad: '', buyer_localidad: '', buyer_email: '',
+  // Consentimientos, separados a proposito: uno es para poder comprar y el
+  // otro es para recibir novedades. Mezclarlos invalida el segundo.
+  acepta_terminos: false, acepta_descuentos: false,
 });
 
 const PublicBuy = () => {
@@ -146,6 +149,10 @@ const PublicBuy = () => {
     if (!eventSel || !typeSel) { setFormError('Selecciona el evento y tipo de entrada'); return; }
     if (!form.buyer_name || !form.buyer_apellido || !form.buyer_dni) {
       setFormError('Nombre, apellido y DNI obligatorios');
+      return;
+    }
+    if (!form.acepta_terminos) {
+      setFormError('Tenés que aceptar los términos y condiciones');
       return;
     }
 
@@ -409,6 +416,42 @@ const PublicBuy = () => {
                   enterKeyHint="done"
                   onChange={e => setForm(f => ({ ...f, buyer_email: e.target.value }))} />
               </div>
+            </div>
+
+            {/* Las dos casillas van SEPARADAS y a la vista. Meter el permiso
+                de novedades adentro de los terminos no es consentimiento
+                valido, y ademas dispara quejas de spam en el mismo dominio
+                con el que mandamos los QR: si eso se ensucia, las entradas
+                empiezan a caer en no deseados. */}
+            <div className="space-y-3 rounded-lg p-3"
+                 style={{ background: '#161B24', border: '1px solid #1E2530' }}>
+              {/* Descuentos: solo tiene sentido si dejo su email */}
+              {form.buyer_email.trim() !== '' && (
+                <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                  <input type="checkbox" className="w-4 h-4 mt-0.5 accent-[#C9974D] shrink-0"
+                    checked={form.acepta_descuentos}
+                    onChange={e => setForm(f => ({ ...f, acepta_descuentos: e.target.checked }))} />
+                  <span>
+                    <span className="block text-sm" style={{ color: '#E1E5E2' }}>
+                      Quiero recibir descuentos y preventas
+                    </span>
+                    <span className="block text-[11px] leading-snug mt-0.5" style={{ color: '#6B7280' }}>
+                      Te avisamos antes que al resto cuando salen las entradas
+                      con descuento. Podés darte de baja cuando quieras.
+                    </span>
+                  </span>
+                </label>
+              )}
+
+              <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                <input type="checkbox" className="w-4 h-4 mt-0.5 accent-[#C9974D] shrink-0"
+                  checked={form.acepta_terminos}
+                  onChange={e => setForm(f => ({ ...f, acepta_terminos: e.target.checked }))} />
+                <span className="text-sm" style={{ color: '#E1E5E2' }}>
+                  Acepto los términos y condiciones
+                  <span style={{ color: '#D47779' }}> *</span>
+                </span>
+              </label>
             </div>
 
             {formError && (

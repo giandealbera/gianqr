@@ -41,6 +41,7 @@ const PublicBuy         = lazy(() => import('./pages/public/PublicBuy'));
 const Rendicion         = lazy(() => import('./pages/admin/Rendicion'));
 const LiveControl       = lazy(() => import('./pages/admin/LiveControl'));
 const Cortesias         = lazy(() => import('./pages/admin/Cortesias'));
+const Newsletter        = lazy(() => import('./pages/admin/Newsletter'));
 const EventHistory      = lazy(() => import('./pages/admin/EventHistory'));
 const Proveedores       = lazy(() => import('./pages/admin/Proveedores'));
 const ResetEventos      = lazy(() => import('./pages/admin/ResetEventos'));
@@ -233,6 +234,10 @@ const App = () => (
         } />
         <Route path="/admin/cortesias" element={
           <ProtectedRoute allowedRoles={['admin', 'owner']}><Cortesias /></ProtectedRoute>
+        } />
+        {/* Lista de compradores que pidieron recibir descuentos */}
+        <Route path="/admin/newsletter" element={
+          <ProtectedRoute allowedRoles={['admin', 'owner']}><Newsletter /></ProtectedRoute>
         } />
         <Route path="/admin/historial" element={
           <ProtectedRoute allowedRoles={['admin', 'owner']}><EventHistory /></ProtectedRoute>

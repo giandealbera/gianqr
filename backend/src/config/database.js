@@ -655,6 +655,36 @@ async function runMigrations(queryFn, execFn) {
   await tryMigrate('migration', 'CREATE INDEX IF NOT EXISTS idx_tt_sellers_tt   ON ticket_type_sellers(ticket_type_id)');
   await tryMigrate('migration', 'CREATE INDEX IF NOT EXISTS idx_tt_sellers_user ON ticket_type_sellers(user_id)');
 
+  // Suscriptores al newsletter.
+  //
+  // Tabla aparte y no una columna en tickets, por dos razones: una persona
+  // puede comprar varias veces y la lista tiene su propio ciclo de vida
+  // (alta, baja) que no tiene nada que ver con la entrada.
+  //
+  // Solo entra quien marca la casilla al comprar. Los emails cargados antes
+  // de que existiera la casilla NO se migran: esa gente dio su mail para
+  // recibir el QR, nunca acepto recibir novedades.
+  //
+  // event_id guarda de que evento vino, que es lo que ata cada suscriptor a
+  // su organizador: al listar filtramos por los eventos a los que el usuario
+  // tiene acceso, asi un dueño no se lleva la base de otro.
+  // unsubscribed_at: baja. No borramos la fila, para no volver a sumar a
+  // alguien que ya se dio de baja si vuelve a comprar sin marcar.
+  await execFn(`CREATE TABLE IF NOT EXISTS newsletter_subscribers (
+    id              TEXT PRIMARY KEY,
+    email           TEXT NOT NULL,
+    nombre          TEXT,
+    apellido        TEXT,
+    event_id        TEXT,
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    unsubscribed_at DATETIME,
+    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE SET NULL
+  )`);
+  await tryMigrate('migration',
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_newsletter_email_event ON newsletter_subscribers(email, event_id)');
+  await tryMigrate('migration',
+    'CREATE INDEX IF NOT EXISTS idx_newsletter_event ON newsletter_subscribers(event_id)');
+
   // Backfill multi-tenant: owners cargados antes del fix de create() quedaron
   // con created_by=NULL e invisibles para el admin (el filtro WHERE
   // created_by=admin.id no matchea NULL). Los asignamos al primer admin activo

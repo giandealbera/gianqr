@@ -77,10 +77,14 @@ const magicLimiter = rateLimit({
 
 // Public ticket buy: 20/min por IP. Es alto a propósito — un comprador real
 // puede retry varias veces si tiene mala conexión. Un bot que spamea cae igual.
+// En desarrollo el tope sube: la suite e2e hace decenas de compras seguidas
+// y con 20/min chocaba contra el limite, devolviendo 429 en checks que
+// esperaban otra cosa. Mismo criterio que el limiter de login. En produccion
+// no cambia nada.
 const publicBuyLimiter = rateLimit({
   ...baseConfig,
   windowMs: 60 * 1000,
-  max: 20,
+  max: process.env.NODE_ENV === 'development' ? 5000 : 20,
   message: { error: 'Demasiadas solicitudes, esperá un momento' },
 });
 

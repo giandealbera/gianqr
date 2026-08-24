@@ -91,6 +91,7 @@ const MoreMenu = () => {
               <MenuItem iconKey="receipt"   label="Rendición"             desc="Registrar pagos de tus públicas" onClick={() => navigate('/admin/rendicion')} />
               <MenuItem iconKey="chart"     label="Control en vivo"       desc="Ingresos en tiempo real" onClick={() => navigate('/admin/control')} />
               <MenuItem iconKey="chart"     label="Mi Historial"          desc="Tus eventos pasados" onClick={() => navigate('/admin/historial')} />
+              <MenuItem iconKey="megaphone" label="Lista de descuentos"    desc="Compradores que quieren recibir preventas" onClick={() => navigate('/admin/newsletter')} />
               <MenuItem iconKey="users"     label="Mis Zonas"             desc="Agrupar vendedores por zona" onClick={() => navigate('/admin/zonas')} />
               <MenuItem iconKey="users"     label="Mis Proveedores"       desc="Contactos y datos de pago" onClick={() => navigate('/admin/proveedores')} />
               <MenuItem iconKey="receipt"   label="Bitácora"              desc="Quién hizo qué cuándo en tu cuenta" onClick={() => navigate('/admin/bitacora')} />

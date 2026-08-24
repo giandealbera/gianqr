@@ -2,6 +2,7 @@ const { v4: uuidv4 } = require('uuid');
 const db = require('../config/database');
 const { checkSaleWindow } = require('../utils/saleWindow');
 const { eventoOperable } = require('../utils/eventStatus');
+const { suscribir } = require('./newsletterController');
 const { sendPush } = require('./pushController');
 const { normalizeCity } = require('../utils/normalize');
 const AR_CITIES = require('../data/argentine-cities');
@@ -222,6 +223,16 @@ const createPublicTicket = async (req, res) => {
       cortesia: isCortesia,
     });
 
+    // Newsletter: SOLO quien marco la casilla. Va despues de responder y sin
+    // await por ticket, para no demorar la compra ni hacerla fallar si la
+    // suscripcion se cae.
+    for (const a of attendees) {
+      if (a.acepta_descuentos && a.buyer_email) {
+        suscribir({ email: a.buyer_email, nombre: a.buyer_name,
+                    apellido: a.buyer_apellido, eventId: event_id }).catch(() => {});
+      }
+    }
+
     if (ttSnapshot) maybeNotifyQuota(ttSnapshot);
   } catch (err) {
     if (err.message === 'TT_NOT_FOUND')
@@ -403,6 +414,15 @@ const completeReservedTickets = async (req, res) => {
     });
 
     res.status(200).json({ tickets: created });
+
+    // Newsletter: igual que en la compra directa, solo quien marco la casilla.
+    const eventoDeLaReserva = rows[0]?.event_id;
+    for (const a of attendees) {
+      if (a.acepta_descuentos && a.buyer_email) {
+        suscribir({ email: a.buyer_email, nombre: a.buyer_name,
+                    apellido: a.buyer_apellido, eventId: eventoDeLaReserva }).catch(() => {});
+      }
+    }
   } catch (err) {
     console.error('completeReservedTickets error:', err.message);
     res.status(500).json({ error: 'Error al completar entradas' });

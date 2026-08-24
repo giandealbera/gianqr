@@ -1038,6 +1038,66 @@ const dni = (n) => String(30000000 + n);
           (await req('GET', '/auth/me', { token: larga.data?.token })).status === 403, 'sigue andando');
   }
 
+  // ---------- Newsletter (lista de descuentos) ----------
+  // Solo entra quien MARCA la casilla al comprar. Los emails cargados antes
+  // de que existiera la casilla no se migran: se dieron para recibir el QR.
+  {
+    const hoyN = new Date().toISOString().slice(0, 10);
+    const ayN  = new Date(Date.now() - 864e5).toISOString().slice(0, 19).replace('T', ' ');
+    const maN  = new Date(Date.now() + 864e5).toISOString().slice(0, 19).replace('T', ' ');
+    const evN = await req('POST', '/events', { token: admin, body: {
+      name: 'Evento newsletter', date: hoyN, start_time: '23:00',
+      sale_start_at: ayN, sale_end_at: maN } });
+    const ttN = await req('POST', `/events/${evN.data?.id}/ticket-types`, { token: admin, body: {
+      name: 'General', price: 5000, total_quota: 50 } });
+
+    const comprar = (nombre, email, acepta) => req('POST', '/public/tickets/CASA', { body: {
+      event_id: evN.data?.id, ticket_type_id: ttN.data?.id, payment_method: 'efectivo',
+      attendees: [{ buyer_name: nombre, buyer_apellido: 'NL',
+                    buyer_dni: '30' + Math.floor(Math.random() * 1e6),
+                    buyer_email: email, acepta_descuentos: acepta }] } });
+
+    await comprar('Quiere',    'quiere@test.com',     true);
+    await comprar('NoQuiere',  'noquiere@test.com',   false);
+    await comprar('SinMarcar', 'sinmarcar@test.com',  undefined);
+    await sleep(600);   // el alta va despues de responder, para no demorar la compra
+
+    const lista = await req('GET', '/newsletter', { token: admin });
+    const emails = (lista.data?.suscriptores || []).map(x => x.email);
+    check('newsletter: entra quien marco la casilla',
+          emails.includes('quiere@test.com'), JSON.stringify(emails));
+    check('newsletter: queda afuera quien NO la marco',
+          !emails.includes('noquiere@test.com'), JSON.stringify(emails));
+    check('newsletter: queda afuera quien no la toco',
+          !emails.includes('sinmarcar@test.com'), JSON.stringify(emails));
+
+    // Misma persona comprando de nuevo: no se duplica y el mail se normaliza
+    await comprar('Quiere', 'QUIERE@test.com', true);
+    await sleep(600);
+    const lista2 = await req('GET', '/newsletter', { token: admin });
+    const repes = (lista2.data?.suscriptores || []).filter(x => x.email === 'quiere@test.com');
+    check('newsletter: no duplica a la misma persona', repes.length === 1, `aparece ${repes.length} veces`);
+
+    // La base de contactos es de cada organizador
+    const mailOwn = `own_nl_${Date.now()}@t.com`;
+    await req('POST', '/users', { token: admin, body: {
+      name: 'OwnerNL', apellido: 'T', email: mailOwn, password: 'password123', role: 'owner' } });
+    const lo1 = await req('POST', '/auth/login', { body: { email: mailOwn, password: 'password123' } });
+    await sleep(1100);
+    await req('POST', '/auth/change-password', { token: lo1.data?.token, body: { newPassword: 'claveNueva1' } });
+    const otroOwner = (await req('POST', '/auth/login', { body: { email: mailOwn, password: 'claveNueva1' } })).data?.token;
+
+    const ajena = await req('GET', '/newsletter', { token: otroOwner });
+    check('newsletter: otro organizador no ve la lista ajena',
+          (ajena.data?.suscriptores || []).length === 0, `vio ${ajena.data?.suscriptores?.length}`);
+    const porEv = await req('GET', `/newsletter?event_id=${evN.data?.id}`, { token: otroOwner });
+    check('newsletter: ni pidiendo el evento por id', porEv.status === 403, `HTTP ${porEv.status}`);
+
+    const anon = await req('GET', '/newsletter');
+    check('newsletter: sin login no se accede',
+          anon.status === 401 || anon.status === 403, `HTTP ${anon.status}`);
+  }
+
   // ---------- Push ----------
   {
     const pk = await req('GET', '/push/public-key');
