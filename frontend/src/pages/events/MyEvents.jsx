@@ -23,6 +23,8 @@ const MyEvents = () => {
   const [events, setEvents]     = useState([]);
   const [loading, setLoading]   = useState(true);
   const [search, setSearch]     = useState('');
+  // Pestaña activa: eventos en curso vs. historial de finalizados/cancelados.
+  const [verFinalizados, setVerFinalizados] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId]     = useState(null);   // null = nuevo, id = editando
   const [form, setForm]         = useState(initialForm);
@@ -48,6 +50,18 @@ const MyEvents = () => {
   // Si llegan desde EventDashboard con ?edit=ID, abrimos directo el modal
   // de edicion del evento. Limpiamos el query string para que no quede pegajoso.
   useEffect(() => {
+    // ?generar=<id> abre el modal de clonado ya apuntando a ese evento. Es lo
+    // que usa el boton "Generar otro evento" del panel de un evento cerrado.
+    const generarDesde = searchParams.get('generar');
+    if (generarDesde && events.length > 0 && !showCloneModal) {
+      const src = events.find(e => e.id === generarDesde);
+      if (src) {
+        setCloneSrcId(generarDesde);
+        setCloneForm(f => ({ ...f, name: f.name || `${src.name} (nuevo)` }));
+        setShowCloneModal(true);
+      }
+    }
+
     const editIdQuery = searchParams.get('edit');
     if (!editIdQuery || events.length === 0) return;
     const ev = events.find(e => String(e.id) === String(editIdQuery));
@@ -60,20 +74,35 @@ const MyEvents = () => {
   }, [events]);
 
   const today = new Date().toISOString().split('T')[0];
-  const filtered = events.filter(e =>
+  const porNombre = events.filter(e =>
     e.name.toLowerCase().includes(search.toLowerCase())
   );
 
+  // Cerrados = terminados o cancelados. Son historia: se consultan pero ya no
+  // se opera con ellos. Los separamos para que la lista de trabajo no se
+  // llene de fiestas viejas.
+  const estaCerrado = (ev) => ev.status === 'FINISHED' || ev.status === 'CANCELLED';
+  const enCurso   = porNombre.filter(ev => !estaCerrado(ev));
+  const cerrados  = porNombre.filter(estaCerrado);
+  const filtered  = verFinalizados ? cerrados : enCurso;
+
   const getStatus = (ev) => {
+    // El estado del evento manda sobre el de la venta: si termino o se
+    // cancelo, lo demas es irrelevante.
+    if (ev.status === 'CANCELLED') return { label: 'Cancelado', cls: 'bg-red-900/40 text-red-300' };
+    if (ev.status === 'FINISHED')  return { label: 'Finalizado', cls: 'bg-gray-700 text-gray-400' };
+    if (ev.status === 'DRAFT')     return { label: 'Borrador', cls: 'bg-blue-900/40 text-blue-300' };
     if (!ev.is_active) return { label: 'Inactivo', cls: 'bg-gray-700 text-gray-300' };
     const now = new Date();
+    if (ev.sales_stopped_at) {
+      return { label: 'Venta cortada', cls: 'bg-red-900/40 text-red-300' };
+    }
     if (ev.sale_end_at && now > new Date(ev.sale_end_at)) {
       return { label: 'Venta cerrada', cls: 'bg-red-900/40 text-red-300' };
     }
     if (ev.sale_start_at && now < new Date(ev.sale_start_at)) {
       return { label: 'Venta no inició', cls: 'bg-amber-900/40 text-amber-300' };
     }
-    if (ev.date < today) return { label: 'Finalizado', cls: 'bg-gray-700 text-gray-400' };
     return { label: 'Venta abierta', cls: 'bg-emerald-900/60 text-emerald-400' };
   };
 
@@ -228,6 +257,23 @@ const MyEvents = () => {
         </div>
 
         {/* Search + Create */}
+        {/* Separacion entre lo que se gestiona y lo que ya es historia.
+            Los cerrados se consultan pero no se opera con ellos, asi que
+            ensuciaban la lista de trabajo. */}
+        <div className="grid grid-cols-2 gap-1 p-1 rounded-xl mb-4"
+             style={{ background: '#161B24', border: '1px solid #1E2530' }}>
+          <button type="button" onClick={() => setVerFinalizados(false)}
+            className="py-2 rounded-lg text-xs font-semibold transition-colors"
+            style={!verFinalizados ? { background: '#C9974D', color: '#0B0F14' } : { color: '#9AA3B2' }}>
+            En curso ({enCurso.length})
+          </button>
+          <button type="button" onClick={() => setVerFinalizados(true)}
+            className="py-2 rounded-lg text-xs font-semibold transition-colors"
+            style={verFinalizados ? { background: '#C9974D', color: '#0B0F14' } : { color: '#9AA3B2' }}>
+            Finalizados ({cerrados.length})
+          </button>
+        </div>
+
         <div className="flex gap-3 mb-6">
           <div className="flex-1 relative">
             <input
@@ -437,8 +483,12 @@ const MyEvents = () => {
                  style={{ background: '#161B24', border: '1px solid #1E2530', color: '#4B5563' }}>
               <Icon name="empty" className="w-6 h-6" />
             </div>
-            <p className="text-gray-400 text-sm">{search ? 'Sin resultados' : 'Sin eventos creados'}</p>
-            {!search && ['admin','owner'].includes(user?.role) && (
+            <p className="text-gray-400 text-sm">
+              {search ? 'Sin resultados'
+                : verFinalizados ? 'Todavía no hay eventos finalizados'
+                : 'Sin eventos creados'}
+            </p>
+            {!search && !verFinalizados && ['admin','owner'].includes(user?.role) && (
               <button onClick={openNew} className="btn-primary mt-4">Crear evento</button>
             )}
           </div>

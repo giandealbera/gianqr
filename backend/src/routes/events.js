@@ -7,6 +7,7 @@ const {
   getAll, getOne, create, update, stats, history, resetEvent, cloneEvent,
   stopSales, resumeSales, buyerStats, exportData,
   finishEvent, cancelEvent, reopenEvent,
+  salesTimeline,
   getTicketTypes, addTicketType, updateTicketType, toggleTicketType,
   getTicketTypeSellers, setTicketTypeSellers,
   getOwners, addOwner, removeOwner,
@@ -20,6 +21,10 @@ router.get('/:id',     auth, getOne);
 router.get('/:id/stats', auth, roles('admin', 'owner'), stats);
 // Estadísticas demográficas del público (edad/localidad/email).
 router.get('/:id/buyer-stats', auth, roles('admin', 'owner'), buyerStats);
+// Ventas dia por dia dentro de un tramo, con filtro por tipo de entrada.
+// Sirve para comparar "cuanto vendi entre el anuncio y tal dia" contra otros
+// eventos. Funciona igual en un evento finalizado: es informacion historica.
+router.get('/:id/ventas-por-dia', auth, roles('admin', 'owner'), salesTimeline);
 // Export completo (xlsx). SOLO owner del evento; el controller exige ademas
 // que aparezca en event_owners. Admins reciben 403 desde el middleware roles().
 router.get('/:id/export-data', auth, roles('owner'), exportData);

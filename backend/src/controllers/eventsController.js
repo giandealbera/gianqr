@@ -814,6 +814,109 @@ const removeOwner = async (req, res) => {
 // (basadas en los datos que carga cada comprador al generar su QR).
 // Solo cuenta tickets con datos reales (excluye 'Pendiente' y cortesias
 // con buyer_name vacio). Owner solo SUS eventos.
+// GET /api/events/:id/ventas-por-dia?desde=&hasta=&tipos=id1,id2
+//
+// Cuantas entradas se vendieron cada dia dentro de un tramo. Sirve para
+// contestar "¿cuanto vendi entre el anuncio y el miercoles?" y comparar ese
+// mismo tramo contra otros eventos.
+//
+// Por defecto el tramo va desde la apertura de venta hasta hoy.
+// `tipos` filtra por tipo de entrada (una, varias o ninguna = todas).
+//
+// No cuenta cortesias: son regaladas y no son "vendidas". Es el mismo
+// criterio que ya usa la pantalla de Historial.
+const salesTimeline = async (req, res) => {
+  const { id } = req.params;
+  if (!await guardEventAccess(req, res, id)) return;
+
+  const ev = (await db.query(
+    'SELECT id, name, date, status, sale_start_at FROM events WHERE id = ?', [id]
+  )).rows[0];
+  if (!ev) return res.status(404).json({ error: 'Evento no encontrado' });
+
+  // Rango. Si no lo mandan, arranca en la apertura de venta y termina hoy.
+  const soloFecha = (v) => (v ? String(v).slice(0, 10) : null);
+  const hoy   = new Date().toISOString().slice(0, 10);
+  const desde = soloFecha(req.query.desde) || soloFecha(ev.sale_start_at) || soloFecha(ev.date) || hoy;
+  const hasta = soloFecha(req.query.hasta) || hoy;
+  if (desde > hasta)
+    return res.status(400).json({ error: 'La fecha "desde" tiene que ser anterior a "hasta"' });
+
+  // Filtro por tipo. Validamos que cada id sea de ESTE evento: sino se podria
+  // pedir el desglose de un tipo de otro evento.
+  const tiposPedidos = String(req.query.tipos || '')
+    .split(',').map(s => s.trim()).filter(Boolean);
+  let filtroTipos = '';
+  const params = [id];
+  if (tiposPedidos.length > 0) {
+    const marcadores = tiposPedidos.map(() => '?').join(',');
+    const validos = await db.query(
+      `SELECT id FROM ticket_types WHERE event_id = ? AND id IN (${marcadores})`,
+      [id, ...tiposPedidos]
+    );
+    const ids = validos.rows.map(r => r.id);
+    if (ids.length === 0)
+      return res.status(400).json({ error: 'Ninguno de los tipos indicados pertenece a este evento' });
+    filtroTipos = `AND t.ticket_type_id IN (${ids.map(() => '?').join(',')})`;
+    params.push(...ids);
+  }
+
+  // La fecha del dia se saca corriendo el reloj a la hora local. created_at se
+  // guarda en UTC y en Argentina son 3 horas menos: sin este ajuste, una venta
+  // de las 22:00 del viernes cae el sabado y la curva diaria queda corrida
+  // justo en el horario en que mas se vende.
+  const { PG_MODE } = require('../config/database');
+  const HORAS_UTC = Number(process.env.TZ_OFFSET_HORAS || -3);
+  const diaLocal = PG_MODE
+    ? `TO_CHAR(t.created_at + INTERVAL '${HORAS_UTC} hours', 'YYYY-MM-DD')`
+    : `strftime('%Y-%m-%d', t.created_at, '${HORAS_UTC} hours')`;
+
+  try {
+    const r = await db.query(
+      `SELECT ${diaLocal} AS dia, COUNT(*) AS vendidas
+         FROM tickets t
+        WHERE t.event_id = ?
+          ${filtroTipos}
+          AND t.status IN ('pagado','usado')
+          AND COALESCE(t.payment_method, '') != 'cortesia'
+          AND ${diaLocal} >= ?
+          AND ${diaLocal} <= ?
+        GROUP BY dia
+        ORDER BY dia ASC`,
+      [...params, desde, hasta]
+    );
+
+    // Rellenamos los dias sin ventas con 0: sin eso el grafico "saltea" los
+    // dias flojos y parece que se vendio todos los dias.
+    const porDia = new Map(r.rows.map(x => [x.dia, Number(x.vendidas) || 0]));
+    const serie = [];
+    let acumulado = 0;
+    for (let d = new Date(desde + 'T12:00:00'); d.toISOString().slice(0, 10) <= hasta; d.setDate(d.getDate() + 1)) {
+      const dia = d.toISOString().slice(0, 10);
+      const vendidas = porDia.get(dia) || 0;
+      acumulado += vendidas;
+      serie.push({ dia, vendidas, acumulado });
+      if (serie.length > 400) break; // tope de seguridad
+    }
+
+    const tipos = (await db.query(
+      'SELECT id, name FROM ticket_types WHERE event_id = ? ORDER BY created_at ASC', [id]
+    )).rows;
+
+    res.json({
+      evento: { id: ev.id, name: ev.name, date: ev.date, status: ev.status, sale_start_at: ev.sale_start_at },
+      desde, hasta,
+      tipos_filtrados: tiposPedidos,
+      tipos_disponibles: tipos,
+      total: serie.reduce((a, x) => a + x.vendidas, 0),
+      dias: serie,
+    });
+  } catch (err) {
+    console.error('salesTimeline error:', err.message);
+    res.status(500).json({ error: 'Error al calcular las ventas por día' });
+  }
+};
+
 const buyerStats = async (req, res) => {
   const { id } = req.params;
   try {
@@ -1159,6 +1262,7 @@ module.exports = {
   getAll, getOne, create, update, stats, history, resetEvent, cloneEvent,
   stopSales, resumeSales, buyerStats, exportData,
   finishEvent, cancelEvent, reopenEvent,
+  salesTimeline,
   getTicketTypes, addTicketType, updateTicketType, toggleTicketType,
   getTicketTypeSellers, setTicketTypeSellers,
   getOwners, addOwner, removeOwner,

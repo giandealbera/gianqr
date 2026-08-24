@@ -940,6 +940,73 @@ const dni = (n) => String(30000000 + n);
           ventaPropia.status === 201, `HTTP ${ventaPropia.status} ${JSON.stringify(ventaPropia.data)}`);
   }
 
+  // ---------- Ventas por dia (informe del evento) ----------
+  {
+    const d = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
+    const ev = await req('POST', '/events', { token: admin, body: {
+      name: 'Curva de ventas', date: d(5), start_time: '23:00',
+      sale_start_at: d(-10) + ' 12:00:00', sale_end_at: d(5) + ' 23:00:00' } });
+    const evId = ev.data?.id;
+    const gen = await req('POST', `/events/${evId}/ticket-types`, { token: admin, body: {
+      name: 'General', price: 5000, total_quota: 200 } });
+    const vip = await req('POST', `/events/${evId}/ticket-types`, { token: admin, body: {
+      name: 'VIP', price: 12000, total_quota: 100 } });
+
+    // Vendemos y corremos created_at para simular ventas en distintos dias.
+    // 23:00 UTC = 20:00 en Argentina: sirve para comprobar que la venta de la
+    // noche cae en SU dia y no en el siguiente.
+    const vender = async (ttId, dia) => {
+      const t = await req('POST', '/tickets', { token: admin, body: {
+        event_id: evId, ticket_type_id: ttId,
+        buyer_name: 'Cli', buyer_apellido: 'Curva', payment_method: 'efectivo' } });
+      await dbRun('UPDATE tickets SET created_at = ? WHERE id = ?', [`${dia} 23:00:00`, t.data?.id]);
+    };
+    for (let i = 0; i < 3; i++) await vender(gen.data?.id, d(-9));
+    for (let i = 0; i < 5; i++) await vender(gen.data?.id, d(-7));
+    for (let i = 0; i < 2; i++) await vender(vip.data?.id, d(-7));
+    for (let i = 0; i < 8; i++) await vender(gen.data?.id, d(-2));
+    for (let i = 0; i < 4; i++) await vender(vip.data?.id, d(-2));
+    // Una cortesia: es regalada, no cuenta como vendida
+    await req('POST', '/cortesias', { token: admin, body: {
+      event_id: evId, ticket_type_id: gen.data?.id,
+      attendees: [{ buyer_name: 'Inv', buyer_apellido: 'Gratis' }] } });
+
+    const base = await req('GET', `/events/${evId}/ventas-por-dia`, { token: admin });
+    check('ventas-por-dia: responde 200', base.status === 200, `HTTP ${base.status}`);
+    check('ventas-por-dia: el tramo arranca en la apertura de venta',
+          base.data?.desde === d(-10), `desde=${base.data?.desde}`);
+    check('ventas-por-dia: cuenta 22 y excluye la cortesia',
+          base.data?.total === 22, `total=${base.data?.total}`);
+    const conVentas = (base.data?.dias || []).filter(x => x.vendidas > 0);
+    check('ventas-por-dia: las agrupa en 3 dias', conVentas.length === 3,
+          JSON.stringify(conVentas.map(x => `${x.dia}:${x.vendidas}`)));
+    check('ventas-por-dia: la venta de las 20:00 local cae en SU dia',
+          conVentas[0]?.dia === d(-9), `primer dia: ${conVentas[0]?.dia}`);
+    check('ventas-por-dia: rellena con 0 los dias sin ventas',
+          (base.data?.dias || []).some(x => x.vendidas === 0), 'no hay dias en cero');
+    check('ventas-por-dia: el acumulado cierra en el total',
+          (base.data?.dias || []).slice(-1)[0]?.acumulado === 22, 'no cierra');
+
+    const tramo = await req('GET', `/events/${evId}/ventas-por-dia?desde=${d(-10)}&hasta=${d(-5)}`, { token: admin });
+    check('ventas-por-dia: un tramo acotado cuenta solo lo suyo (10)',
+          tramo.data?.total === 10, `total=${tramo.data?.total}`);
+
+    const soloVip = await req('GET', `/events/${evId}/ventas-por-dia?tipos=${vip.data?.id}`, { token: admin });
+    check('ventas-por-dia: filtro por un tipo (VIP = 6)', soloVip.data?.total === 6, `total=${soloVip.data?.total}`);
+    const dosTipos = await req('GET', `/events/${evId}/ventas-por-dia?tipos=${gen.data?.id},${vip.data?.id}`, { token: admin });
+    check('ventas-por-dia: filtro por varios tipos (22)', dosTipos.data?.total === 22, `total=${dosTipos.data?.total}`);
+
+    const alReves = await req('GET', `/events/${evId}/ventas-por-dia?desde=${d(0)}&hasta=${d(-5)}`, { token: admin });
+    check('ventas-por-dia: rechaza el rango invertido', alReves.status === 400, `HTTP ${alReves.status}`);
+    const ajeno = await req('GET', `/events/${evId}/ventas-por-dia?tipos=00000000-0000-0000-0000-000000000000`, { token: admin });
+    check('ventas-por-dia: rechaza un tipo de otro evento', ajeno.status === 400, `HTTP ${ajeno.status}`);
+
+    await req('POST', `/events/${evId}/finish`, { token: admin });
+    const hist = await req('GET', `/events/${evId}/ventas-por-dia`, { token: admin });
+    check('ventas-por-dia: sigue disponible con el evento finalizado',
+          hist.status === 200 && hist.data?.total === 22, `HTTP ${hist.status} total=${hist.data?.total}`);
+  }
+
   // ---------- Push ----------
   {
     const pk = await req('GET', '/push/public-key');

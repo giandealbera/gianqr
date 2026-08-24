@@ -104,6 +104,15 @@ const EventDashboard = () => {
   const checkinPct = porcentaje(totalUsed, totalSold);
   const salesStopped = !!event.sales_stopped_at;
   const canManageSales = ['admin','owner'].includes(user?.role);
+
+  // Estado del evento. Un evento cerrado (finalizado o cancelado) es historia:
+  // se consulta todo, pero no se vende ni se opera.
+  const eventoCerrado = event.status === 'FINISHED' || event.status === 'CANCELLED';
+  const etiquetaEstado =
+    event.status === 'CANCELLED' ? 'Cancelado'
+    : event.status === 'FINISHED' ? 'Finalizado'
+    : event.status === 'DRAFT'    ? 'Borrador'
+    : isActive ? 'Activo' : 'Finalizado';
   // Jefes y vendedores NO ven stats agregadas del evento (cuanta gente
   // hay, cuantas escaneadas, cupos por tipo). El dueño es el unico que
   // ve el panorama completo. Estos roles igual ven los tipos de entrada
@@ -130,6 +139,30 @@ const EventDashboard = () => {
       toast.success('Venta reanudada');
       const r = await api.get(`/events/${id}`); setEvent(r.data);
     } catch (e) { toast.error(e.response?.data?.error || 'No se pudo reanudar'); }
+  };
+
+  const finalizarEvento = async () => {
+    const ok = await confirm({
+      title: '¿Finalizar el evento?',
+      message: 'Queda cerrado como registro histórico: no se venden más entradas, '
+             + 'pero toda la información (ventas, escaneos, rendiciones) se conserva '
+             + 'y la vas a poder consultar siempre. Si te equivocás, se puede reabrir.',
+      confirmText: 'Finalizar',
+    });
+    if (!ok) return;
+    try {
+      await api.post(`/events/${id}/finish`);
+      toast.success('Evento finalizado');
+      const r = await api.get(`/events/${id}`); setEvent(r.data);
+    } catch (e) { toast.error(e.response?.data?.error || 'No se pudo finalizar'); }
+  };
+
+  const reabrirEvento = async () => {
+    try {
+      const r = await api.post(`/events/${id}/reopen`);
+      toast.success(r.data?.aviso || 'Evento reabierto');
+      const ev = await api.get(`/events/${id}`); setEvent(ev.data);
+    } catch (e) { toast.error(e.response?.data?.error || 'No se pudo reabrir'); }
   };
 
   // Tools: admin/owner ven todo; jefe/vendedor solo lo operativo (configurar
@@ -229,9 +262,11 @@ const EventDashboard = () => {
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-[#78B884]" />
                       </span>
                     )}
-                    {isActive ? 'Activo' : 'Finalizado'}
+                    {etiquetaEstado}
                   </div>
-                  {canManageSales && (
+                  {/* Cortar venta solo tiene sentido con el evento en curso.
+                      En uno cerrado, la accion util es generar el siguiente. */}
+                  {canManageSales && !eventoCerrado && (
                     salesStopped ? (
                       <button onClick={resumeSales} className="btn-secondary text-xs py-1 px-2.5" title="Volver a abrir la venta">
                         Reanudar venta
@@ -245,9 +280,50 @@ const EventDashboard = () => {
                       </button>
                     )
                   )}
+                  {canManageSales && !eventoCerrado && (
+                    <button onClick={finalizarEvento}
+                      className="btn-secondary text-xs py-1 px-2.5"
+                      title="Cerrarlo como registro histórico: los datos quedan, pero deja de vender">
+                      Finalizar evento
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
+
+            {/* Evento cerrado: queda como fotografia de lo que paso. Toda la
+                informacion sigue abajo; lo unico que se ofrece es arrancar el
+                siguiente, que nace vacio y NO toca a este. */}
+            {eventoCerrado && (
+              <div className="rounded-xl p-4"
+                   style={{ background: '#161B24', border: '1px solid #2B312E' }}>
+                <p className="text-sm font-semibold" style={{ color: '#E1E5E2' }}>
+                  {event.status === 'CANCELLED' ? 'Este evento fue cancelado' : 'Este evento ya finalizó'}
+                </p>
+                <p className="text-xs mt-1 leading-relaxed" style={{ color: '#8C948D' }}>
+                  Queda como registro histórico: las ventas, los escaneos y las rendiciones
+                  se conservan y podés consultarlos siempre. No se emiten entradas nuevas.
+                </p>
+                {canManageSales && (
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    <Link to={`/eventos?generar=${id}`} className="btn-primary text-xs py-2 px-3">
+                      Generar otro evento
+                    </Link>
+                    <button onClick={reabrirEvento} className="btn-secondary text-xs py-2 px-3"
+                            title="Si lo cerraste por error, vuelve a quedar en curso">
+                      Reabrir
+                    </button>
+                  </div>
+                )}
+                {canManageSales && (
+                  <p className="text-[11px] mt-2" style={{ color: '#6B7280' }}>
+                    "Generar otro evento" crea uno nuevo copiando la configuración
+                    (tipos de entrada, precios, cupos y permisos de venta). Arranca
+                    en cero: sin ventas, sin escaneos y sin deudas. Este no se modifica.
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Stats Row — solo admin/owner ven los counters agregados */}
             {canSeeStats && (

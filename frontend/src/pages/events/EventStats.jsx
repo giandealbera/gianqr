@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import { porcentaje, anchoBarra } from '../../lib/percent';
+import toast from 'react-hot-toast';
 
 const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n || 0);
 const METHOD_LABEL = { efectivo: 'Efectivo', transferencia: 'Transferencia' };
@@ -15,6 +16,16 @@ const EventStats = () => {
   const [tickets, setTickets] = useState([]);
   const [buyer, setBuyer] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Curva de ventas: cuanto se vendio dia por dia entre dos fechas. El tramo
+  // arranca por defecto en la apertura de venta (el "dia de anuncio") y llega
+  // hasta hoy, pero se puede mover para comparar el mismo tramo contra otros
+  // eventos: "del anuncio al miercoles vendi X".
+  const [curva, setCurva] = useState(null);
+  const [desde, setDesde] = useState('');
+  const [hasta, setHasta] = useState('');
+  const [tiposSel, setTiposSel] = useState([]);   // vacio = todos
+  const [cargandoCurva, setCargandoCurva] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -29,6 +40,32 @@ const EventStats = () => {
       setBuyer(by.data);
     }).finally(() => setLoading(false));
   }, [id]);
+
+  // Primera carga de la curva: sin fechas, el backend usa la apertura de venta.
+  useEffect(() => {
+    api.get(`/events/${id}/ventas-por-dia`)
+      .then(r => { setCurva(r.data); setDesde(r.data.desde); setHasta(r.data.hasta); })
+      .catch(() => {});
+  }, [id]);
+
+  const recargarCurva = async () => {
+    setCargandoCurva(true);
+    try {
+      const p = new URLSearchParams();
+      if (desde) p.set('desde', desde);
+      if (hasta) p.set('hasta', hasta);
+      if (tiposSel.length) p.set('tipos', tiposSel.join(','));
+      const r = await api.get(`/events/${id}/ventas-por-dia?${p}`);
+      setCurva(r.data);
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'No se pudo calcular el período');
+    } finally {
+      setCargandoCurva(false);
+    }
+  };
+
+  const alternarTipo = (ttId) =>
+    setTiposSel(prev => prev.includes(ttId) ? prev.filter(x => x !== ttId) : [...prev, ttId]);
 
   if (loading) return (
     <Layout>
@@ -149,6 +186,105 @@ const EventStats = () => {
                 );
               })}
             </div>
+          </div>
+        )}
+
+        {/* Ventas por dia en un tramo — para comparar contra otros eventos */}
+        {curva && (
+          <div className="card mb-6">
+            <h3 className="font-semibold text-sm mb-1">Ventas por día</h3>
+            <p className="text-xs text-gray-500 mb-4">
+              Cuánto se vendió entre dos fechas. Arranca en la apertura de venta;
+              cambiá el tramo para comparar contra otros eventos.
+            </p>
+
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              <div>
+                <label className="block text-[10px] uppercase tracking-wider mb-1" style={{ color: '#6B7280' }}>Desde</label>
+                <input type="date" className="input text-sm" value={desde}
+                       onChange={e => setDesde(e.target.value)} />
+              </div>
+              <div>
+                <label className="block text-[10px] uppercase tracking-wider mb-1" style={{ color: '#6B7280' }}>Hasta</label>
+                <input type="date" className="input text-sm" value={hasta}
+                       onChange={e => setHasta(e.target.value)} />
+              </div>
+            </div>
+
+            {/* Filtro por tipo: ninguno marcado = todos */}
+            {(curva.tipos_disponibles || []).length > 0 && (
+              <div className="mb-3">
+                <p className="text-[10px] uppercase tracking-wider mb-1.5" style={{ color: '#6B7280' }}>
+                  Tipo de entrada {tiposSel.length === 0 && '(todas)'}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {curva.tipos_disponibles.map(tt => {
+                    const activo = tiposSel.includes(tt.id);
+                    return (
+                      <button key={tt.id} type="button" onClick={() => alternarTipo(tt.id)}
+                        className="text-xs px-2.5 py-1 rounded-full font-medium transition-colors"
+                        style={activo
+                          ? { background: '#C9974D', color: '#0B0F14' }
+                          : { background: '#161B24', color: '#9AA3B2', border: '1px solid #1E2530' }}>
+                        {tt.name}
+                      </button>
+                    );
+                  })}
+                  {tiposSel.length > 0 && (
+                    <button type="button" onClick={() => setTiposSel([])}
+                      className="text-xs px-2.5 py-1 rounded-full" style={{ color: '#6B7280' }}>
+                      Limpiar
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <button onClick={recargarCurva} disabled={cargandoCurva}
+                    className="btn-secondary w-full text-sm py-2 mb-4 disabled:opacity-50">
+              {cargandoCurva ? 'Calculando…' : 'Ver período'}
+            </button>
+
+            <div className="rounded-lg p-3 mb-4 flex items-baseline justify-between"
+                 style={{ background: '#161B24', border: '1px solid #1E2530' }}>
+              <span className="text-xs" style={{ color: '#6B7280' }}>
+                Vendidas en el período
+                {curva.tipos_filtrados?.length > 0 && ' (tipos filtrados)'}
+              </span>
+              <span className="stat-num-sm font-black" style={{ color: '#C9974D' }}>
+                {curva.total}
+              </span>
+            </div>
+
+            {curva.total === 0 ? (
+              <p className="text-sm text-center py-4" style={{ color: '#4B5563' }}>
+                No hubo ventas en ese período
+              </p>
+            ) : (() => {
+              const maxDia = Math.max(...curva.dias.map(d => d.vendidas), 1);
+              return (
+                <div className="overflow-x-auto">
+                  <div className="flex items-end gap-1 h-32"
+                       style={{ minWidth: `${Math.max(curva.dias.length * 22, 240)}px` }}>
+                    {curva.dias.map(d => (
+                      <div key={d.dia} className="flex-1 flex flex-col items-center gap-1 h-full justify-end"
+                           title={`${d.dia}: ${d.vendidas} vendidas · acumulado ${d.acumulado}`}>
+                        <span className="text-[9px]" style={{ color: '#6B7280' }}>
+                          {d.vendidas > 0 ? d.vendidas : ''}
+                        </span>
+                        <div className="w-full rounded-t transition-all"
+                             style={{ height: `${(d.vendidas / maxDia) * 100}%`,
+                                      minHeight: d.vendidas > 0 ? '4px' : '1px',
+                                      background: d.vendidas > 0 ? '#C9974D' : '#1E2530' }} />
+                        <span className="text-[9px] whitespace-nowrap" style={{ color: '#4B5563' }}>
+                          {d.dia.slice(8, 10)}/{d.dia.slice(5, 7)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
 
