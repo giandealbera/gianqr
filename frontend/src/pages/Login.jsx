@@ -16,6 +16,11 @@ const Login = () => {
   const navigate  = useNavigate();
   const [form, setForm]       = useState({ email: '', password: '' });
   const [loading, setLoading] = useState(false);
+  // Mantener la sesion en este dispositivo. Viene marcado: la mayoria entra
+  // desde su propio telefono y tener que escribir la clave cada 8 horas, en
+  // plena noche de evento, es un estorbo. Quien use un equipo compartido lo
+  // destilda.
+  const [recordarme, setRecordarme] = useState(true);
 
   // Segundo paso del login cuando el user tiene 2FA. Si tfaState es null,
   // mostramos email+password. Si es un objeto { partial_token }, mostramos
@@ -27,7 +32,7 @@ const Login = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const result = await login(form.email, form.password);
+      const result = await login(form.email, form.password, recordarme);
       if (result?.needs_2fa) {
         setTfaState({ partial_token: result.partial_token });
         toast('Ingresá el código de 2FA', { icon: '🔐' });
@@ -117,6 +122,27 @@ const Login = () => {
                 onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
               />
             </div>
+
+            {/* Sesion larga en este dispositivo. El servidor valida la sesion
+                en cada pedido, asi que se puede cortar desde "Sesiones
+                activas" o cambiando la contraseña. */}
+            <label className="flex items-start gap-2.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                className="w-4 h-4 mt-0.5 accent-[#5C6E5D] shrink-0"
+                checked={recordarme}
+                onChange={e => setRecordarme(e.target.checked)}
+              />
+              <span>
+                <span className="block text-sm" style={{ color: '#D5DBD7' }}>
+                  Mantener sesión iniciada
+                </span>
+                <span className="block text-[11px] leading-snug mt-0.5" style={{ color: '#6B7280' }}>
+                  No te vuelve a pedir la contraseña en este dispositivo.
+                  Destildalo si es un teléfono o computadora compartida.
+                </span>
+              </span>
+            </label>
 
             <button
               type="submit"

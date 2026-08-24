@@ -23,8 +23,11 @@ export const AuthProvider = ({ children }) => {
   // genera funciones nuevas que cambian la identidad del value y
   // re-renderizan todo arbol que use useAuth() (Layout, Sidebar, BottomNav,
   // ProtectedRoute, MoreMenu, Login, etc).
-  const login = useCallback(async (email, password) => {
-    const res = await api.post('/auth/login', { email, password });
+  // recordarme: mantiene la sesion iniciada en ESTE dispositivo (30 dias en
+  // vez de 8 horas). Se puede cortar desde "Sesiones activas" o cambiando la
+  // contraseña, porque el servidor valida la sesion en cada pedido.
+  const login = useCallback(async (email, password, recordarme = true) => {
+    const res = await api.post('/auth/login', { email, password, recordarme });
     if (res.data.needs_2fa) {
       return { needs_2fa: true, partial_token: res.data.partial_token };
     }

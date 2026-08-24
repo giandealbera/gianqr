@@ -1007,6 +1007,37 @@ const dni = (n) => String(30000000 + n);
           hist.status === 200 && hist.data?.total === 22, `HTTP ${hist.status} total=${hist.data?.total}`);
   }
 
+  // ---------- Mantener sesion iniciada ----------
+  {
+    const vence = (tok) => {
+      const p = JSON.parse(Buffer.from(tok.split('.')[1], 'base64').toString());
+      return { horas: Math.round((p.exp - p.iat) / 3600), jti: p.jti };
+    };
+    const cred = { email: ADMIN_EMAIL, password: ADMIN_PASS };
+
+    const corta = await req('POST', '/auth/login', { body: cred });
+    check('sesion: sin marcar la opcion dura 8 horas',
+          vence(corta.data?.token).horas === 8, `dio ${vence(corta.data?.token).horas}h`);
+
+    const larga = await req('POST', '/auth/login', { body: { ...cred, recordarme: true } });
+    const vL = vence(larga.data?.token);
+    check('sesion: con "mantener sesion iniciada" dura 30 dias',
+          vL.horas === 24 * 30, `dio ${vL.horas}h`);
+    check('sesion: la sesion larga sirve para operar',
+          (await req('GET', '/auth/me', { token: larga.data?.token })).status === 200, 'no anda');
+
+    const lista = await req('GET', '/sessions', { token: larga.data?.token });
+    check('sesion: la larga figura en "Sesiones activas"',
+          (lista.data?.rows || []).some(x => x.id === vL.jti && x.is_active), 'no aparece');
+
+    // Lo que hace segura a una sesion larga: se puede cortar antes de que venza
+    const otra = await req('POST', '/auth/login', { body: cred });
+    check('sesion: se puede revocar desde otro dispositivo',
+          (await req('DELETE', `/sessions/${vL.jti}`, { token: otra.data?.token })).status === 200, 'no se pudo');
+    check('sesion: revocada deja de servir aunque NO haya vencido',
+          (await req('GET', '/auth/me', { token: larga.data?.token })).status === 403, 'sigue andando');
+  }
+
   // ---------- Push ----------
   {
     const pk = await req('GET', '/push/public-key');

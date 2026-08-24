@@ -58,9 +58,23 @@ async function padTiming(startedAt) {
   }
 }
 
+// Cuanto dura la sesion.
+//
+// Por defecto 8 horas. Con "mantener sesion iniciada" pasa a 30 dias, para
+// que el vendedor o el portero no tengan que escribir la contraseña cada vez
+// que abren la app en su telefono.
+//
+// Una sesion larga es segura aca porque el middleware de auth valida contra
+// la tabla `sessions` en CADA pedido: si se revoca desde "Sesiones activas" o
+// se cambia la contraseña, el token deja de servir en el acto aunque todavia
+// no haya vencido.
+const DURACION_NORMAL    = process.env.JWT_EXPIRES_IN || '8h';
+const DURACION_RECORDADO = process.env.JWT_EXPIRES_IN_REMEMBER || '30d';
+const duracionSesion = (recordar) => (recordar ? DURACION_RECORDADO : DURACION_NORMAL);
+
 // POST /api/auth/login
 const login = async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, recordarme } = req.body;
   if (!email || !password)
     return res.status(400).json({ error: 'Email y contraseña requeridos' });
   if (!EMAIL_REGEX.test(email))
@@ -95,8 +109,12 @@ const login = async (req, res) => {
     // /auth/2fa/verify con ese partial + el codigo TOTP para conseguir el
     // JWT final. El partial dura 5 minutos.
     if (user.totp_enabled) {
+      // La eleccion de "mantener sesion" viaja DENTRO del partial token, que
+      // esta firmado por nosotros. Si la mandara el cliente en el segundo
+      // paso, cualquiera podria pedir una sesion de 30 dias sin haberla
+      // elegido en el login.
       const partialToken = jwt.sign(
-        { id: user.id, email: user.email, purpose: '2fa' },
+        { id: user.id, email: user.email, purpose: '2fa', recordarme: !!recordarme },
         process.env.JWT_SECRET,
         { expiresIn: '5m', algorithm: 'HS256' }
       );
@@ -107,7 +125,7 @@ const login = async (req, res) => {
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role, name: user.name, jti },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '8h', algorithm: 'HS256' }
+      { expiresIn: duracionSesion(recordarme), algorithm: 'HS256' }
     );
 
     res.json({
@@ -166,7 +184,9 @@ const verifyTwoFactor = async (req, res) => {
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role, name: user.name, jti },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || '8h', algorithm: 'HS256' }
+      // La eleccion viene del partial token, que firmamos nosotros en el
+      // primer paso del login.
+      { expiresIn: duracionSesion(decoded.recordarme), algorithm: 'HS256' }
     );
 
     res.json({
