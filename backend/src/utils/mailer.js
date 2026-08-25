@@ -1,42 +1,58 @@
 /**
  * Mailer unificado.
  *
- * - Si está RESEND_API_KEY seteado: envía via Resend (https://resend.com)
- * - Si no: imprime el mail al log y lo descarta (modo dev / pre-Resend).
+ * Prioridad de proveedores (el primero configurado se usa):
+ *   1. RESEND_API_KEY  → via API REST de Resend (resend.com)
+ *   2. SMTP_HOST       → via Nodemailer + cualquier servidor SMTP (Gmail, etc.)
+ *   3. Ninguno         → imprime al log y descarta (modo dev / no configurado)
  *
- * `isMailConfigured()` existe para que los controllers puedan avisarle al
- * usuario que el envio no esta disponible EN VEZ de decirle "te mandamos un
- * mail" y dejarlo esperando algo que nunca iba a salir.
+ * Variables de entorno necesarias:
+ *
+ *   Para Resend:
+ *     RESEND_API_KEY=re_xxxxxxxx
+ *     MAIL_FROM=GianQR <noreply@tudominio.com>   ← dominio verificado en Resend
+ *
+ *   Para SMTP (ej Gmail con App Password):
+ *     SMTP_HOST=smtp.gmail.com
+ *     SMTP_PORT=587          (opcional, default 587)
+ *     SMTP_USER=tucuenta@gmail.com
+ *     SMTP_PASS=xxxx xxxx xxxx xxxx  ← App Password de Google (no la clave normal)
+ *     MAIL_FROM=GianQR <tucuenta@gmail.com>
+ *
+ * `isMailConfigured()` → true si algún proveedor está listo.
+ * `sendMail({ to, subject, text, html })` → envía el mail, siempre resuelve
+ *   (nunca lanza; los errores quedan logueados).
  */
 
-const FROM = process.env.MAIL_FROM || 'GianQR <noreply@gianqr.com>';
+const nodemailer = require('nodemailer');
 
-// Leemos la env var en cada llamada (no en el import) para que los tests
-// puedan setearla/limpiarla sin recargar el modulo.
-const apiKey = () => process.env.RESEND_API_KEY;
+const FROM = () => process.env.MAIL_FROM || 'GianQR <noreply@gianqr.com>';
+
+// ─── Detección de proveedor ───────────────────────────────────────────────────
+
+function hasResend()  { return !!process.env.RESEND_API_KEY; }
+function hasSmtp()    { return !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS); }
 
 // Modo de prueba local: MAIL_DEV_STUB=1 hace que el sistema se comporte como
 // si el envio estuviera configurado, pero los mails se imprimen al log en vez
-// de salir. Sin esto, en una maquina sin RESEND_API_KEY el flujo de reset
-// contesta 503 y no hay forma de probarlo de punta a punta.
-// Nunca aplica en produccion: alli "no hay API key" tiene que seguir
-// significando "el envio NO esta disponible", que es justamente lo que el
-// usuario necesita que le avisemos.
+// de salir. Nunca aplica en produccion.
 const devStub = () =>
   process.env.MAIL_DEV_STUB === '1' && process.env.NODE_ENV !== 'production';
 
 function isMailConfigured() {
-  return !!apiKey() || devStub();
+  return hasResend() || hasSmtp() || devStub();
 }
+
+// ─── Proveedor 1: Resend ──────────────────────────────────────────────────────
 
 async function sendViaResend({ to, subject, text, html }) {
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${apiKey()}`,
+      'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ from: FROM, to: [to], subject, text, html }),
+    body: JSON.stringify({ from: FROM(), to: [to], subject, text, html }),
   });
   if (!res.ok) {
     const body = await res.text();
@@ -45,38 +61,72 @@ async function sendViaResend({ to, subject, text, html }) {
   return res.json();
 }
 
+// ─── Proveedor 2: SMTP (Nodemailer) ──────────────────────────────────────────
+
+// El transporter se crea una sola vez (pool de conexiones).
+let _smtpTransporter = null;
+function getSmtpTransporter() {
+  if (_smtpTransporter) return _smtpTransporter;
+  _smtpTransporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: parseInt(process.env.SMTP_PORT || '587', 10),
+    secure: parseInt(process.env.SMTP_PORT || '587', 10) === 465, // true solo para 465
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  });
+  return _smtpTransporter;
+}
+
+async function sendViaSmtp({ to, subject, text, html }) {
+  const transporter = getSmtpTransporter();
+  await transporter.sendMail({ from: FROM(), to, subject, text, html });
+}
+
+// ─── Fallback: log al console ─────────────────────────────────────────────────
+
 function logToConsole({ to, subject, text }) {
-  // En produccion solo logueamos metadata. El body de un reset-password
-  // contiene el link con token — no debe quedar en logs. Si RESEND_API_KEY
-  // no esta configurada en prod, los users no van a recibir el mail
-  // pero al menos no filtramos el reset link al stdout.
   if (process.env.NODE_ENV === 'production') {
-    console.log(`[mail-stub] would send: to=${to} subject="${subject}" (RESEND_API_KEY no configurada)`);
+    console.log(`[mail-stub] would send: to=${to} subject="${subject}" (ningún proveedor configurado)`);
     return;
   }
-  console.log('\n📧 MAIL STUB (Resend no configurado):');
+  console.log('\n📧 MAIL STUB (sin proveedor configurado):');
   console.log(`   To:      ${to}`);
   console.log(`   Subject: ${subject}`);
   console.log(`   Body:    ${text.split('\n').join('\n            ')}`);
-  console.log('   (configurar RESEND_API_KEY para envio real)\n');
+  console.log('   (configurar RESEND_API_KEY o SMTP_HOST+SMTP_USER+SMTP_PASS para envio real)\n');
 }
 
+// ─── Función principal ────────────────────────────────────────────────────────
+
 const sendMail = async ({ to, subject, text, html }) => {
-  // Solo hay envio real si hay API key; devStub cae al log de abajo.
-  if (apiKey()) {
+  if (hasResend()) {
     try {
       await sendViaResend({ to, subject, text, html });
       return { sent: true, provider: 'resend' };
     } catch (err) {
-      // Loguemos fuerte: es la unica pista de que un usuario pidio recuperar
-      // su clave y el mail no salio.
-      console.error(`[mail] FALLO el envio a ${to} ("${subject}"):`, err.message);
-      return { sent: false, error: err.message };
+      console.error(`[mail/resend] FALLO el envio a ${to} ("${subject}"):`, err.message);
+      return { sent: false, provider: 'resend', error: err.message };
     }
   }
+
+  if (hasSmtp()) {
+    try {
+      await sendViaSmtp({ to, subject, text, html });
+      return { sent: true, provider: 'smtp' };
+    } catch (err) {
+      console.error(`[mail/smtp] FALLO el envio a ${to} ("${subject}"):`, err.message);
+      return { sent: false, provider: 'smtp', error: err.message };
+    }
+  }
+
+  // Stub: log + descarte
   logToConsole({ to, subject, text });
   return { sent: false, provider: 'stub' };
 };
+
+// ─── Helpers de plantilla HTML ────────────────────────────────────────────────
 
 // Escapa texto que va embebido en el HTML del mail. Sin esto, un nombre con
 // `<` o `&` rompe el markup (y en el peor caso inyecta etiquetas).
