@@ -196,4 +196,45 @@ function renderEmail({ title, intro, cta, note }) {
 </body></html>`;
 }
 
-module.exports = { sendMail, isMailConfigured, renderEmail, escapeHtml };
+/**
+ * Chequea al arrancar que el proveedor de mail realmente ande, y lo deja
+ * dicho en los logs.
+ *
+ * Por que existe: cuando Gmail rechaza la contraseña, el endpoint de
+ * recuperacion igual contesta "te enviamos las instrucciones" (la respuesta
+ * es generica a proposito, para no filtrar que emails estan registrados).
+ * El error real quedaba enterrado en los logs y solo aparecia DESPUES de que
+ * alguien pidiera un reset. Resultado: la unica forma de saber si el mail
+ * andaba era pedirselo a un usuario real y preguntarle si le llego.
+ *
+ * Con esto, apenas levanta el server los logs dicen si las credenciales
+ * sirven, sin tener que mandar nada.
+ *
+ * No corta el arranque si falla: que no salgan los mails es un problema,
+ * pero es mucho peor que se caiga la venta de entradas por eso.
+ */
+async function checkMailProvider() {
+  if (hasResend()) {
+    console.log('[mail] proveedor: Resend');
+    return { ok: true, provider: 'resend' };
+  }
+
+  if (hasSmtp()) {
+    try {
+      await getSmtpTransporter().verify();
+      console.log(`[mail] proveedor: SMTP ${process.env.SMTP_HOST} como ${process.env.SMTP_USER} — credenciales OK`);
+      return { ok: true, provider: 'smtp' };
+    } catch (err) {
+      // El detalle importa: "535 Username and Password not accepted" se
+      // arregla distinto que un timeout de conexion.
+      console.error(`[mail] SMTP RECHAZADO por ${process.env.SMTP_HOST} como ${process.env.SMTP_USER}: ${err.message}`);
+      console.error('[mail] los mails NO van a salir hasta que se corrija. Si es una App Password de Gmail, revisar que sean 16 letras sin espacios.');
+      return { ok: false, provider: 'smtp', error: err.message };
+    }
+  }
+
+  console.warn('[mail] sin proveedor configurado: los mails se descartan. Setear RESEND_API_KEY o SMTP_HOST+SMTP_USER+SMTP_PASS.');
+  return { ok: false, provider: 'stub' };
+}
+
+module.exports = { sendMail, isMailConfigured, checkMailProvider, renderEmail, escapeHtml };

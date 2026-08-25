@@ -102,6 +102,11 @@ const start = async () => {
   // Ejecutar seed (crea admin por defecto)
   try { await require('./src/seed')(); } catch(e) { /* ya seedeado */ }
 
+  // Verifica el proveedor de mail y lo deja dicho en los logs. No se espera
+  // (`await`) a proposito: si Gmail tarda en responder, que no demore el
+  // arranque del server.
+  require('./src/utils/mailer').checkMailProvider().catch(() => {});
+
   app.listen(PORT, () => {
     console.log(`
   ╔════════════════════════════════╗
