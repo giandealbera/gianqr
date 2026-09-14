@@ -373,6 +373,19 @@ const scan = async (req, res) => {
     if (ticket.status === 'usado')
       return res.status(409).json({ valid: false, error: 'Esta entrada ya fue utilizada', scanned_at: ticket.scanned_at, ticket });
 
+    // Una reserva todavia no vendida NO es una entrada. Nace con
+    // status='pagado' (para que descuente cupo) y con su qr_code ya armado,
+    // asi que sin este chequeo se podia escanear en la puerta antes de que
+    // nadie la comprara: entraba alguien con el nombre "Pendiente Pendiente"
+    // y despues el comprador real llegaba con SU entrada y se la rechazaban
+    // por "ya fue utilizada". Reproducido antes del arreglo.
+    if (ticket.payment_ref === 'RESERVADO')
+      return res.status(402).json({
+        valid: false,
+        error: 'Esta entrada está reservada y todavía no fue completada por el comprador',
+        ticket,
+      });
+
     if (ticket.status !== 'pagado')
       return res.status(402).json({ valid: false, error: `Estado: ${ticket.status}`, ticket });
 

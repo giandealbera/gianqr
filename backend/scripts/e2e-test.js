@@ -1098,6 +1098,52 @@ const dni = (n) => String(30000000 + n);
           anon.status === 401 || anon.status === 403, `HTTP ${anon.status}`);
   }
 
+  // ---------- Reservas sin vender no se pueden escanear ----------
+  // Una reserva nace con status='pagado' (para descontar cupo) y con su
+  // qr_code ya armado. Sin este chequeo se escaneaba en la puerta antes de
+  // que nadie la comprara: entraba alguien con el nombre "Pendiente
+  // Pendiente" y despues el comprador real llegaba con SU entrada y se la
+  // rechazaban por "ya fue utilizada".
+  {
+    const hoyR = new Date().toISOString().slice(0, 10);
+    const ayR  = new Date(Date.now() - 864e5).toISOString().slice(0, 19).replace('T', ' ');
+    const maR  = new Date(Date.now() + 864e5).toISOString().slice(0, 19).replace('T', ' ');
+    const evR = await req('POST', '/events', { token: admin, body: {
+      name: 'Evento reserva escaneable', date: hoyR, start_time: '23:00',
+      sale_start_at: ayR, sale_end_at: maR } });
+    const ttR = await req('POST', `/events/${evR.data?.id}/ticket-types`, { token: admin, body: {
+      name: 'General', price: 5000, total_quota: 20 } });
+
+    const preR = await req('POST', '/tickets/pre-sell', { token: admin, body: {
+      event_id: evR.data?.id, ticket_type_id: ttR.data?.id,
+      payment_method: 'efectivo', qty: 1 } });
+    const idR = preR.data?.tickets?.[0];
+    // El qr_code se deduce del id del ticket, asi que no hace falta leerlo.
+    const qrR = 'GIANQR-' + String(idR || '').substring(0, 8).toUpperCase();
+
+    const scanReserva = await req('POST', '/tickets/scan', { token: admin, body: { qr_code: qrR } });
+    check('reserva sin vender NO entra en la puerta',
+          scanReserva.status === 402 && !scanReserva.data?.valid,
+          `HTTP ${scanReserva.status} valid=${scanReserva.data?.valid}`);
+
+    const compR = await req('POST', '/public/tickets-complete/CASA', { body: {
+      ticket_ids: [idR],
+      attendees: [{ buyer_name: 'Comprador', buyer_apellido: 'Real', buyer_dni: '30999111' }] } });
+    check('la reserva se completa bien', compR.status === 200, `HTTP ${compR.status}`);
+
+    const scanReal = await req('POST', '/tickets/scan', { token: admin, body: { qr_code: qrR } });
+    check('el comprador real SI entra con su entrada',
+          scanReal.status === 200 && scanReal.data?.valid === true,
+          `HTTP ${scanReal.status} ${scanReal.data?.error || ''}`);
+    check('y entra con su nombre, no con "Pendiente"',
+          scanReal.data?.ticket?.buyer_name === 'Comprador',
+          `nombre=${scanReal.data?.ticket?.buyer_name}`);
+
+    const scanDoble = await req('POST', '/tickets/scan', { token: admin, body: { qr_code: qrR } });
+    check('la misma entrada no entra dos veces',
+          scanDoble.status === 409, `HTTP ${scanDoble.status}`);
+  }
+
   // ---------- Push ----------
   {
     const pk = await req('GET', '/push/public-key');

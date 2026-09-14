@@ -281,6 +281,15 @@ const publicScan = async (req, res) => {
     if (ticket.status === 'usado')
       return res.status(409).json({ valid: false, error: 'Esta entrada ya fue utilizada', ticket });
 
+    // Mismo chequeo que en /tickets/scan: una reserva sin completar no es una
+    // entrada valida, aunque su status sea 'pagado' y ya tenga qr_code.
+    if (ticket.payment_ref === 'RESERVADO')
+      return res.status(402).json({
+        valid: false,
+        error: 'Esta entrada está reservada y todavía no fue completada por el comprador',
+        ticket,
+      });
+
     if (ticket.status !== 'pagado')
       return res.status(402).json({ valid: false, error: `Estado inválido: ${ticket.status}`, ticket });
 
