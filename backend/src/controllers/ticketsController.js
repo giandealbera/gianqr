@@ -1,4 +1,5 @@
 const { v4: uuidv4 } = require('uuid');
+const { nuevoCodigoQR } = require('../utils/qrCode');
 const QRCode = require('qrcode');
 const db = require('../config/database');
 const { checkSaleWindow } = require('../utils/saleWindow');
@@ -9,7 +10,7 @@ const { logAudit } = require('../utils/auditLog');
 const { sendPush } = require('./pushController');
 
 async function generateQR(ticketId) {
-  const code    = `GIANQR-${ticketId.split('-')[0].toUpperCase()}`;
+  const code    = nuevoCodigoQR();
   const qrData  = JSON.stringify({ code, ticket_id: ticketId });
   const qrBase64 = await QRCode.toDataURL(qrData, { width: 300 });
   return { code, qrBase64 };
@@ -336,14 +337,13 @@ const scan = async (req, res) => {
     }
 
     const cleanCode = String(rawCode || '').toUpperCase().trim();
-    const cleanId = rawId ? String(rawId).trim() : cleanCode;
 
     const result = await db.query(
       `SELECT t.*, tt.name AS tipo_entrada, e.name AS evento, e.date, e.start_time
        FROM tickets t
        JOIN ticket_types tt ON tt.id = t.ticket_type_id
        JOIN events e ON e.id = t.event_id
-       WHERE UPPER(TRIM(t.qr_code)) = UPPER(TRIM(?)) OR t.id = ?`, [cleanCode, cleanId]
+       WHERE UPPER(TRIM(t.qr_code)) = UPPER(TRIM(?))`, [cleanCode]
     );
 
     const ticket = result.rows[0];

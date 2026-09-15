@@ -1118,8 +1118,10 @@ const dni = (n) => String(30000000 + n);
       event_id: evR.data?.id, ticket_type_id: ttR.data?.id,
       payment_method: 'efectivo', qty: 1 } });
     const idR = preR.data?.tickets?.[0];
-    // El qr_code se deduce del id del ticket, asi que no hace falta leerlo.
-    const qrR = 'GIANQR-' + String(idR || '').substring(0, 8).toUpperCase();
+    // El qr_code ya NO se deduce del id (ver bloque "El QR no se puede
+    // deducir del id"): hay que leerlo, y solo el admin puede.
+    const detR = await req('GET', `/tickets/${idR}`, { token: admin });
+    const qrR = detR.data?.qr_code;
 
     const scanReserva = await req('POST', '/tickets/scan', { token: admin, body: { qr_code: qrR } });
     check('reserva sin vender NO entra en la puerta',
@@ -1142,6 +1144,54 @@ const dni = (n) => String(30000000 + n);
     const scanDoble = await req('POST', '/tickets/scan', { token: admin, body: { qr_code: qrR } });
     check('la misma entrada no entra dos veces',
           scanDoble.status === 409, `HTTP ${scanDoble.status}`);
+  }
+
+  // ---------- El QR no se puede deducir del id ----------
+  // Antes el codigo era 'GIANQR-' + los 8 primeros caracteres del id, y
+  // /public/tickets-info devuelve los ids a cualquiera con un link de
+  // reserva: con el id a la vista se calculaba el QR y se entraba con la
+  // entrada de otro. El escaner ademas aceptaba el id crudo.
+  {
+    const hoyQ = new Date().toISOString().slice(0, 10);
+    const ayQ  = new Date(Date.now() - 864e5).toISOString().slice(0, 19).replace('T', ' ');
+    const maQ  = new Date(Date.now() + 864e5).toISOString().slice(0, 19).replace('T', ' ');
+    const evQ = await req('POST', '/events', { token: admin, body: {
+      name: 'Evento QR secreto', date: hoyQ, start_time: '23:00',
+      sale_start_at: ayQ, sale_end_at: maQ } });
+    const ttQ = await req('POST', `/events/${evQ.data?.id}/ticket-types`, { token: admin, body: {
+      name: 'General', price: 5000, total_quota: 20 } });
+
+    const compraQ = await req('POST', '/public/tickets/CASA', { body: {
+      event_id: evQ.data?.id, ticket_type_id: ttQ.data?.id, payment_method: 'efectivo',
+      attendees: [{ buyer_name: 'Ana', buyer_apellido: 'Secreta', buyer_dni: '30555111' }] } });
+    const tQ = compraQ.data?.tickets?.[0];
+    const deducido = 'GIANQR-' + String(tQ?.id || '').substring(0, 8).toUpperCase();
+
+    check('el qr_code NO se deduce del id del ticket',
+          tQ?.qr_code && tQ.qr_code !== deducido, `qr=${tQ?.qr_code}`);
+    check('el qr_code tiene entropia suficiente',
+          (tQ?.qr_code || '').length >= 24, `largo=${(tQ?.qr_code || '').length}`);
+
+    const porId = await req('POST', '/tickets/scan', { token: admin, body: { qr_code: tQ?.id } });
+    check('el id crudo no abre la puerta', porId.status === 404, `HTTP ${porId.status}`);
+
+    const porDeducido = await req('POST', '/tickets/scan', { token: admin, body: { qr_code: deducido } });
+    check('el codigo deducido del id tampoco', porDeducido.status === 404, `HTTP ${porDeducido.status}`);
+
+    const porQr = await req('POST', '/tickets/scan', { token: admin, body: { qr_code: tQ?.qr_code } });
+    check('el QR real si entra', porQr.status === 200 && porQr.data?.valid === true,
+          `HTTP ${porQr.status} ${porQr.data?.error || ''}`);
+
+    // El lector manda el JSON completo que lleva el QR adentro.
+    const compra2Q = await req('POST', '/public/tickets/CASA', { body: {
+      event_id: evQ.data?.id, ticket_type_id: ttQ.data?.id, payment_method: 'efectivo',
+      attendees: [{ buyer_name: 'Beto', buyer_apellido: 'Secreto', buyer_dni: '30555222' }] } });
+    const t2Q = compra2Q.data?.tickets?.[0];
+    const jsonQr = JSON.stringify({ code: t2Q?.qr_code, ticket_id: t2Q?.id });
+    const porJson = await req('POST', '/tickets/scan', { token: admin, body: { qr_code: jsonQr } });
+    check('el QR en formato JSON tambien entra',
+          porJson.status === 200 && porJson.data?.valid === true,
+          `HTTP ${porJson.status} ${porJson.data?.error || ''}`);
   }
 
   // ---------- Push ----------

@@ -231,7 +231,6 @@ const publicScan = async (req, res) => {
     }
 
     const cleanCode = String(rawCode || '').toUpperCase().trim();
-    const cleanId = rawId ? String(rawId).trim() : cleanCode;
 
     const [tokenResult, ticketResult] = await Promise.all([
       db.query(
@@ -247,8 +246,8 @@ const publicScan = async (req, res) => {
          FROM tickets t
          JOIN ticket_types tt ON tt.id = t.ticket_type_id
          JOIN events e ON e.id = t.event_id
-         WHERE UPPER(TRIM(t.qr_code)) = UPPER(TRIM(?)) OR t.id = ?`,
-        [cleanCode, cleanId]
+         WHERE UPPER(TRIM(t.qr_code)) = UPPER(TRIM(?))`,
+        [cleanCode]
       ),
     ]);
 

@@ -1,5 +1,6 @@
 const { v4: uuidv4 } = require('uuid');
 const db = require('../config/database');
+const { nuevoCodigoQR } = require('../utils/qrCode');
 const { normalizeCity } = require('../utils/normalize');
 const { eventoOperable } = require('../utils/eventStatus');
 
@@ -62,7 +63,7 @@ const createCortesias = async (req, res) => {
 
       for (const a of attendees) {
         const ticketId = uuidv4();
-        const qrCode   = `GIANQR-${ticketId.substring(0, 8).toUpperCase()}`;
+        const qrCode   = nuevoCodigoQR();
         await conn.execute(
           `INSERT INTO tickets
              (id, ticket_type_id, event_id, buyer_name, buyer_apellido, buyer_dni, buyer_edad, buyer_localidad, buyer_email,
