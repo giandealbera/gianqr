@@ -111,7 +111,7 @@ const SoldTickets = () => {
 
   useEffect(() => { reload().finally(() => setLoading(false)); }, [reload]);
 
-  const { pulling, progress } = usePullToRefresh(reload);
+  const { pulling, progress, refreshing } = usePullToRefresh(reload);
 
   const handleDelete = useCallback(async (t) => {
     const ok = await confirm({
@@ -177,7 +177,7 @@ const SoldTickets = () => {
 
   return (
     <Layout>
-      <PullIndicator pulling={pulling} progress={progress} />
+      <PullIndicator pulling={pulling} progress={progress} refreshing={refreshing} />
       <div className="px-4 lg:px-8 py-6 max-w-4xl mx-auto">
         <button onClick={() => navigate(`/evento/${id}`)} className="text-sm text-gray-400 hover:text-white mb-4 flex items-center gap-1">
           ← {event?.name || 'Volver'}

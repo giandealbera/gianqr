@@ -1,5 +1,6 @@
 ﻿import { useEffect, useState } from 'react';
 import api from '../../api/axios';
+import { SkeletonList } from '../../components/Skeleton';
 import Layout from '../../components/Layout';
 import { useConfirm } from '../../context/ConfirmContext';
 import toast from 'react-hot-toast';
@@ -148,9 +149,7 @@ const Rendicion = () => {
         </button>
 
         {loadingD || !detail ? (
-          <div className="flex justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-brand" />
-          </div>
+          <SkeletonList rows={4} />
         ) : (
           <>
             {/* Perfil */}
@@ -401,9 +400,7 @@ const Rendicion = () => {
         </form>
 
         {loading ? (
-          <div className="flex justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-brand" />
-          </div>
+          <SkeletonList rows={5} />
         ) : list.length === 0 ? (
           <p className="text-center py-12 text-sm" style={{ color: '#4B5563' }}>Sin resultados</p>
         ) : (

@@ -1,5 +1,8 @@
 ﻿import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import usePullToRefresh from '../../hooks/usePullToRefresh';
+import PullIndicator from '../../components/PullIndicator';
+import { SkeletonPantalla } from '../../components/Skeleton';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import { useAuth } from '../../context/AuthContext';
@@ -26,13 +29,22 @@ const PromoterDashboard = () => {
     }
   };
 
-  useEffect(() => {
+  const cargar = () =>
     api.get('/users/my-sales')
       .then(res => setData(res.data))
       .catch(() => toast.error('Error al cargar datos'))
       .finally(() => setLoading(false));
+
+  useEffect(() => {
+    cargar();
     loadTeam();
   }, []);
+
+  // Tirar para actualizar: el vendedor mira sus ventas del dia y quiere ver
+  // si entro la ultima sin tener que salir y volver a la pantalla.
+  const { pulling, progress, refreshing } = usePullToRefresh(
+    () => Promise.all([cargar(), loadTeam()])
+  );
 
   const handleAddMember = async (e) => {
     e.preventDefault();
@@ -85,6 +97,7 @@ const PromoterDashboard = () => {
 
   return (
     <Layout>
+      <PullIndicator pulling={pulling} progress={progress} refreshing={refreshing} />
       <div className="px-4 lg:px-8 py-6 max-w-4xl mx-auto">
         <h1 className="text-xl font-semibold tracking-tight mb-1">Mi Panel</h1>
         <p className="text-slate-400 text-sm mb-6">Hola, {user?.name}</p>
@@ -105,9 +118,7 @@ const PromoterDashboard = () => {
         </div>
 
         {loading ? (
-          <div className="flex justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-brand" />
-          </div>
+          <SkeletonPantalla stats={4} rows={3} />
         ) : !data ? (
           <p className="text-center text-slate-500 py-12">No hay datos disponibles</p>
         ) : (

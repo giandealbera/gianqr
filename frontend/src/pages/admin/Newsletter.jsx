@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { SkeletonTable } from '../../components/Skeleton';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import { exportCsv } from '../../utils/exportCsv';
@@ -86,9 +87,7 @@ const Newsletter = () => {
         </div>
 
         {cargando ? (
-          <div className="flex justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-brand" />
-          </div>
+          <SkeletonTable rows={6} cols={3} />
         ) : (datos?.suscriptores || []).length === 0 ? (
           <div className="text-center py-14">
             <div className="inline-flex items-center justify-center w-12 h-12 rounded-full mb-3"

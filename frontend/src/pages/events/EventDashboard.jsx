@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { SkeletonPantalla } from '../../components/Skeleton';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
@@ -78,8 +79,8 @@ const EventDashboard = () => {
 
   if (loading) return (
     <Layout>
-      <div className="flex justify-center items-center h-[60vh]">
-        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-brand" />
+      <div className="px-4 lg:px-8 py-6">
+        <SkeletonPantalla stats={4} rows={4} />
       </div>
     </Layout>
   );

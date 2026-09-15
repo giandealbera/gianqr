@@ -45,7 +45,7 @@ const MyEvents = () => {
   useEffect(() => { load(); }, []);
 
   // Pull-to-refresh: tira del top de la lista para refrescar sin reload.
-  const { pulling, progress } = usePullToRefresh(() => load());
+  const { pulling, progress, refreshing } = usePullToRefresh(() => load());
 
   // Si llegan desde EventDashboard con ?edit=ID, abrimos directo el modal
   // de edicion del evento. Limpiamos el query string para que no quede pegajoso.
@@ -242,7 +242,7 @@ const MyEvents = () => {
 
   return (
     <Layout>
-      <PullIndicator pulling={pulling} progress={progress} />
+      <PullIndicator pulling={pulling} progress={progress} refreshing={refreshing} />
       <div className="px-4 lg:px-8 py-6 max-w-3xl mx-auto lg:max-w-none">
         {/* Header: titulo de seccion. El nombre del usuario aparece en
             el chip del header mobile y en el sidebar desktop — no hace

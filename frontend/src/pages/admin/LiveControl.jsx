@@ -1,5 +1,8 @@
 ﻿import { useEffect, useRef, useState } from 'react';
 import api from '../../api/axios';
+import usePullToRefresh from '../../hooks/usePullToRefresh';
+import PullIndicator from '../../components/PullIndicator';
+import { SkeletonPantalla } from '../../components/Skeleton';
 import Layout from '../../components/Layout';
 import { useConfirm } from '../../context/ConfirmContext';
 import { Icon } from '../../components/Icon';
@@ -159,8 +162,16 @@ const LiveControl = () => {
 
   const selectedEv = events.find(e => e.id === eventSel);
 
+  // Tirar para actualizar: el tablero se refresca solo cada pocos segundos,
+  // pero el gesto es lo primero que hace cualquiera cuando quiere ver YA si
+  // entro una venta. Pide todo, incluido el listado pesado.
+  const { pulling, progress, refreshing } = usePullToRefresh(
+    () => refresh(eventSel, { incluirEntradas: true })
+  );
+
   return (
     <Layout>
+      <PullIndicator pulling={pulling} progress={progress} refreshing={refreshing} />
       <div className="px-4 lg:px-8 py-6 max-w-6xl mx-auto">
 
         {/* Header con indicador live */}
@@ -182,9 +193,7 @@ const LiveControl = () => {
         </div>
 
         {loading ? (
-          <div className="flex justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-brand" />
-          </div>
+          <SkeletonPantalla stats={4} rows={3} />
         ) : (
           <>
             {/* Selector de evento */}

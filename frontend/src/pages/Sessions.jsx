@@ -5,6 +5,7 @@
 // de revocar (eso seria autoexcluirse; preferimos que use logout).
 
 import { useEffect, useState } from 'react';
+import { SkeletonList } from '../components/Skeleton';
 import api from '../api/axios';
 import Layout from '../components/Layout';
 import { useConfirm } from '../context/ConfirmContext';
@@ -101,9 +102,7 @@ const Sessions = () => {
         </p>
 
         {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-brand" />
-          </div>
+          <SkeletonList rows={3} />
         ) : active.length === 0 ? (
           <div className="card text-center py-12">
             <p className="text-sm" style={{ color: '#6B7280' }}>No hay sesiones activas registradas.</p>

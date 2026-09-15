@@ -9,6 +9,7 @@
 // owner ve las suyas + las de su staff.
 
 import { Fragment, useEffect, useMemo, useState } from 'react';
+import { SkeletonTable } from '../../components/Skeleton';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import toast from 'react-hot-toast';
@@ -149,9 +150,7 @@ const AuditLog = () => {
 
         {/* Tabla */}
         {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-brand" />
-          </div>
+          <SkeletonTable rows={8} cols={4} />
         ) : filteredRows.length === 0 ? (
           <div className="card text-center py-12">
             <p className="text-sm" style={{ color: '#6B7280' }}>

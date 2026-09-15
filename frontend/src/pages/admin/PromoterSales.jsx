@@ -1,5 +1,6 @@
 ﻿import { useEffect, useState } from 'react';
 import api from '../../api/axios';
+import { SkeletonList } from '../../components/Skeleton';
 import Layout from '../../components/Layout';
 import toast from 'react-hot-toast';
 
@@ -74,9 +75,7 @@ const PromoterSales = () => {
         {/* Table */}
         <div className="card overflow-x-auto">
           {loading ? (
-            <div className="flex justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-brand" />
-            </div>
+            <SkeletonList rows={5} />
           ) : (
             <table className="w-full text-sm">
               <thead>
