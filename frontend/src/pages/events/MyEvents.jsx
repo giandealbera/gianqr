@@ -1,5 +1,6 @@
 ﻿import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { paraInputLocal } from '../../utils/fechaLocal';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import toast from 'react-hot-toast';
@@ -136,8 +137,10 @@ const MyEvents = () => {
       date: ev.date || '',
       start_time: (ev.start_time || '').slice(0, 5),
       end_time: (ev.end_time || '').slice(0, 5),
-      sale_start_at: ev.sale_start_at ? ev.sale_start_at.slice(0, 16) : '',
-      sale_end_at: ev.sale_end_at ? ev.sale_end_at.slice(0, 16) : '',
+      // paraInputLocal y no slice: la API devuelve UTC contra Postgres, y
+      // cortar sus digitos metia la hora corrida 3 horas en el formulario.
+      sale_start_at: paraInputLocal(ev.sale_start_at),
+      sale_end_at:   paraInputLocal(ev.sale_end_at),
       flyer_url: ev.flyer_url || '',
       ticket_types: [],  // En edit no tocamos tipos (van a /evento/:id/tipos)
       is_active: ev.is_active !== 0,

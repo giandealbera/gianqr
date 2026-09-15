@@ -37,21 +37,48 @@ const identifyForRateLimit = (req, res, next) => {
       if (decoded?.id) req.rateLimitUserId = String(decoded.id);
     } catch { /* token invalido o vencido: queda con el cupo de su IP */ }
   }
+
+  // El escaner de portero (/api/scan/:token) no manda JWT: su credencial es
+  // el uuid del link. Sin esto caia en el cupo anonimo por IP, y como TODOS
+  // los porteros salen por el mismo WiFi del lugar, los 500 pedidos cada 15
+  // minutos se los repartian entre todos: 33 escaneos por minuto para toda la
+  // puerta. Con 3000 personas entrando en hora y media eso es exactamente el
+  // limite, y cualquier pico devolvia "Demasiadas solicitudes" con la cola
+  // esperando afuera.
+  //
+  // El uuid no se puede adivinar, asi que sirve igual que el JWT para
+  // separar cupos. El techo por link lo sigue poniendo publicScanLimiter
+  // (120/min), que es el que frena el abuso real.
+  if (!req.rateLimitUserId) {
+    const m = /^\/scan\/([A-Za-z0-9_-]{8,})/.exec(req.path || '');
+    if (m) req.rateLimitScanToken = m[1];
+  }
   next();
 };
 
-// Clave del cupo: el usuario logueado si lo identificamos, sino su IP.
+// Clave del cupo: el usuario logueado, sino el link de portero, sino su IP.
 const claveUsuarioOIp = (req) =>
-  req.rateLimitUserId ? `u:${req.rateLimitUserId}` : `ip:${ipKeyGenerator(req.ip)}`;
+  req.rateLimitUserId    ? `u:${req.rateLimitUserId}`
+  : req.rateLimitScanToken ? `scan:${req.rateLimitScanToken}`
+  : `ip:${ipKeyGenerator(req.ip)}`;
 
 // Global: red de seguridad para todo /api/*.
 // Al usuario identificado le damos margen (un tablero abierto toda la noche
 // hace muchos pedidos chicos y legitimos); al trafico anonimo lo dejamos mas
 // corto, que es donde vive el abuso.
+//
+// El cupo anonimo paso de 500 a 1500 cada 15 minutos. Por que: en un evento
+// TODA la gente que compra desde el lugar sale por el mismo WiFi, o sea una
+// sola IP. Abrir el link de compra cuesta 3 pedidos (promotor, eventos y la
+// compra), asi que con 500 entraban unos 165 compradores cada 15 minutos y el
+// resto veia "Demasiadas solicitudes". Medido en la simulacion de 3000: 252
+// compras cortadas de 750.
+// Sigue acotado, y lo peligroso ya lo frenan los limiters por endpoint
+// (compra 20/min, recuperacion 10/15min, consulta de reservas 30/min).
 const globalLimiter = rateLimit({
   ...baseConfig,
   windowMs: 15 * 60 * 1000,
-  max: (req) => (req.rateLimitUserId ? 3000 : 500),
+  max: (req) => (req.rateLimitUserId || req.rateLimitScanToken ? 3000 : 1500),
   keyGenerator: claveUsuarioOIp,
   message: { error: 'Demasiadas solicitudes, esperá unos minutos' },
 });

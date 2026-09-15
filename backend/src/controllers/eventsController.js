@@ -835,7 +835,23 @@ const salesTimeline = async (req, res) => {
   if (!ev) return res.status(404).json({ error: 'Evento no encontrado' });
 
   // Rango. Si no lo mandan, arranca en la apertura de venta y termina hoy.
-  const soloFecha = (v) => (v ? String(v).slice(0, 10) : null);
+  // Ojo con los dos motores: sale_start_at es una columna TIMESTAMP, asi que
+  // SQLite la devuelve como texto ("2026-09-14 16:22:12") pero el driver de
+  // Postgres la devuelve como objeto Date. Con String(date).slice(0,10) salia
+  // "Mon Sep 14", y al comparar contra "2026-09-15" ganaba la "M" (77 > 50):
+  // el endpoint contestaba 400 "desde tiene que ser anterior a hasta" SIEMPRE.
+  // En SQLite no se notaba porque ahi ya era texto.
+  const soloFecha = (v) => {
+    if (!v) return null;
+    if (v instanceof Date) {
+      if (Number.isNaN(v.getTime())) return null;
+      // Partes locales, no toISOString(): con UTC, una fecha guardada a las
+      // 22:00 hora argentina se iria al dia siguiente.
+      const p = (n) => String(n).padStart(2, '0');
+      return `${v.getFullYear()}-${p(v.getMonth() + 1)}-${p(v.getDate())}`;
+    }
+    return String(v).slice(0, 10);
+  };
   const hoy   = new Date().toISOString().slice(0, 10);
   const desde = soloFecha(req.query.desde) || soloFecha(ev.sale_start_at) || soloFecha(ev.date) || hoy;
   const hasta = soloFecha(req.query.hasta) || hoy;

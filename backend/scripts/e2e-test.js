@@ -15,6 +15,19 @@ const { authenticator } = require('otplib');
 authenticator.options = { step: 30, window: 1 };
 
 const BASE = process.env.E2E_URL || 'http://127.0.0.1:4100/api';
+
+// Fecha/hora LOCAL sin marca de zona: es exactamente lo que manda un
+// <input type="datetime-local">, que es como el frontend carga la ventana de
+// venta. Antes esto usaba toISOString(), o sea UTC, y contra Postgres el
+// driver devolvia esa hora leida como local: la ventana quedaba corrida 3
+// horas y las ventas aparecian cerradas. Ningun cliente real manda UTC aca.
+const fechaLocal = (offsetMs = 0) => {
+  const d = new Date(Date.now() + offsetMs);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ` +
+         `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+};
+
 const DB_FILE = process.env.E2E_DB || path.join(__dirname, '../tmp-e2e/gianqr-e2e.sqlite');
 
 const ADMIN_EMAIL = 'gianfrancodealbera@gmail.com';
@@ -52,7 +65,32 @@ function check(name, cond, detail) {
 // Acceso directo a la base de prueba para verificar estado interno
 // (payments.method, normalizacion, reset_token).
 let dbh = null;
+// Acceso directo a la base, para verificar cosas que la API no expone a
+// proposito (por ejemplo que reset_token se guarde hasheado).
+//
+// Habla los dos motores. Antes abria SQLite y nada mas, asi que corriendo la
+// suite contra Postgres —que es lo que usa produccion— estas verificaciones
+// devolvian undefined y daban falla sin que hubiera ningun bug. Peor: los
+// bugs que SI son de Postgres quedaban tapados entre el ruido.
+const PG = !!process.env.DATABASE_URL;
+let pgPool = null;
+
+async function pgQuery(sql, params) {
+  if (!pgPool) {
+    const { Pool } = require('pg');
+    pgPool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.PGSSL === 'disable' ? false : { rejectUnauthorized: false },
+    });
+  }
+  // Mismos placeholders que usan los controllers: ? -> $1, $2, ...
+  let n = 0;
+  const texto = sql.replace(/\?/g, () => `$${++n}`);
+  return pgPool.query(texto, params);
+}
+
 async function dbGet(sql, params = []) {
+  if (PG) return (await pgQuery(sql, params)).rows[0];
   if (!dbh) {
     const sqlite3 = require('sqlite3');
     const { open } = require('sqlite');
@@ -62,6 +100,7 @@ async function dbGet(sql, params = []) {
 }
 
 async function dbRun(sql, params = []) {
+  if (PG) return pgQuery(sql, params);
   if (!dbh) {
     const sqlite3 = require('sqlite3');
     const { open } = require('sqlite');
@@ -232,7 +271,7 @@ const dni = (n) => String(30000000 + n);
     const evBody = {
       name: 'Fiesta Test', description: 'evento e2e',
       date: in30d.toISOString().slice(0, 10), start_time: '23:30', end_time: '06:00',
-      sale_start_at: new Date(now.getTime() - 3600000).toISOString(),
+      sale_start_at: fechaLocal(-3600000),
       sale_end_at: in30d.toISOString(),
     };
     const c = await req('POST', '/events', { token: ownerTok, body: { ...evBody, ticket_types: [ { name: 'General', price: 5000, total_quota: 20 }, { name: 'VIP', price: 10000, total_quota: 5 } ] } });
@@ -730,7 +769,7 @@ const dni = (n) => String(30000000 + n);
         name: 'Fiesta Test (clon)',
         date: in60d.toISOString().slice(0, 10),
         start_time: '23:30',
-        sale_start_at: new Date().toISOString(),
+        sale_start_at: fechaLocal(0),
         sale_end_at: in60d.toISOString(),
       },
     });
@@ -773,8 +812,8 @@ const dni = (n) => String(30000000 + n);
   // ---------- Estados del evento ----------
   {
     const dia = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
-    const ayer2   = new Date(Date.now() - 864e5).toISOString().slice(0, 19).replace('T', ' ');
-    const manana2 = new Date(Date.now() + 864e5).toISOString().slice(0, 19).replace('T', ' ');
+    const ayer2   = fechaLocal(-864e5);
+    const manana2 = fechaLocal(+864e5);
     const armar = async (nombre, fecha) => {
       const e = await req('POST', '/events', { token: admin, body: {
         name: nombre, date: fecha, start_time: '23:00', sale_start_at: ayer2, sale_end_at: manana2 } });
@@ -848,8 +887,8 @@ const dni = (n) => String(30000000 + n);
   // directo al endpoint.
   {
     const hoy2 = new Date().toISOString().slice(0, 10);
-    const ay = new Date(Date.now() - 864e5).toISOString().slice(0, 19).replace('T', ' ');
-    const ma = new Date(Date.now() + 864e5).toISOString().slice(0, 19).replace('T', ' ');
+    const ay = fechaLocal(-864e5);
+    const ma = fechaLocal(+864e5);
     const rechazado = (s) => s === 403 || s === 404;
 
     const nuevoUsuario = async (rol, nombre, creador) => {
@@ -1043,8 +1082,8 @@ const dni = (n) => String(30000000 + n);
   // de que existiera la casilla no se migran: se dieron para recibir el QR.
   {
     const hoyN = new Date().toISOString().slice(0, 10);
-    const ayN  = new Date(Date.now() - 864e5).toISOString().slice(0, 19).replace('T', ' ');
-    const maN  = new Date(Date.now() + 864e5).toISOString().slice(0, 19).replace('T', ' ');
+    const ayN  = fechaLocal(-864e5);
+    const maN  = fechaLocal(+864e5);
     const evN = await req('POST', '/events', { token: admin, body: {
       name: 'Evento newsletter', date: hoyN, start_time: '23:00',
       sale_start_at: ayN, sale_end_at: maN } });
@@ -1106,8 +1145,8 @@ const dni = (n) => String(30000000 + n);
   // rechazaban por "ya fue utilizada".
   {
     const hoyR = new Date().toISOString().slice(0, 10);
-    const ayR  = new Date(Date.now() - 864e5).toISOString().slice(0, 19).replace('T', ' ');
-    const maR  = new Date(Date.now() + 864e5).toISOString().slice(0, 19).replace('T', ' ');
+    const ayR  = fechaLocal(-864e5);
+    const maR  = fechaLocal(+864e5);
     const evR = await req('POST', '/events', { token: admin, body: {
       name: 'Evento reserva escaneable', date: hoyR, start_time: '23:00',
       sale_start_at: ayR, sale_end_at: maR } });
@@ -1153,8 +1192,8 @@ const dni = (n) => String(30000000 + n);
   // entrada de otro. El escaner ademas aceptaba el id crudo.
   {
     const hoyQ = new Date().toISOString().slice(0, 10);
-    const ayQ  = new Date(Date.now() - 864e5).toISOString().slice(0, 19).replace('T', ' ');
-    const maQ  = new Date(Date.now() + 864e5).toISOString().slice(0, 19).replace('T', ' ');
+    const ayQ  = fechaLocal(-864e5);
+    const maQ  = fechaLocal(+864e5);
     const evQ = await req('POST', '/events', { token: admin, body: {
       name: 'Evento QR secreto', date: hoyQ, start_time: '23:00',
       sale_start_at: ayQ, sale_end_at: maQ } });
@@ -1206,8 +1245,8 @@ const dni = (n) => String(30000000 + n);
   {
     // Evento nuevo y limpio para medir sin arrastrar lo de arriba.
     const hoy    = new Date().toISOString().slice(0, 10);
-    const ayer   = new Date(Date.now() - 864e5).toISOString().slice(0, 19).replace('T', ' ');
-    const manana = new Date(Date.now() + 864e5).toISOString().slice(0, 19).replace('T', ' ');
+    const ayer   = fechaLocal(-864e5);
+    const manana = fechaLocal(+864e5);
     const ev = await req('POST', '/events', { token: admin, body: {
       name: 'Regresiones', date: hoy, start_time: '23:00', sale_start_at: ayer, sale_end_at: manana } });
     const evId = ev.data?.id;
