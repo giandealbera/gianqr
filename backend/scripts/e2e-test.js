@@ -1233,6 +1233,52 @@ const dni = (n) => String(30000000 + n);
           `HTTP ${porJson.status} ${porJson.data?.error || ''}`);
   }
 
+  // ---------- Por que puerta entro cada uno ----------
+  // Con 10 porteros hace falta saber quien escaneo. scanned_by no sirve:
+  // apunta a users y los porteros usan links sin cuenta.
+  {
+    const evP = await req('POST', '/events', { token: admin, body: {
+      name: 'Evento puertas', date: new Date().toISOString().slice(0, 10), start_time: '23:00',
+      sale_start_at: fechaLocal(-864e5), sale_end_at: fechaLocal(+864e5) } });
+    const ttP = await req('POST', `/events/${evP.data?.id}/ticket-types`, { token: admin, body: {
+      name: 'General', price: 5000, total_quota: 20 } });
+
+    // Sin nombre: se numeran solas
+    const l1 = await req('POST', '/scanner-tokens', { token: admin, body: { event_id: evP.data?.id, all_types: true } });
+    const l2 = await req('POST', '/scanner-tokens', { token: admin, body: { event_id: evP.data?.id, all_types: true } });
+    const l3 = await req('POST', '/scanner-tokens', { token: admin, body: { event_id: evP.data?.id, all_types: true } });
+    check('los links se numeran solos',
+          l1.data?.label === 'Puerta 1' && l2.data?.label === 'Puerta 2' && l3.data?.label === 'Puerta 3',
+          [l1.data?.label, l2.data?.label, l3.data?.label].join(', '));
+
+    // Borrar una no hace que la siguiente repita el numero
+    await req('DELETE', `/scanner-tokens/${l2.data?.id}`, { token: admin });
+    const l4 = await req('POST', '/scanner-tokens', { token: admin, body: { event_id: evP.data?.id, all_types: true } });
+    check('borrar una puerta no repite su numero', l4.data?.label === 'Puerta 4', `salio ${l4.data?.label}`);
+
+    const compraP = await req('POST', '/public/tickets/CASA', { body: {
+      event_id: evP.data?.id, ticket_type_id: ttP.data?.id, payment_method: 'efectivo',
+      attendees: [{ buyer_name: 'Bruno', buyer_apellido: 'Puerta', buyer_dni: '30777123' }] } });
+    const tP = compraP.data?.tickets?.[0];
+
+    // Entra por la 3
+    const e1 = await req('POST', `/scan/${l3.data?.token}`, { body: { qr_code: tP?.qr_code } });
+    check('entra por la Puerta 3', e1.status === 200 && e1.data?.valid === true, `HTTP ${e1.status}`);
+
+    // Alguien la reintenta en la 1: tiene que decir por donde se uso
+    const e2 = await req('POST', `/scan/${l1.data?.token}`, { body: { qr_code: tP?.qr_code } });
+    check('al rechazarla dice por que puerta se uso',
+          e2.status === 409 && e2.data?.ticket?.puerta === 'Puerta 3',
+          `HTTP ${e2.status} puerta=${e2.data?.ticket?.puerta}`);
+
+    // Y el dueño lo ve en el detalle y en el listado
+    const detP = await req('GET', `/tickets/${tP?.id}`, { token: admin });
+    check('el detalle de la entrada muestra la puerta', detP.data?.puerta === 'Puerta 3', `puerta=${detP.data?.puerta}`);
+    const listP = await req('GET', `/tickets?event_id=${evP.data?.id}`, { token: admin });
+    check('el listado tambien muestra la puerta',
+          listP.data?.[0]?.puerta === 'Puerta 3', `puerta=${listP.data?.[0]?.puerta}`);
+  }
+
   // ---------- Push ----------
   {
     const pk = await req('GET', '/push/public-key');

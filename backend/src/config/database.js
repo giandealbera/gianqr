@@ -413,6 +413,19 @@ async function runMigrations(queryFn, execFn) {
   // y crear links de portero rompia con 500.
   await tryMigrate('migration', 'ALTER TABLE scanner_tokens ADD COLUMN all_types INTEGER DEFAULT 0');
 
+  // Por que puerta entro cada persona. scanned_by solo sirve para el escaner
+  // con login (apunta a users) y los porteros usan links sin cuenta: quedaba
+  // en NULL y no habia forma de saber quien escaneo. Con 10 puertas y 3000
+  // personas, ante un "mi entrada figura usada y yo no entre" se veia la hora
+  // pero no la puerta.
+  //
+  // Va ACA y no en los incrementals de arriba a proposito: aquellos corren
+  // antes de crear scanner_tokens, asi que la clave foranea fallaba con
+  // "relation does not exist" y tryMigrate se lo tragaba como error esperado.
+  // La columna nunca se creaba y el escaneo reventaba en runtime.
+  await tryMigrate('migration',
+    'ALTER TABLE tickets ADD COLUMN scanned_token_id TEXT REFERENCES scanner_tokens(id) ON DELETE SET NULL');
+
   // Un link de portero puede validar VARIOS tipos (o todos). all_types=1 acepta
   // cualquier tipo del evento; si hay filas en scanner_token_types, valida solo
   // esos tipos; si no hay ninguna de las dos cosas, cae al ticket_type_id único

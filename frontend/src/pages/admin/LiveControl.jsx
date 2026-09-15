@@ -409,9 +409,14 @@ const LiveControl = () => {
                               <span className={`badge-${t.status}`}>{t.status}</span>
                             </td>
                             <td className="py-3 px-3 text-xs" style={{ color: '#6B7280' }}>
-                              {t.scanned_at
-                                ? new Date(t.scanned_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
-                                : '—'}
+                              {t.scanned_at ? (
+                                <>
+                                  {new Date(t.scanned_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+                                  {t.puerta && (
+                                    <span className="block" style={{ color: '#5B635E' }}>{t.puerta}</span>
+                                  )}
+                                </>
+                              ) : '—'}
                             </td>
                             <td className="py-3 px-3 font-mono text-xs" style={{ color: '#C9974D' }}>{t.qr_code}</td>
                             <td className="py-3 px-3">

@@ -263,6 +263,9 @@ const PublicScanner = () => {
                 {ticket && ticket.status === 'usado' && ticket.scanned_at && (
                   <p className="text-xs text-gray-400 mt-2">
                     Escaneada previamente el {new Date(ticket.scanned_at).toLocaleString('es-AR')}
+                    {/* Por que puerta: con varios porteros es lo que distingue
+                        un error de otra puerta de una entrada duplicada. */}
+                    {ticket.puerta && <> · <strong>{ticket.puerta}</strong></>}
                   </p>
                 )}
               </div>

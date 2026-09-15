@@ -412,10 +412,16 @@ const getOne = async (req, res) => {
   try {
     const result = await db.query(
       `SELECT t.*, tt.name AS tipo_entrada, tt.price,
-              e.name AS evento, e.date, e.start_time
+              e.name AS evento, e.date, e.start_time,
+              -- Por que puerta entro. Con varios porteros es el dato que
+              -- responde un reclamo de "figura usada y yo no entre".
+              st.label AS puerta,
+              TRIM(sb.name || ' ' || COALESCE(sb.apellido, '')) AS escaneado_por
        FROM tickets t
        JOIN ticket_types tt ON tt.id = t.ticket_type_id
        JOIN events e ON e.id = t.event_id
+       LEFT JOIN scanner_tokens st ON st.id = t.scanned_token_id
+       LEFT JOIN users sb ON sb.id = t.scanned_by
        WHERE t.id = ?`, [req.params.id]
     );
     if (!result.rows[0]) return res.status(404).json({ error: 'Ticket no encontrado' });
@@ -482,13 +488,15 @@ const getAll = async (req, res) => {
     const result = await db.query(
       `SELECT t.*, tt.name AS tipo_entrada, e.name AS evento, e.date,
               pu.name AS vendedor_nombre, p.promo_code AS vendedor_code,
-              TRIM(su.name || ' ' || COALESCE(su.apellido, '')) AS generado_por
+              TRIM(su.name || ' ' || COALESCE(su.apellido, '')) AS generado_por,
+              st.label AS puerta
        FROM tickets t
        JOIN ticket_types tt ON tt.id = t.ticket_type_id
        JOIN events e ON e.id = t.event_id
        LEFT JOIN promotors p ON p.id = t.promotor_id
        LEFT JOIN users pu ON pu.id = p.user_id
        LEFT JOIN users su ON su.id = t.sold_by
+       LEFT JOIN scanner_tokens st ON st.id = t.scanned_token_id
        ${whereClause}
        ORDER BY t.created_at DESC LIMIT 5000`,
       params

@@ -112,14 +112,33 @@ const createToken = async (req, res) => {
       if (chosenIds.length > 1) junction = chosenIds;
     }
 
-    // Label automático si no lo mandan.
+    // Label automático si no lo mandan: "Puerta 1", "Puerta 2", ...
+    //
+    // Antes salian todos con el mismo nombre ("Todos los tipos"), asi que con
+    // varios porteros la lista quedaba con cinco filas identicas y no habia
+    // forma de saber cual mandarle a cada uno, ni cual desactivar si alguien
+    // perdia el celular. Numerarlos es lo que hace usable tener 10 puertas.
     let finalLabel = label;
     if (!finalLabel) {
-      if (wantsAll) finalLabel = 'Todos los tipos';
-      else finalLabel = chosenIds
-        .map(id => evTypes.rows.find(t => t.id === id)?.name)
-        .filter(Boolean)
-        .join(' + ');
+      if (wantsAll) {
+        // Siguiente numero libre: contamos los que ya se llaman "Puerta N"
+        // y tomamos el mayor + 1, asi borrar el 2 no hace que el proximo
+        // tambien sea 2 y queden dos puertas con el mismo nombre.
+        const previos = await db.query(
+          'SELECT label FROM scanner_tokens WHERE event_id = ? AND is_active = 1',
+          [event_id]
+        );
+        const usados = previos.rows
+          .map(r => /^Puerta (\d+)$/.exec(String(r.label || ''))?.[1])
+          .filter(Boolean)
+          .map(Number);
+        finalLabel = `Puerta ${usados.length ? Math.max(...usados) + 1 : 1}`;
+      } else {
+        finalLabel = chosenIds
+          .map(id => evTypes.rows.find(t => t.id === id)?.name)
+          .filter(Boolean)
+          .join(' + ');
+      }
     }
 
     const id    = uuidv4();
@@ -242,10 +261,15 @@ const publicScan = async (req, res) => {
         [token]
       ),
       db.query(
-        `SELECT t.*, tt.name AS tipo_entrada, e.name AS evento
+        // sprev = la puerta por la que ya se habia escaneado. Es lo que
+        // necesita ver el portero cuando le salta "ya fue utilizada": le
+        // dice si fue un error de otra puerta o una entrada duplicada.
+        `SELECT t.*, tt.name AS tipo_entrada, e.name AS evento,
+                sprev.label AS puerta
          FROM tickets t
          JOIN ticket_types tt ON tt.id = t.ticket_type_id
          JOIN events e ON e.id = t.event_id
+         LEFT JOIN scanner_tokens sprev ON sprev.id = t.scanned_token_id
          WHERE UPPER(TRIM(t.qr_code)) = UPPER(TRIM(?))`,
         [cleanCode]
       ),
@@ -295,9 +319,11 @@ const publicScan = async (req, res) => {
     // UPDATE condicional para evitar doble-uso en scans concurrentes (dos
     // porteros con el mismo link scaneando al mismo tiempo). Si otro ya
     // marco la entrada, affectedRows=0 y devolvemos 409.
+    // Guardamos POR QUE PUERTA entro. scanned_by no sirve aca: apunta a la
+    // tabla de usuarios y el portero no tiene cuenta, solo el link.
     const upd = await db.query(
-      "UPDATE tickets SET status='usado', scanned_at=CURRENT_TIMESTAMP WHERE id=? AND status='pagado'",
-      [ticket.id]
+      "UPDATE tickets SET status='usado', scanned_at=CURRENT_TIMESTAMP, scanned_token_id=? WHERE id=? AND status='pagado'",
+      [scannerInfo.id, ticket.id]
     );
     if (!upd.affectedRows)
       return res.status(409).json({ valid: false, error: 'Esta entrada ya fue utilizada', ticket });
