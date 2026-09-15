@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useCerrarConAtras } from '../../hooks/useCerrarConAtras';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
@@ -175,6 +176,10 @@ const EventTicketTypes = () => {
   // En edit, precargo name y price (editables) y dejo total_quota vacio (es "cuanto agregar")
   const openEdit = (tt) => { setEditId(tt.id); setOrigType(tt); setForm({ name: tt.name, price: String(tt.price), total_quota: '' }); setShowForm(true); };
   const cancel = () => { setShowForm(false); setEditId(null); setOrigType(null); setForm(emptyForm); };
+
+  // El boton atras del celular cierra el formulario en vez de sacarte de la
+  // pantalla y perder lo que estabas cargando.
+  useCerrarConAtras(showForm, cancel);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

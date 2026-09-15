@@ -1,4 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom';
+import { useTecladoAbierto } from '../hooks/useTecladoAbierto';
 import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 
@@ -63,6 +64,9 @@ const navMap = {
 };
 
 const BottomNav = () => {
+  // Con el teclado abierto la barra quedaba flotando sobre las teclas,
+  // tapando el campo que estabas escribiendo. En una app no esta ahi.
+  const tecladoAbierto = useTecladoAbierto();
   const { user }   = useAuth();
   const location   = useLocation();
   const items      = navMap[user?.role] || navMap.admin;
@@ -96,6 +100,8 @@ const BottomNav = () => {
     if (prefixed.length === 0) return null;
     return prefixed.reduce((a, b) => a.to.length >= b.to.length ? a : b).to;
   })();
+
+  if (tecladoAbierto) return null;
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 safe-area-bottom safe-area-x select-none"

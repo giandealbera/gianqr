@@ -589,7 +589,7 @@ const EventDashboard = () => {
           <div style={{ borderTop: '1px solid #1E2530', paddingTop: '1rem' }}>
             <p style={{ fontSize: '11px', fontWeight: 700, color: '#4B5563', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>Asignar dueño</p>
             {allOwners.filter(u => !owners.find(o => o.id === u.id)).length === 0 ? (
-              <p style={{ fontSize: '12px', color: '#374151' }}>No hay usuarios con rol Dueño disponibles. Crea uno en <a href="/admin/usuarios" style={{ color: '#C9974D' }}>Usuarios</a>.</p>
+              <p style={{ fontSize: '12px', color: '#374151' }}>No hay usuarios con rol Dueño disponibles. Crea uno en <Link to="/admin/usuarios" style={{ color: '#C9974D' }}>Usuarios</Link>.</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 {allOwners.filter(u => !owners.find(o => o.id === u.id)).map(u => (

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useCerrarConAtras } from '../../hooks/useCerrarConAtras';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { downloadTicketsPdf } from '../../utils/downloadTicketsPdf';
@@ -20,6 +21,9 @@ const PublicBuy = () => {
   const [searchParams] = useSearchParams();
 
   const [zoomQr, setZoomQr] = useState(null);
+  // El comprador levanta el QR a pantalla completa en la puerta: si toca
+  // atras tiene que volver a su entrada, no irse de la pagina.
+  useCerrarConAtras(!!zoomQr, () => setZoomQr(null));
 
   // Modo "reservado": link generado desde /caja con entradas ya vendidas
   // (?tickets=ID1,ID2). El comprador solo carga nombre/apellido.

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { BACKEND_URL as BACKEND } from '../api/config';
 
 // Espejo del roleRedirect de Login.jsx para que un admin/owner que abre un
@@ -33,7 +33,7 @@ const MagicLogin = () => {
         <p className="text-3xl font-black tracking-tight mb-6" style={{ color: '#C9974D' }}>GianQR</p>
         <p className="text-red-400 text-lg font-semibold">{error}</p>
         <p className="text-gray-500 text-sm mt-2">Este link es invalido o fue desactivado.</p>
-        <a href="/login" className="mt-4 inline-block text-brand underline text-sm">Ir al login</a>
+        <Link to="/login" className="mt-4 inline-block text-brand underline text-sm">Ir al login</Link>
       </div>
     </div>
   );

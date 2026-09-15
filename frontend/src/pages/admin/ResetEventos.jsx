@@ -1,5 +1,6 @@
 ﻿import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
+import { useCerrarConAtras } from '../../hooks/useCerrarConAtras';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import useBodyScrollLock from '../../hooks/useBodyScrollLock';
@@ -34,6 +35,9 @@ const ResetEventos = () => {
   };
 
   const cancel = () => { setConfirm(null); setTyped(''); };
+
+  // Atras cancela el borrado, no te saca de la pantalla.
+  useCerrarConAtras(!!confirm, cancel);
 
   const doReset = async () => {
     if (typed !== 'REINICIAR') return;

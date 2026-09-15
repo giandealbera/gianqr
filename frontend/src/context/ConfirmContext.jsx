@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { useCerrarConAtras } from '../hooks/useCerrarConAtras';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Reemplazo de window.confirm: bottom-sheet en mobile, modal centrado en
@@ -50,6 +51,9 @@ export const ConfirmProvider = ({ children }) => {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [state.open]);
+
+  // El boton atras del celular cancela, en vez de sacarte de la pantalla.
+  useCerrarConAtras(state.open, () => close(false));
 
   // Lock del scroll del body mientras hay modal abierto. Sin esto el body
   // sigue scrolleando detras del backdrop y queda raro en mobile.
