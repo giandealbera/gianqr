@@ -120,25 +120,30 @@ const createToken = async (req, res) => {
     // perdia el celular. Numerarlos es lo que hace usable tener 10 puertas.
     let finalLabel = label;
     if (!finalLabel) {
-      if (wantsAll) {
-        // Siguiente numero libre: contamos los que ya se llaman "Puerta N"
-        // y tomamos el mayor + 1, asi borrar el 2 no hace que el proximo
-        // tambien sea 2 y queden dos puertas con el mismo nombre.
-        const previos = await db.query(
-          'SELECT label FROM scanner_tokens WHERE event_id = ? AND is_active = 1',
-          [event_id]
-        );
-        const usados = previos.rows
-          .map(r => /^Puerta (\d+)$/.exec(String(r.label || ''))?.[1])
-          .filter(Boolean)
-          .map(Number);
-        finalLabel = `Puerta ${usados.length ? Math.max(...usados) + 1 : 1}`;
-      } else {
-        finalLabel = chosenIds
-          .map(id => evTypes.rows.find(t => t.id === id)?.name)
-          .filter(Boolean)
-          .join(' + ');
-      }
+      // Siguiente numero libre: tomamos el mayor usado + 1, no la cantidad.
+      // Asi desactivar la Puerta 4 no hace que la proxima tambien sea 4 y
+      // queden dos puertas con el mismo nombre, que es justo lo que arruina
+      // poder decir "revisá la Puerta 4".
+      const previos = await db.query(
+        'SELECT label FROM scanner_tokens WHERE event_id = ?',
+        [event_id]
+      );
+      const usados = previos.rows
+        .map(r => /^Puerta (\d+)/.exec(String(r.label || ''))?.[1])
+        .filter(Boolean)
+        .map(Number);
+      const numero = usados.length ? Math.max(...usados) + 1 : 1;
+
+      // Si el link valida solo algunos tipos, lo aclaramos al lado del
+      // numero: el portero necesita saber cual es SU puerta, y el dueño
+      // necesita saber que valida cada una.
+      const tipos = wantsAll
+        ? ''
+        : chosenIds
+            .map(id => evTypes.rows.find(t => t.id === id)?.name)
+            .filter(Boolean)
+            .join(' + ');
+      finalLabel = tipos ? `Puerta ${numero} · ${tipos}` : `Puerta ${numero}`;
     }
 
     const id    = uuidv4();

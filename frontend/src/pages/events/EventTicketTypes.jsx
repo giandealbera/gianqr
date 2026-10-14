@@ -123,10 +123,11 @@ const EventTicketTypes = () => {
   const generateLink = async (tt) => {
     setGenningFor(tt.id);
     try {
+      // Sin label: el backend lo numera ("Puerta 3 · VIP"). Antes mandabamos
+      // el nombre del tipo y quedaban varios links llamados igual.
       const res = await api.post('/scanner-tokens', {
         event_id: id,
         ticket_type_id: tt.id,
-        label: tt.name,
       });
       setTokens(prev => [res.data, ...prev]);
       toast.success('Link generado!');
@@ -144,7 +145,6 @@ const EventTicketTypes = () => {
       const res = await api.post('/scanner-tokens', {
         event_id: id,
         all_types: true,
-        label: 'Todos los tipos',
       });
       setTokens(prev => [res.data, ...prev]);
       toast.success('Link para todos los tipos generado!');

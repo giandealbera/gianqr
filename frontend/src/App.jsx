@@ -109,8 +109,13 @@ class ErrorBoundary extends Component {
 // Wrapper de rutas optimizado sin bloqueos de AnimatePresence.
 const AnimatedRoutes = ({ children }) => {
   const location = useLocation();
+  // mode="wait" es imprescindible: por defecto AnimatePresence usa "sync",
+  // que deja la pantalla que se va montada mientras monta la que entra.
+  // Como ninguna esta posicionada en absoluto, se APILAN y se ve todo
+  // duplicado, una pagina debajo de la otra. Con "wait" la vieja termina de
+  // salir antes de que entre la nueva.
   return (
-    <AnimatePresence initial={false}>
+    <AnimatePresence initial={false} mode="wait">
       <motion.div
         key={location.pathname}
         initial={{ opacity: 0 }}

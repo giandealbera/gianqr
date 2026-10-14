@@ -244,7 +244,6 @@ const Scanner = () => {
         event_id: eventSel,
         all_types: linkAllTypes,
         ticket_type_ids: linkAllTypes ? [] : linkTypeIds,
-        label: `${selEv?.name || ''} — ${names}`,
       });
       const url = `${window.location.origin}/scan/${res.data.token}`;
       // El link YA esta creado en backend. El copiado al clipboard puede fallar
