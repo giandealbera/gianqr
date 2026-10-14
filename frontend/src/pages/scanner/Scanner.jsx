@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import EntradaYaUsada from '../../components/EntradaYaUsada';
 import { useSearchParams } from 'react-router-dom';
 import { startQrCamera, destroyQrScanner, pauseScanner, resumeScanner } from '../../lib/qrCamera';
 import api from '../../api/axios';
@@ -451,13 +452,8 @@ const Scanner = () => {
                     {result.data?.error && (
                       <p className="text-red-300 text-sm font-medium">{result.data.error}</p>
                     )}
-                    {ticket && ticket.status === 'usado' && ticket.scanned_at && (
-                      <p className="text-xs text-gray-400">
-                        Escaneada previamente el {new Date(ticket.scanned_at).toLocaleString('es-AR')}
-                        {/* Por que puerta: con varios porteros es lo que distingue
-                            un error de otra puerta de una entrada duplicada. */}
-                        {ticket.puerta && <> · <strong>{ticket.puerta}</strong></>}
-                      </p>
+                    {ticket && ticket.status === 'usado' && (
+                      <EntradaYaUsada ticket={ticket} />
                     )}
                   </div>
                 )}

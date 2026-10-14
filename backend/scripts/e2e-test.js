@@ -1279,6 +1279,42 @@ const dni = (n) => String(30000000 + n);
           listP.data?.[0]?.puerta === 'Puerta 3', `puerta=${listP.data?.[0]?.puerta}`);
   }
 
+  // ---------- El que pierde la carrera no queda a ciegas ----------
+  // Dos porteros escanean a la vez: uno gana, el otro recibe 409. Ese 409
+  // devolvia el ticket LEIDO ANTES del update del otro, asi que scanned_at y
+  // puerta venian vacios — justo los dos datos que el portero necesita para
+  // decidir si deja pasar.
+  {
+    const evC = await req('POST', '/events', { token: admin, body: {
+      name: 'Evento carrera', date: new Date().toISOString().slice(0, 10), start_time: '23:00',
+      sale_start_at: fechaLocal(-864e5), sale_end_at: fechaLocal(+864e5) } });
+    const ttC = await req('POST', `/events/${evC.data?.id}/ticket-types`, { token: admin, body: {
+      name: 'General', price: 5000, total_quota: 20 } });
+    const pa = await req('POST', '/scanner-tokens', { token: admin, body: { event_id: evC.data?.id, all_types: true } });
+    const pb = await req('POST', '/scanner-tokens', { token: admin, body: { event_id: evC.data?.id, all_types: true } });
+
+    const compraC = await req('POST', '/public/tickets/CASA', { body: {
+      event_id: evC.data?.id, ticket_type_id: ttC.data?.id, payment_method: 'efectivo',
+      attendees: [{ buyer_name: 'Caso', buyer_apellido: 'Carrera', buyer_dni: '30444777' }] } });
+    const tC = compraC.data?.tickets?.[0];
+
+    const [r1, r2] = await Promise.all([
+      req('POST', `/scan/${pa.data?.token}`, { body: { qr_code: tC?.qr_code } }),
+      req('POST', `/scan/${pb.data?.token}`, { body: { qr_code: tC?.qr_code } }),
+    ]);
+    const gano   = r1.data?.valid ? r1 : r2;
+    const perdio = r1.data?.valid ? r2 : r1;
+
+    check('en una carrera entra exactamente uno',
+          gano.status === 200 && perdio.status === 409,
+          `uno=${gano.status} otro=${perdio.status}`);
+    check('el que pierde igual ve CUANDO se escaneo',
+          !!perdio.data?.ticket?.scanned_at, `scanned_at=${perdio.data?.ticket?.scanned_at}`);
+    check('y ve POR QUE PUERTA',
+          /^Puerta \d+/.test(String(perdio.data?.ticket?.puerta || '')),
+          `puerta=${perdio.data?.ticket?.puerta}`);
+  }
+
   // ---------- Push ----------
   {
     const pk = await req('GET', '/push/public-key');

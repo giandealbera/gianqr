@@ -330,8 +330,25 @@ const publicScan = async (req, res) => {
       "UPDATE tickets SET status='usado', scanned_at=CURRENT_TIMESTAMP, scanned_token_id=? WHERE id=? AND status='pagado'",
       [scannerInfo.id, ticket.id]
     );
-    if (!upd.affectedRows)
-      return res.status(409).json({ valid: false, error: 'Esta entrada ya fue utilizada', ticket });
+    if (!upd.affectedRows) {
+      // Perdimos la carrera: otro portero marco la entrada entre nuestro
+      // SELECT y nuestro UPDATE. El `ticket` que tenemos en memoria es de
+      // ANTES de ese update, asi que scanned_at y puerta vienen vacios — y
+      // son justo los dos datos que el portero necesita para decidir si deja
+      // pasar. Lo releemos.
+      const fresco = await db.query(
+        `SELECT t.scanned_at, s.label AS puerta
+           FROM tickets t
+           LEFT JOIN scanner_tokens s ON s.id = t.scanned_token_id
+          WHERE t.id = ?`, [ticket.id]
+      );
+      const f = fresco.rows[0];
+      return res.status(409).json({
+        valid: false,
+        error: 'Esta entrada ya fue utilizada',
+        ticket: { ...ticket, status: 'usado', scanned_at: f?.scanned_at ?? null, puerta: f?.puerta ?? null },
+      });
+    }
 
     ticket.status     = 'usado';
     ticket.scanned_at = new Date().toISOString();
