@@ -45,6 +45,24 @@
     border-radius: 0;
   }
 
+  /* ...pero NO a las casillas ni a los radios.
+     La regla de arriba existe para normalizar los campos de texto y los
+     select, pero alcanzaba tambien a los checkbox: quedaban como un cuadrado
+     de 16x16 TRANSPARENTE que no cambiaba en nada al tildarlo. O sea que al
+     aceptar los terminos no aparecia ninguna tilde — la casilla funcionaba,
+     pero no se veia.
+     Todas usan clases accent-*, y accent-color solo tiene efecto sobre un
+     control nativo, asi que devolverles la apariencia nativa es lo que la
+     intencion original pedia. El <meta name="color-scheme" content="dark">
+     del index.html hace que el navegador las dibuje en tono oscuro, acordes
+     al resto de la app. */
+  input[type="checkbox"],
+  input[type="radio"] {
+    -webkit-appearance: auto;
+    appearance: auto;
+    cursor: pointer;
+  }
+
   input, textarea, [contenteditable], .selectable, code, pre {
     -webkit-user-select: text;
     user-select: text;
