@@ -108,11 +108,12 @@ const PromoterDashboard = () => {
               <p className="text-xs text-slate-400 uppercase tracking-wider font-medium mb-2">Venta de entradas</p>
               <h2 className="text-xl font-bold text-white">Generar entrada</h2>
               <p className="text-sm text-slate-400 mt-1">
-                Elegi evento, tipo, cantidad y forma de pago para generar el link del comprador.
+                Entrá al evento y generá desde adentro: así la entrada queda
+                siempre atada al evento correcto.
               </p>
             </div>
-            <Link to="/promotor/vender" className="btn-primary text-center px-5 py-3 shrink-0">
-              Generar entrada
+            <Link to="/eventos" className="btn-primary text-center px-5 py-3 shrink-0">
+              Ir a mis eventos
             </Link>
           </div>
         </div>

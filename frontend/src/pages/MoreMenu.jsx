@@ -99,7 +99,7 @@ const MoreMenu = () => {
           )}
           {(user?.role === 'jefe_publicas' || user?.role === 'vendedor') && (
             <>
-              <MenuItem iconKey="ticket"    label="Vender entradas"       desc="Generar link de cobro o reserva" onClick={() => navigate('/promotor/vender')} />
+              <MenuItem iconKey="ticket"    label="Vender entradas"       desc="Elegí el evento y generá desde adentro" onClick={() => navigate('/eventos')} />
               <MenuItem iconKey="chart"     label="Mi Panel de ventas"    desc="Ver tus ventas acumuladas y comisiones" onClick={() => navigate('/promotor')} />
               <MenuItem iconKey="ticket"    label="Mis Eventos"           desc="Ver los eventos asignados" onClick={() => navigate('/eventos')} />
             </>

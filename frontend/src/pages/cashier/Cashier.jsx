@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { soloVendibles } from '../../utils/eventosVendibles';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../api/axios';
@@ -33,7 +34,10 @@ const Cashier = () => {
   const linkCardRef = useRef(null);
 
   useEffect(() => {
-    api.get('/events').then(r => setEvents(r.data.filter(e => e.is_active)));
+    // soloVendibles y no is_active: antes aparecian eventos de hace meses
+    // en el selector y era cuestion de tiempo generar una entrada para
+    // el evento equivocado.
+    api.get('/events').then(r => setEvents(soloVendibles(r.data)));
   }, []);
 
   useEffect(() => {

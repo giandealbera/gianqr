@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { soloVendibles } from '../../utils/eventosVendibles';
+import { useSearchParams } from 'react-router-dom';
 import api from '../../api/axios';
 import Layout from '../../components/Layout';
 import { share } from '../../lib/share';
@@ -13,7 +15,11 @@ const PromoterSell = () => {
   const [promoCode,    setPromoCode]    = useState('');
   const [events,       setEvents]       = useState([]);
   const [ticketTypes,  setTicketTypes]  = useState([]);
-  const [eventSel,     setEventSel]     = useState('');
+  const [searchParams] = useSearchParams();
+  // Si venimos desde adentro de un evento, la venta queda atada a ESE
+  // evento: no se elige, no se puede cambiar, y no aparecen los viejos.
+  const eventoFijo = searchParams.get('event') || '';
+  const [eventSel,     setEventSel]     = useState(eventoFijo);
   const [typeSel,      setTypeSel]      = useState('');
   const [qty,          setQty]          = useState(1);
   const [payMethod,    setPayMethod]    = useState('efectivo');
@@ -26,6 +32,9 @@ const PromoterSell = () => {
   // boton "Generar QR" y el form quedan arriba; al generar, el card del
   // link aparece debajo y se perdia de vista).
   const linkCardRef = useRef(null);
+
+  // Solo los eventos a los que todavia se les puede vender.
+  const vendibles = soloVendibles(events);
 
   useEffect(() => {
     api.get('/events').then(r => setEvents(r.data.filter(e => e.is_active)));
@@ -135,14 +144,22 @@ const PromoterSell = () => {
         <div className="card space-y-5">
           <div>
             <label className="text-sm text-gray-400 block mb-1">Evento *</label>
-            <select className="input" value={eventSel} onChange={e => setEventSel(e.target.value)}>
-              <option value="">Seleccionar evento</option>
-              {events.map(ev => (
-                <option key={ev.id} value={ev.id}>
-                  {ev.name} — {new Date(ev.date + 'T12:00:00').toLocaleDateString('es-AR')}
-                </option>
-              ))}
-            </select>
+            {eventoFijo ? (
+              // Entramos desde el evento: lo mostramos y listo. Sin combo no
+              // hay forma de equivocarse de evento ni de ver los viejos.
+              <div className="input flex items-center" style={{ color: '#E1E5E2' }}>
+                {events.find(e => e.id === eventoFijo)?.name || 'Cargando…'}
+              </div>
+            ) : (
+              <select className="input" value={eventSel} onChange={e => setEventSel(e.target.value)}>
+                <option value="">Seleccionar evento</option>
+                {vendibles.map(ev => (
+                  <option key={ev.id} value={ev.id}>
+                    {ev.name} — {new Date(ev.date + 'T12:00:00').toLocaleDateString('es-AR')}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           {ticketTypes.length > 0 && (

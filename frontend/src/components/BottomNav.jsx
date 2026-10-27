@@ -42,21 +42,23 @@ const navMap = {
     { to: '/admin/historial',icon: 'reportes', label: 'Historial'},
     { to: '/mas',            icon: 'mas',      label: 'Mas'      },
   ],
+  // "Vender" salio de la barra a proposito. Generar una entrada SIEMPRE
+  // arranca entrando al evento: desde ahi el boton "Generar entradas" ya
+  // sabe para que evento es. Antes la pestaña abria un selector con todos
+  // los eventos, incluidos los viejos, y era cuestion de tiempo que alguien
+  // emitiera para el evento equivocado.
   jefe_publicas: [
     { to: '/eventos',         icon: 'eventos', label: 'Eventos'  },
-    { to: '/promotor/vender', icon: 'vender',  label: 'Vender'   },
     { to: '/promotor',        icon: 'panel',   label: 'Mi Panel' },
     { to: '/mas',             icon: 'mas',     label: 'Mas'      },
   ],
   vendedor: [
     { to: '/eventos',         icon: 'eventos', label: 'Eventos'  },
-    { to: '/promotor/vender', icon: 'vender',  label: 'Vender'   },
     { to: '/promotor',        icon: 'panel',   label: 'Mi Panel' },
     { to: '/mas',             icon: 'mas',     label: 'Mas'      },
   ],
   owner: [
     { to: '/eventos',        icon: 'eventos',  label: 'Eventos' },
-    { to: '/caja',           icon: 'vender',   label: 'Vender'  },
     { to: '/escaner',        icon: 'escanear', label: 'Escaner' },
     { to: '/admin/reportes', icon: 'reportes', label: 'Reportes'},
     { to: '/mas',            icon: 'mas',      label: 'Mas'     },

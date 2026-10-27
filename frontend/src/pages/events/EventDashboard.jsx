@@ -38,6 +38,14 @@ const ICONS = {
 const EventDashboard = () => {
   const { id } = useParams();
   const { user } = useAuth();
+
+  // A donde va "Generar entradas". /caja es admin y dueño; el jefe y el
+  // vendedor tienen su propia pantalla. Antes apuntaba a /caja para todos,
+  // asi que un jefe que entraba a un evento y apretaba el boton se comia un
+  // 403 — su unico camino real era la pestaña "Vender" de abajo.
+  const rutaGenerar = ['jefe_publicas', 'vendedor'].includes(user?.role)
+    ? `/promotor/vender?event=${id}`
+    : `/caja?event=${id}`;
   const navigate = useNavigate();
   const confirm = useConfirm();
   const [event, setEvent]   = useState(null);
@@ -423,7 +431,7 @@ const EventDashboard = () => {
 
             {/* Primary CTA - Generate tickets */}
             <Link
-              to={`/caja?event=${id}`}
+              to={rutaGenerar}
               style={{
                 display: 'block',
                 background: 'linear-gradient(135deg, #111827 0%, #1a1f2e 100%)',
