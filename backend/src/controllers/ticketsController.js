@@ -5,6 +5,7 @@ const db = require('../config/database');
 const { checkSaleWindow } = require('../utils/saleWindow');
 const { eventoOperable } = require('../utils/eventStatus');
 const { userCanAccessEvent } = require('../utils/scope');
+const { puedeEmitirTipo } = require('../utils/nivelTipoEntrada');
 const { normalizeCity } = require('../utils/normalize');
 const { logAudit } = require('../utils/auditLog');
 const { sendPush } = require('./pushController');
@@ -53,6 +54,14 @@ const create = async (req, res) => {
 
   const window = await checkSaleWindow(event_id);
   if (!window.ok) return res.status(window.status).json({ error: window.message });
+
+  // Nivel y lista de habilitados del tipo de entrada. Este camino NO lo
+  // chequeaba: solo lo hacian pre-sell y la compra publica, asi que un
+  // vendedor podia emitir desde aca un tipo que no tenia habilitado.
+  {
+    const permiso = await puedeEmitirTipo(req.user, ticket_type_id);
+    if (!permiso.ok) return res.status(403).json({ error: permiso.error });
+  }
 
   try {
     const ticketId = uuidv4();
@@ -176,19 +185,9 @@ const preSell = async (req, res) => {
   // autorizados y el jefe/vendedor NO esta en ella, rechazamos. Lista vacia =
   // abierto a todos. Mismo criterio que createPublicTicket: evita que un
   // vendedor reserve tipos para los que el dueño no lo habilito.
-  if (['jefe_publicas', 'vendedor'].includes(req.user.role)) {
-    const restR = await db.query(
-      'SELECT 1 FROM ticket_type_sellers WHERE ticket_type_id = ? LIMIT 1',
-      [ticket_type_id]
-    );
-    if (restR.rows.length > 0) {
-      const allowR = await db.query(
-        'SELECT 1 FROM ticket_type_sellers WHERE ticket_type_id = ? AND user_id = ? LIMIT 1',
-        [ticket_type_id, req.user.id]
-      );
-      if (!allowR.rows[0])
-        return res.status(403).json({ error: 'Este tipo de entrada no está habilitado para vos.' });
-    }
+  {
+    const permiso = await puedeEmitirTipo(req.user, ticket_type_id);
+    if (!permiso.ok) return res.status(403).json({ error: permiso.error });
   }
 
   const VALID_METHODS = ['efectivo', 'transferencia'];

@@ -10,7 +10,7 @@ import { share } from '../../lib/share';
 import { porcentaje, anchoBarra } from '../../lib/percent';
 import toast from 'react-hot-toast';
 
-const emptyForm = { name: '', price: '', total_quota: '' };
+const emptyForm = { name: '', price: '', total_quota: '', min_role: 'vendedor' };
 const FRONTEND = window.location.origin;
 
 const EventTicketTypes = () => {
@@ -175,7 +175,7 @@ const EventTicketTypes = () => {
 
   const openNew = () => { setEditId(null); setForm(emptyForm); setShowForm(true); };
   // En edit, precargo name y price (editables) y dejo total_quota vacio (es "cuanto agregar")
-  const openEdit = (tt) => { setEditId(tt.id); setOrigType(tt); setForm({ name: tt.name, price: String(tt.price), total_quota: '' }); setShowForm(true); };
+  const openEdit = (tt) => { setEditId(tt.id); setOrigType(tt); setForm({ name: tt.name, price: String(tt.price), total_quota: '', min_role: tt.min_role || 'vendedor' }); setShowForm(true); };
   const cancel = () => { setShowForm(false); setEditId(null); setOrigType(null); setForm(emptyForm); };
 
   // El boton atras del celular cierra el formulario en vez de sacarte de la
@@ -192,6 +192,7 @@ const EventTicketTypes = () => {
         if (form.name && form.name.trim() !== origType?.name) body.name = form.name.trim();
         if (form.price && parseFloat(form.price) !== parseFloat(origType?.price)) body.price = parseFloat(form.price);
         if (form.total_quota && parseInt(form.total_quota) > 0) body.add_quota = parseInt(form.total_quota);
+        if (form.min_role && form.min_role !== (origType?.min_role || 'vendedor')) body.min_role = form.min_role;
         if (Object.keys(body).length === 0) {
           toast.error('No cambiaste nada');
           setSaving(false);
@@ -202,9 +203,10 @@ const EventTicketTypes = () => {
         if (body.name) msgs.push(`nombre`);
         if (body.price !== undefined) msgs.push(`precio`);
         if (body.add_quota) msgs.push(`+${body.add_quota} entradas`);
+        if (body.min_role) msgs.push('quién la genera');
         toast.success(`Actualizado: ${msgs.join(', ')}`);
       } else {
-        await api.post(`/events/${id}/ticket-types`, { name: form.name, price: parseFloat(form.price), total_quota: parseInt(form.total_quota) });
+        await api.post(`/events/${id}/ticket-types`, { name: form.name, price: parseFloat(form.price), total_quota: parseInt(form.total_quota), min_role: form.min_role });
         toast.success('Tanda agregada');
       }
       cancel();
@@ -289,6 +291,20 @@ const EventTicketTypes = () => {
                 value={form.total_quota} onChange={e => setForm(f => ({ ...f, total_quota: e.target.value }))} />
               {editId && <p className="text-xs text-gray-500 mt-1">Si lo dejás vacío, no agrega entradas al cupo actual ({origType?.total_quota}).</p>}
             </div>
+
+            <div>
+              <label className="text-sm text-gray-400 block mb-1">Quién puede generarla</label>
+              <select className="input" value={form.min_role}
+                      onChange={e => setForm(f => ({ ...f, min_role: e.target.value }))}>
+                <option value="vendedor">Todos — vendedores, jefes y dueño</option>
+                <option value="jefe_publicas">Jefes de públicas y dueño</option>
+                <option value="owner">Solo el dueño</option>
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                Cada uno genera su nivel y los de abajo, nunca los de arriba. Los que
+                no la pueden generar tampoco la ven.
+              </p>
+            </div>
             <div className="flex gap-3">
               <button type="submit" disabled={saving} className="btn-primary flex-1">
                 {saving ? 'Guardando...' : editId ? 'Guardar cambios' : 'Crear tanda'}
@@ -320,6 +336,14 @@ const EventTicketTypes = () => {
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${tt.is_active ? 'bg-emerald-900/60 text-emerald-400' : 'bg-gray-700 text-gray-400'}`}>
                         {tt.is_active ? 'Activa' : 'Inactiva'}
                       </span>
+                      {/* Solo mostramos el nivel cuando NO es el default
+                          abierto: si dice algo, es porque esta restringida. */}
+                      {tt.min_role && tt.min_role !== 'vendedor' && (
+                        <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+                              style={{ background: '#2B261D', color: '#D4B475', border: '1px solid #42392A' }}>
+                          {tt.min_role === 'owner' ? 'Solo el dueño' : 'Jefes y dueño'}
+                        </span>
+                      )}
                     </div>
                     <p className="text-lg font-bold text-brand mt-1">{fmt(tt.price)}</p>
                     <p className="text-xs text-gray-400 mt-1">

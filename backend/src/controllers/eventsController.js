@@ -1,5 +1,6 @@
 const { v4: uuidv4 } = require('uuid');
 const db = require('../config/database');
+const { alcanzaNivel, normalizarNivel, NIVELES } = require('../utils/nivelTipoEntrada');
 const { adminCanAccessEvent, resolveOwnerScopeForUser } = require('../utils/scope');
 const { logAudit } = require('../utils/auditLog');
 const { sendPush } = require('./pushController');
@@ -151,7 +152,34 @@ const getOne = async (req, res) => {
        FROM ticket_types WHERE event_id = ? AND is_active = 1`, [id]
     );
 
-    res.json({ ...eventResult.rows[0], ticket_types: typesResult.rows });
+    // Filtro por permisos. Este es el endpoint que usan de verdad el jefe y
+    // el vendedor para ver los tipos (el de /ticket-types es admin/owner),
+    // asi que el filtro tiene que estar ACA. Antes salian todos: el vendedor
+    // veia tipos que despues no podia emitir y recibia un 403 sin entender
+    // por que.
+    let tipos = typesResult.rows;
+    if (['jefe_publicas', 'vendedor'].includes(req.user?.role)) {
+      // 1) Nivel minimo del tipo.
+      tipos = tipos.filter(t => alcanzaNivel(req.user.role, t.min_role));
+      // 2) Lista de personas habilitadas: si el tipo tiene alguna, solo
+      //    pasan los que estan en ella.
+      if (tipos.length > 0) {
+        const ids = tipos.map(t => t.id);
+        const ph  = ids.map(() => '?').join(',');
+        const conLista = await db.query(
+          `SELECT DISTINCT ticket_type_id FROM ticket_type_sellers WHERE ticket_type_id IN (${ph})`, ids
+        );
+        const restringidos = new Set(conLista.rows.map(r => r.ticket_type_id));
+        const mios = await db.query(
+          `SELECT DISTINCT ticket_type_id FROM ticket_type_sellers
+            WHERE user_id = ? AND ticket_type_id IN (${ph})`, [req.user.id, ...ids]
+        );
+        const habilitados = new Set(mios.rows.map(r => r.ticket_type_id));
+        tipos = tipos.filter(t => !restringidos.has(t.id) || habilitados.has(t.id));
+      }
+    }
+
+    res.json({ ...eventResult.rows[0], ticket_types: tipos });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Error al obtener evento' });
@@ -388,6 +416,12 @@ const getTicketTypes = async (req, res) => {
     // tiene filas, queda abierto a todos (default). El admin/owner ven
     // todos los tipos sin filtro.
     if (['jefe_publicas', 'vendedor'].includes(req.user?.role) && rows.length > 0) {
+      // Nivel minimo: un vendedor no ve los tipos marcados "jefe" ni
+      // "dueño". Va antes que la lista de personas: si el nivel no alcanza,
+      // no importa que este en la lista.
+      rows = rows.filter(r => alcanzaNivel(req.user.role, r.min_role));
+      if (rows.length === 0) return res.json(rows);
+
       const ids = rows.map(r => r.id);
       const placeholders = ids.map(() => '?').join(',');
       // Cuales tipos tienen restriccion (algun seller registrado)
@@ -502,7 +536,7 @@ const setTicketTypeSellers = async (req, res) => {
 // POST /api/events/:id/ticket-types
 const addTicketType = async (req, res) => {
   if (!await guardEventAccess(req, res, req.params.id)) return;
-  const { name, price, total_quota } = req.body;
+  const { name, price, total_quota, min_role } = req.body;
   if (!name || price == null || !total_quota)
     return res.status(400).json({ error: 'name, price y total_quota son requeridos' });
   // Validar que price y total_quota sean numericos; sino devuelve 400 limpio
@@ -515,9 +549,12 @@ const addTicketType = async (req, res) => {
     return res.status(400).json({ error: 'El cupo debe ser un entero mayor que 0' });
   try {
     const id = uuidv4();
+    // min_role: quien puede generar este tipo. Lo normalizamos en vez de
+    // rechazar un valor raro — si llega cualquier cosa queda 'vendedor',
+    // que es el default abierto y el comportamiento de siempre.
     await db.query(
-      'INSERT INTO ticket_types (id, event_id, name, price, total_quota) VALUES (?,?,?,?,?)',
-      [id, req.params.id, name, priceNum, quotaNum]
+      'INSERT INTO ticket_types (id, event_id, name, price, total_quota, min_role) VALUES (?,?,?,?,?,?)',
+      [id, req.params.id, name, priceNum, quotaNum, normalizarNivel(min_role)]
     );
     const result = await db.query(
       'SELECT *, (total_quota - sold_count) AS available FROM ticket_types WHERE id = ?', [id]
@@ -531,7 +568,7 @@ const addTicketType = async (req, res) => {
 // PUT /api/events/:id/ticket-types/:ttId
 const updateTicketType = async (req, res) => {
   if (!await guardEventAccess(req, res, req.params.id)) return;
-  const { add_quota, name, price } = req.body;
+  const { add_quota, name, price, min_role } = req.body;
   try {
     const cur = (await db.query(
       'SELECT * FROM ticket_types WHERE id = ? AND event_id = ?',
@@ -559,6 +596,12 @@ const updateTicketType = async (req, res) => {
         return res.status(400).json({ error: 'El precio debe ser un numero mayor o igual a 0' });
       updates.push('price = ?');
       params.push(p);
+    }
+    if (min_role !== undefined && min_role !== null && min_role !== '') {
+      if (!NIVELES.includes(min_role))
+        return res.status(400).json({ error: `min_role debe ser uno de: ${NIVELES.join(', ')}` });
+      updates.push('min_role = ?');
+      params.push(min_role);
     }
     if (updates.length === 0)
       return res.status(400).json({ error: 'Nada para actualizar (envia add_quota, name o price)' });

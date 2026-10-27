@@ -373,6 +373,10 @@ async function runMigrations(queryFn, execFn) {
     // Reset de contraseña: token random + expiracion. Se invalida tras un uso.
     'ALTER TABLE users ADD COLUMN reset_token TEXT',
     'ALTER TABLE users ADD COLUMN reset_token_expires DATETIME',
+    // Nivel minimo para generar un tipo de entrada: 'vendedor' (todos),
+    // 'jefe_publicas' o 'owner'. Default 'vendedor' = como se comportaba
+    // antes, asi que los tipos ya cargados no cambian.
+    "ALTER TABLE ticket_types ADD COLUMN min_role TEXT DEFAULT 'vendedor'",
   ];
   for (const sql of incrementals) {
     await tryMigrate(sql.slice(0, 60), sql);

@@ -1315,6 +1315,71 @@ const dni = (n) => String(30000000 + n);
           `puerta=${perdio.data?.ticket?.puerta}`);
   }
 
+  // ---------- Nivel minimo por tipo de entrada ----------
+  // Cada tipo dice quien lo puede generar. Cada rol genera SU nivel y los de
+  // abajo, nunca los de arriba. Y lo que no puede generar, tampoco lo ve.
+  {
+    // El vendedor de los bloques de arriba no deja su token en una variable
+    // compartida, asi que creamos uno propio. El dueño puede crear
+    // vendedores directo, sin pasar por un jefe.
+    const mailV = `nivVend_${Date.now()}@t.com`;
+    await req('POST', '/users', { token: ownerTok, body: {
+      name: 'NivVend', apellido: 'T', email: mailV, password: 'password123', role: 'vendedor' } });
+    const lv1 = await req('POST', '/auth/login', { body: { email: mailV, password: 'password123' } });
+    await sleep(1100);
+    await req('POST', '/auth/change-password', { token: lv1.data?.token, body: { newPassword: 'claveNueva1' } });
+    const vendTok = (await req('POST', '/auth/login', { body: { email: mailV, password: 'claveNueva1' } })).data?.token;
+
+    const evN = await req('POST', '/events', { token: ownerTok, body: {
+      name: 'Evento niveles', date: new Date().toISOString().slice(0, 10), start_time: '23:00',
+      sale_start_at: fechaLocal(-864e5), sale_end_at: fechaLocal(+864e5) } });
+    const mkTT = async (nombre, nivel) => (await req('POST', `/events/${evN.data?.id}/ticket-types`,
+      { token: ownerTok, body: { name: nombre, price: 1000, total_quota: 300, min_role: nivel } })).data;
+    const tDue = await mkTT('Palco',   'owner');
+    const tJef = await mkTT('VIP',     'jefe_publicas');
+    const tVen = await mkTT('General', 'vendedor');
+
+    check('el nivel se guarda como se mando',
+          tDue?.min_role === 'owner' && tJef?.min_role === 'jefe_publicas' && tVen?.min_role === 'vendedor',
+          [tDue?.min_role, tJef?.min_role, tVen?.min_role].join(','));
+
+    // Lo que ve cada uno
+    const ve = async (tok) => {
+      const e = await req('GET', `/events/${evN.data?.id}`, { token: tok });
+      return (e.data?.ticket_types || []).map(t => t.name).sort().join(',');
+    };
+    check('el dueño ve los tres tipos',      (await ve(ownerTok)) === 'General,Palco,VIP', await ve(ownerTok));
+    check('el jefe NO ve el de dueño',       (await ve(jefeTok))  === 'General,VIP',       await ve(jefeTok));
+    check('el vendedor solo ve el suyo',     (await ve(vendTok))  === 'General',           await ve(vendTok));
+
+    // Quien puede generar: pre-sell admite los tres roles
+    const gen = async (tok, tt) => (await req('POST', '/tickets/pre-sell', { token: tok, body: {
+      event_id: evN.data?.id, ticket_type_id: tt?.id, payment_method: 'efectivo', qty: 1 } })).status;
+
+    check('tipo de dueño: lo genera el dueño',        (await gen(ownerTok, tDue)) === 201);
+    check('tipo de dueño: el jefe NO',                (await gen(jefeTok,  tDue)) === 403);
+    check('tipo de dueño: el vendedor NO',            (await gen(vendTok,  tDue)) === 403);
+
+    check('tipo de jefe: lo genera el dueño',         (await gen(ownerTok, tJef)) === 201);
+    check('tipo de jefe: lo genera el jefe',          (await gen(jefeTok,  tJef)) === 201);
+    check('tipo de jefe: el vendedor NO',             (await gen(vendTok,  tJef)) === 403);
+
+    check('tipo de vendedor: lo generan los tres',
+          (await gen(ownerTok, tVen)) === 201 && (await gen(jefeTok, tVen)) === 201 && (await gen(vendTok, tVen)) === 201);
+
+    // La venta manual tampoco se puede saltear el nivel (antes no chequeaba)
+    const manual = await req('POST', '/tickets', { token: vendTok, body: {
+      event_id: evN.data?.id, ticket_type_id: tDue?.id, buyer_name: 'X', buyer_apellido: 'Y',
+      buyer_dni: '30888111', payment_method: 'efectivo' } });
+    check('la venta manual no saltea el nivel', manual.status === 403, `HTTP ${manual.status}`);
+
+    // Los tipos ya existentes (sin nivel) siguen abiertos a todos
+    const tViejo = await mkTT('Sin nivel', undefined);
+    check('un tipo sin nivel queda abierto a todos',
+          tViejo?.min_role === 'vendedor' && (await gen(vendTok, tViejo)) === 201,
+          `min_role=${tViejo?.min_role}`);
+  }
+
   // ---------- Push ----------
   {
     const pk = await req('GET', '/push/public-key');
